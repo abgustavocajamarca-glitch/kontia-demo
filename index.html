@@ -2929,6 +2929,9 @@ const copiaDeLaSemilla = () => ({
   productos: SEMILLA.productos.map((p) => ({ ...p, empresaId: EMPRESA_SEMILLA, semilla: true })),
   comprobantes: SEMILLA.comprobantes.map((c) => ({ ...c, empresaId: EMPRESA_SEMILLA, semilla: true })),
   puntos: SEMILLA.puntos.map((p) => ({ ...p, empresaId: EMPRESA_SEMILLA })),
+  // Las compras no se siembran: entran por el buzon, y lo que se quiere
+  // ensenar es justamente ese recorrido —soltar el XML y verlo registrado—.
+  compras: [],
 });
 
 function leer() {
@@ -2949,6 +2952,13 @@ function leer() {
 }
 
 let datos = leer();
+
+// Una coleccion nueva no existe en lo que guardo una version anterior. Sin
+// esto, quien ya tenia datos en el navegador abriria el buzon y le explotaria
+// en la cara por un `undefined`.
+for (const coleccion of ['clientes', 'productos', 'comprobantes', 'puntos', 'compras']) {
+  if (!Array.isArray(datos[coleccion])) datos[coleccion] = [];
+}
 
 function persistir() {
   try {
@@ -3099,6 +3109,10 @@ const cargar = {
   comprobante: (numero) =>
     esperar(deLaActiva(datos.comprobantes).find((c) => c.numero === numero) ?? null),
 
+  /** Las compras registradas, la mas reciente primero. */
+  compras: () => esperar(
+    deLaActiva(datos.compras).slice().sort((a, b) => new Date(b.fecha) - new Date(a.fecha))),
+
   /**
    * Las cifras del tablero.
    *
@@ -3193,6 +3207,42 @@ function siguienteSecuencial(punto) {
 }
 
 const guardar = {
+  /**
+   * Registra un lote de compras leidas de sus XML.
+   *
+   * DOS DEFENSAS QUE NO SON ADORNO. La clave de acceso tiene que estar
+   * completa: es lo unico que identifica a un comprobante en todo el Ecuador y
+   * sin ella no hay forma de saber si esta repetido. Y lo repetido no se
+   * guarda: registrar dos veces la misma factura de compra infla el gasto y el
+   * credito tributario, que es exactamente lo que el SRI encuentra en una
+   * revision.
+   *
+   * Devuelve cuantas entraron de verdad.
+   */
+  async compras(lote) {
+    const yaEstan = new Set(deLaActiva(datos.compras).map((c) => c.clave));
+    const nuevas = [];
+
+    for (const c of lote ?? []) {
+      const clave = String(c.clave ?? '');
+      if (!/^[0-9]{49}$/.test(clave)) {
+        fallo('Una compra sin clave de acceso de 49 digitos no se puede registrar.');
+      }
+      if (yaEstan.has(clave)) continue;
+      yaEstan.add(clave);
+      nuevas.push({
+        ...c,
+        id: 'c' + clave.slice(-12),
+        empresaId: datos.activa,
+        registrada: new Date(),
+      });
+    }
+
+    datos.compras = [...datos.compras, ...nuevas];
+    persistir();
+    return esperar(nuevas.length);
+  },
+
   /**
    * Da de alta una empresa.
    *
@@ -3461,10 +3511,12 @@ const CUENTAS = [
   { codigo: '52', nombre: 'GASTOS', tipo: 'TOTAL', naturaleza: 'DEUDORA' },
   { codigo: '520101', nombre: 'Sueldos, salarios y demás remuneraciones', tipo: 'DETALLE', naturaleza: 'DEUDORA' },
   { codigo: '520102', nombre: 'Aportes a la seguridad social (incluido fondo de reserva)', tipo: 'DETALLE', naturaleza: 'DEUDORA' },
+  { codigo: '520105', nombre: 'Honorarios, comisiones y dietas a personas naturales', tipo: 'DETALLE', naturaleza: 'DEUDORA' },
   { codigo: '520108', nombre: 'Mantenimiento y reparaciones', tipo: 'DETALLE', naturaleza: 'DEUDORA' },
   { codigo: '520109', nombre: 'Arrendamiento operativo', tipo: 'DETALLE', naturaleza: 'DEUDORA' },
   { codigo: '520111', nombre: 'Promoción y publicidad', tipo: 'DETALLE', naturaleza: 'DEUDORA' },
   { codigo: '520112', nombre: 'Combustibles', tipo: 'DETALLE', naturaleza: 'DEUDORA' },
+  { codigo: '520115', nombre: 'Transporte', tipo: 'DETALLE', naturaleza: 'DEUDORA' },
   { codigo: '520118', nombre: 'Agua, energía, luz y telecomunicaciones', tipo: 'DETALLE', naturaleza: 'DEUDORA' },
   { codigo: '520121', nombre: 'Depreciaciones · propiedades, planta y equipo', tipo: 'DETALLE', naturaleza: 'DEUDORA' },
 ];
@@ -3631,12 +3683,14 @@ const MANUALES = [
  * autorizadas con la regla R1. Una factura devuelta por el SRI no entra —no
  * existe para el fisco, así que tampoco para los libros— y un borrador tampoco.
  */
-function construirDiario() {
-  const deVentas = COMPROBANTES
-    .filter((c) => c.estado === 'AUTORIZADO')
-    .map(asientoDeFactura);
+const DE_VENTAS = COMPROBANTES
+  .filter((c) => c.estado === 'AUTORIZADO')
+  .map(asientoDeFactura);
 
-  return [...MANUALES, ...deVentas]
+/** Ordena por fecha y numera. El numero de asiento sale del orden, no al reves. */
+function numerar(asientos) {
+  return asientos
+    .slice()
     .sort((a, b) => new Date(a.fecha) - new Date(b.fecha))
     .map((a, i) => ({
       ...a,
@@ -3644,6 +3698,79 @@ function construirDiario() {
       debe: a.lineas.reduce((s, l) => s + l.debe, 0),
       haber: a.lineas.reduce((s, l) => s + l.haber, 0),
     }));
+}
+
+function construirDiario() {
+  return numerar([...MANUALES, ...DE_VENTAS]);
+}
+
+/**
+ * El asiento de un comprobante recibido. Regla R5 del documento de reglas.
+ *
+ * DOS CASOS, PORQUE NO TODO LO QUE LLEGA ES UNA COMPRA. Una factura de
+ * proveedor es un gasto o un inventario, con su IVA como credito tributario y
+ * su total por pagar. Un comprobante de retencion es otra cosa distinta: es un
+ * cliente que retuvo al pagarnos, asi que no aumenta nada por pagar — reduce lo
+ * que nos deben y nos deja un credito tributario de impuesto a la renta. Es la
+ * regla R3, y meterla en el mismo molde que una compra descuadraria la cartera.
+ */
+function asientoDeCompra(c) {
+  const nombre = c.proveedorNombre || c.proveedorRuc;
+
+  if (c.tipo === '07') {
+    const retenido = Number(c.retenido ?? c.total ?? 0);
+    return {
+      numero: null,
+      fecha: c.fecha,
+      tipo: 'RETENCION',
+      origen: c.numero,
+      glosa: `Retención ${c.numero} que le practicó ${nombre}`,
+      lineas: [
+        { cuenta: '1010502', debe: retenido, haber: 0,
+          detalle: 'Crédito tributario · impuesto a la renta' },
+        { cuenta: '101020502', debe: 0, haber: retenido,
+          detalle: `${nombre} · retenido al pagar` },
+      ],
+      generado: true,
+    };
+  }
+
+  const base = Number(c.sinImpuestos ?? 0);
+  const iva = Number(c.iva ?? 0);
+  const total = Number(c.total ?? base + iva);
+
+  const lineas = [
+    { cuenta: c.cuenta || '510102', debe: base, haber: 0,
+      detalle: `${nombre} · ${c.tipoNombre ?? 'Compra'} ${c.numero ?? ''}`.trim() },
+  ];
+  if (iva > 0) {
+    lineas.push({ cuenta: '1010501', debe: iva, haber: 0,
+      detalle: 'IVA en compras · crédito tributario' });
+  }
+  lineas.push({ cuenta: '2010301', debe: 0, haber: total, detalle: `Por pagar a ${nombre}` });
+
+  return {
+    numero: null,
+    fecha: c.fecha,
+    tipo: 'COMPRA',
+    origen: c.numero,
+    glosa: `${c.tipoNombre ?? 'Compra'} ${c.numero ?? ''} de ${nombre}`.replace(/\s+/g, ' ').trim(),
+    lineas,
+    generado: true,
+  };
+}
+
+/**
+ * El diario, con las compras que haya registrado el buzon.
+ *
+ * Las compras llegan como argumento y no se leen aqui dentro a proposito: este
+ * modulo calcula y no sabe donde viven los datos. Las pantallas, que si lo
+ * saben, las piden al almacen y las pasan. El dia que los datos vengan de
+ * Supabase, este archivo no cambia.
+ */
+function diarioCon(compras = []) {
+  const deCompras = (compras ?? []).map(asientoDeCompra);
+  return numerar([...MANUALES, ...DE_VENTAS, ...deCompras]);
 }
 
 const DIARIO = construirDiario();
@@ -3896,7 +4023,7 @@ function formulario104(saldos = balanceDeComprobacion()) {
 }
 
 
-  return { CUENTAS, cuenta, nombreCuenta, asientoDeFactura, DIARIO, balanceDeComprobacion, mayorDe, CARTERA_COBRAR, PROVEEDORES, CARTERA_PAGAR, BANCOS, INVENTARIO, EMPLEADOS, ACTIVOS_FIJOS, SUSCRIPCIONES, USO_MENSUAL, SOPORTE, RETENCIONES, NOTAS_CREDITO, GUIAS_REMISION, formulario104 };
+  return { CUENTAS, cuenta, nombreCuenta, asientoDeFactura, asientoDeCompra, diarioCon, DIARIO, balanceDeComprobacion, mayorDe, CARTERA_COBRAR, PROVEEDORES, CARTERA_PAGAR, BANCOS, INVENTARIO, EMPLEADOS, ACTIVOS_FIJOS, SUSCRIPCIONES, USO_MENSUAL, SOPORTE, RETENCIONES, NOTAS_CREDITO, GUIAS_REMISION, formulario104 };
 })();
 
 // ---- src/disposicion.js ------------------------------------------
@@ -3929,6 +4056,13 @@ const MENU_EMPRESA = [
     { ico: 'assignment_return', texto: 'Notas de crédito', ruta: '#/notas-credito' },
     { ico: 'local_shipping', texto: 'Guías de remisión', ruta: '#/guias' },
   ] },
+  // Las compras van en su propio grupo y encabezadas por el buzon, porque la
+  // idea entera es que nadie digite una factura de compra.
+  { grupo: 'Compras', enlaces: [
+    { ico: 'cloud_upload', texto: 'Buzón de comprobantes', ruta: '#/buzon' },
+    { ico: 'inventory', texto: 'Compras registradas', ruta: '#/compras' },
+    { ico: 'local_shipping', texto: 'Proveedores', ruta: '#/proveedores' },
+  ] },
   { grupo: 'Contabilidad', enlaces: [
     { ico: 'account_tree', texto: 'Plan de cuentas', ruta: '#/plan-cuentas' },
     { ico: 'menu_book', texto: 'Libro diario', ruta: '#/diario' },
@@ -3944,7 +4078,6 @@ const MENU_EMPRESA = [
   ] },
   { grupo: 'Operaciones', enlaces: [
     { ico: 'group', texto: 'Clientes', ruta: '#/clientes' },
-    { ico: 'local_shipping', texto: 'Proveedores', ruta: '#/proveedores' },
     { ico: 'inventory_2', texto: 'Productos', ruta: '#/productos' },
     { ico: 'warehouse', texto: 'Inventario', ruta: '#/inventario' },
     { ico: 'badge', texto: 'Nómina', ruta: '#/nomina' },
@@ -3953,13 +4086,23 @@ const MENU_EMPRESA = [
   { grupo: 'Impuestos', enlaces: [
     { ico: 'description', texto: 'Declaración de IVA', ruta: '#/iva' },
     { ico: 'folder_zip', texto: 'Anexo transaccional', ruta: '#/anexo' },
-    { ico: 'gavel', texto: 'Consulta legal', ruta: '#/consulta' },
   ] },
   { grupo: 'Sistema', enlaces: [
     { ico: 'storefront', texto: 'Puntos de emisión', ruta: '#/puntos-emision' },
     { ico: 'settings', texto: 'Configuración', ruta: '#/configuracion' },
     { ico: 'verified', texto: 'Certificado de firma', ruta: '#/certificado' },
     { ico: 'manage_accounts', texto: 'Usuarios', ruta: '#/usuarios' },
+  ] },
+  /*
+   * Lo que no es contabilidad, al final y aparte.
+   *
+   * La consulta legal estaba entre las operaciones de impuestos, como si
+   * preguntarle a un abogado fuera un paso del mes contable. No lo es: es un
+   * servicio que se presta junto al sistema, y va donde no estorbe a quien
+   * entro a facturar.
+   */
+  { grupo: 'Servicios externos', enlaces: [
+    { ico: 'gavel', texto: 'Consulta legal-tributaria', ruta: '#/consulta' },
   ] },
 ];
 
@@ -3971,6 +4114,7 @@ const MENU_ADMIN = [
   ] },
   { grupo: 'Control', enlaces: [
     { ico: 'support_agent', texto: 'Soporte', ruta: '#/admin/soporte' },
+    { ico: 'gavel', texto: 'Consultas legales', ruta: '#/admin/consultas' },
     { ico: 'verified_user', texto: 'Auditoría', ruta: '#/admin/auditoria' },
     { ico: 'shield_person', texto: 'Protección de datos', ruta: '#/admin/datos' },
   ] },
@@ -6569,8 +6713,8 @@ function conectarAlta() {
 const __src_vistas_contabilidad_js = (function () {
   const { html, crudo, esc, usd, dinero, icono, tabla, cabecera, aviso, boton, fecha, vacio, empresaEnBlanco } = __src_ui_js;
   const { barras } = __src_graficos_js;
-  const { CUENTAS, DIARIO, balanceDeComprobacion, mayorDe, nombreCuenta } = __src_datos_contables_js;
-  const { esLaDeEjemplo } = __src_almacen_js;
+  const { CUENTAS, diarioCon, balanceDeComprobacion, mayorDe, nombreCuenta } = __src_datos_contables_js;
+  const { esLaDeEjemplo, cargar } = __src_almacen_js;
 
 /**
  * Los libros: plan de cuentas, diario, mayor y balance de comprobación.
@@ -6676,6 +6820,9 @@ async function libroDiario() {
     })}`;
   }
 
+  // El diario incluye lo que entro por el buzon: las compras son asientos como
+  // cualquier otro y tienen que estar aqui, en su fecha y con su numero.
+  const DIARIO = diarioCon(await cargar.compras());
   const totalDebe = DIARIO.reduce((s, a) => s + a.debe, 0);
   const generados = DIARIO.filter((a) => a.generado).length;
 
@@ -6762,7 +6909,8 @@ async function libroMayor(codigo) {
     })}`;
   }
 
-  const conMovimiento = balanceDeComprobacion();
+  const libro = diarioCon(await cargar.compras());
+  const conMovimiento = balanceDeComprobacion(libro);
   const elegida = codigo && conMovimiento.some((c) => c.codigo === codigo)
     ? codigo : conMovimiento[0]?.codigo;
   if (!elegida) {
@@ -6771,7 +6919,7 @@ async function libroMayor(codigo) {
         texto: 'El libro mayor se llena solo conforme se registran asientos.' }))}</section>`;
   }
 
-  const movimientos = mayorDe(elegida);
+  const movimientos = mayorDe(elegida, libro);
   const saldoFinal = movimientos.length ? movimientos[movimientos.length - 1].saldo : 0;
 
   const cuerpo = movimientos.map((m) => html`
@@ -6849,7 +6997,7 @@ async function balanceComprobacion() {
     })}`;
   }
 
-  const filas = balanceDeComprobacion();
+  const filas = balanceDeComprobacion(diarioCon(await cargar.compras()));
   const centavos = (n) => Math.round(n * 100);
   const suma = (campo) => filas.reduce((s, f) => s + centavos(f[campo]), 0);
 
@@ -6964,8 +7112,8 @@ async function balanceComprobacion() {
 const __src_vistas_estados_js = (function () {
   const { html, crudo, esc, usd, dinero, icono, cabecera, aviso, boton, empresaEnBlanco } = __src_ui_js;
   const { dona, leyenda, barraCompuesta, VERDE, AMBAR } = __src_graficos_js;
-  const { balanceDeComprobacion } = __src_datos_contables_js;
-  const { esLaDeEjemplo } = __src_almacen_js;
+  const { balanceDeComprobacion, diarioCon } = __src_datos_contables_js;
+  const { esLaDeEjemplo, cargar } = __src_almacen_js;
 
 /**
  * Los dos estados financieros que pide la Superintendencia.
@@ -6987,8 +7135,7 @@ const __src_vistas_estados_js = (function () {
 const centavos = (n) => Math.round(n * 100);
 
 /** Agrupa los saldos por el grupo al que pertenece cada cuenta (1, 2, 3, 4, 5). */
-function agrupar() {
-  const filas = balanceDeComprobacion();
+function agrupar(filas) {
   const grupo = (codigo) => codigo[0];
   const neto = (f) => f.saldoDeudor - f.saldoAcreedor;
 
@@ -7051,7 +7198,7 @@ async function estadoResultados() {
     })}`;
   }
 
-  const por = agrupar();
+  const por = agrupar(balanceDeComprobacion(diarioCon(await cargar.compras())));
   const ingresos = totalDelGrupo(por['4'], 4);
   const costo = totalDelGrupo(por['5']?.filter((f) => f.codigo.startsWith('51')), 5);
   const gastos = totalDelGrupo(por['5']?.filter((f) => f.codigo.startsWith('52')), 5);
@@ -7170,7 +7317,7 @@ async function balanceGeneral() {
     })}`;
   }
 
-  const por = agrupar();
+  const por = agrupar(balanceDeComprobacion(diarioCon(await cargar.compras())));
   const activo = totalDelGrupo(por['1'], 1);
   const pasivo = totalDelGrupo(por['2'], 2);
 
@@ -8270,6 +8417,716 @@ async function proveedores() {
   return { proveedores };
 })();
 
+// ---- src/vistas/buzon.js -----------------------------------------
+const __src_vistas_buzon_js = (function () {
+  const { html, crudo, icono, usd, fecha, cabecera, boton, aviso, tabla, dejarRecado } = __src_ui_js;
+  const { cargar, guardar, empresaActiva } = __src_almacen_js;
+
+/**
+ * El buzón de comprobantes: se suelta el archivo y el sistema hace el resto.
+ *
+ * DE DÓNDE VIENE ESTA PANTALLA. Digitar facturas de compra es el trabajo más
+ * tonto de una contabilidad ecuatoriana, porque el dato ya viene estructurado:
+ * cada comprobante electrónico es un XML con el RUC del emisor, la fecha, las
+ * bases, el IVA y el total, firmado y autorizado por el SRI. Teclear eso a mano
+ * es copiar a mano un archivo que la máquina puede leer en un milisegundo —y
+ * equivocarse en un dígito.
+ *
+ * Así que aquí no se teclea: se suelta el archivo. El sistema lo abre, lo
+ * entiende, avisa si ya estaba registrado, avisa si no le pertenece a esta
+ * empresa, y propone el asiento.
+ *
+ * LO QUE NO PROPONE SOLO, Y NO ES UN DESCUIDO. Contra qué cuenta va el
+ * subtotal de una compra es criterio profesional, no cálculo: el catálogo
+ * oficial tiene más de cien cuentas de gasto y elegir es clasificar. Esta
+ * pantalla propone según el proveedor y **espera confirmación**. Es la opción
+ * (a) de la pregunta 6 de docs/contabilidad/reglas-de-asiento.md, que sigue
+ * pendiente de un contador colegiado. El IVA y la cuenta por pagar, en cambio,
+ * no admiten criterio: van siempre a `1010501` y `2010301`, y esos sí los pone
+ * el sistema.
+ *
+ * DE DÓNDE SACA LOS ARCHIVOS UNA EMPRESA. Del portal del SRI, en
+ * «Comprobantes electrónicos recibidos», que los entrega en lote; y del correo,
+ * porque todo proveedor manda el XML junto al PDF. Kontia no pide las claves
+ * del SRI de nadie para ir a buscarlos: eso sería pedir la llave de la casa
+ * para traer el periódico.
+ */
+
+
+
+
+// ===========================================================================
+//  El lector de XML
+// ===========================================================================
+
+/**
+ * Los seis tipos, por su código en la ficha técnica 2.34.
+ *
+ * `recibe` es la etiqueta donde cada tipo guarda a quién va dirigido, y no es
+ * la misma en todos: una factura tiene comprador, una retención tiene sujeto
+ * retenido, y una liquidación de compra la emite el comprador, así que ahí el
+ * otro es el proveedor.
+ */
+const TIPOS = {
+  '01': { nombre: 'Factura', recibe: ['identificacionComprador'], compra: true },
+  '03': { nombre: 'Liquidación de compra', recibe: ['identificacionProveedor'], compra: false },
+  '04': { nombre: 'Nota de crédito', recibe: ['identificacionComprador'], compra: true },
+  '05': { nombre: 'Nota de débito', recibe: ['identificacionComprador'], compra: true },
+  '06': { nombre: 'Guía de remisión', recibe: ['identificacionDestinatario'], compra: false },
+  '07': { nombre: 'Comprobante de retención',
+    recibe: ['identificacionSujetoRetenido'], compra: true },
+};
+
+/** El texto de la primera etiqueta con ese nombre, o cadena vacía. */
+function t(nodo, etiqueta) {
+  const e = nodo.getElementsByTagName(etiqueta)[0];
+  return e ? (e.textContent ?? '').trim() : '';
+}
+
+/** El primero de varios nombres posibles que traiga algo. */
+function alguno(nodo, etiquetas) {
+  for (const e of etiquetas) {
+    const v = t(nodo, e);
+    if (v) return v;
+  }
+  return '';
+}
+
+const numero = (v) => {
+  const n = Number(String(v).replace(',', '.'));
+  return Number.isFinite(n) ? n : 0;
+};
+
+/** «24/09/2026» a fecha de verdad. El SRI escribe día, mes y año en ese orden. */
+function fechaSri(texto) {
+  const m = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(String(texto).trim());
+  if (!m) return null;
+  return new Date(Number(m[3]), Number(m[2]) - 1, Number(m[1]));
+}
+
+/**
+ * Los códigos de porcentaje del IVA, tal como viajan en el XML.
+ *
+ * El 4 es el 15% vigente. El 2 es el 12% de antes, y hay que entenderlo igual:
+ * una empresa recibe hoy notas de crédito de facturas emitidas cuando la tarifa
+ * era otra, y un sistema que no las lea obliga a teclearlas a mano.
+ */
+const TARIFAS = {
+  0: { etiqueta: '0%', tarifa: 0 },
+  2: { etiqueta: '12%', tarifa: 12 },
+  3: { etiqueta: '14%', tarifa: 14 },
+  4: { etiqueta: '15%', tarifa: 15 },
+  5: { etiqueta: '5%', tarifa: 5 },
+  6: { etiqueta: 'No objeto', tarifa: 0 },
+  7: { etiqueta: 'Exento', tarifa: 0 },
+  8: { etiqueta: 'IVA diferenciado', tarifa: 0 },
+};
+
+/**
+ * Abre un XML del SRI y devuelve lo que dice, o por qué no se pudo.
+ *
+ * EL DETALLE QUE HACE QUE FUNCIONE CON ARCHIVOS DE VERDAD: lo que el SRI
+ * entrega no es el comprobante pelado, es la autorización —con su número, su
+ * fecha y su estado— y el comprobante metido dentro, en un CDATA. Un lector que
+ * no desenvuelva esa capa falla con todos los archivos reales y funciona solo
+ * con los de prueba. Se desenvuelve aquí.
+ */
+function leerXml(texto) {
+  let doc;
+  try {
+    doc = new DOMParser().parseFromString(texto, 'text/xml');
+  } catch {
+    return { error: 'No es un XML que se pueda abrir.' };
+  }
+  if (!doc || doc.getElementsByTagName('parsererror').length) {
+    return { error: 'El archivo está dañado o no es un XML.' };
+  }
+
+  let raiz = doc.documentElement;
+  let autorizacion = null;
+
+  if (raiz && raiz.nodeName === 'autorizacion') {
+    autorizacion = {
+      estado: t(raiz, 'estado'),
+      numero: t(raiz, 'numeroAutorizacion'),
+      fecha: t(raiz, 'fechaAutorizacion'),
+    };
+    const dentro = t(raiz, 'comprobante');
+    if (!dentro) return { error: 'La autorización viene sin el comprobante dentro.' };
+    const dos = new DOMParser().parseFromString(dentro, 'text/xml');
+    if (!dos || dos.getElementsByTagName('parsererror').length) {
+      return { error: 'El comprobante que va dentro de la autorización está dañado.' };
+    }
+    raiz = dos.documentElement;
+  }
+
+  const codigo = t(raiz, 'codDoc');
+  const tipo = TIPOS[codigo];
+  if (!tipo) {
+    return { error: `No reconozco el tipo de comprobante (codDoc «${codigo || '?'}»).` };
+  }
+
+  const clave = t(raiz, 'claveAcceso');
+  if (!/^\d{49}$/.test(clave)) {
+    return { error: 'No tiene una clave de acceso de 49 dígitos. Sin ella no se puede registrar.' };
+  }
+
+  // Las bases y el IVA, tarifa por tarifa. Se recorre `totalImpuesto` porque
+  // una factura puede traer varias —parte con IVA y parte sin él—, que es lo
+  // normal en el agro: el insumo grava y el producto primario no.
+  const bases = {};
+  let iva = 0;
+  for (const nodo of raiz.getElementsByTagName('totalImpuesto')) {
+    if (t(nodo, 'codigo') !== '2') continue;          // 2 es IVA
+    const cp = Number(t(nodo, 'codigoPorcentaje'));
+    const etiqueta = (TARIFAS[cp] ?? { etiqueta: `código ${cp}` }).etiqueta;
+    bases[etiqueta] = (bases[etiqueta] ?? 0) + numero(t(nodo, 'baseImponible'));
+    iva += numero(t(nodo, 'valor'));
+  }
+
+  // Lo retenido, si es un comprobante de retención.
+  let retenido = 0;
+  for (const nodo of raiz.getElementsByTagName('impuesto')) {
+    const v = t(nodo, 'valorRetenido');
+    if (v) retenido += numero(v);
+  }
+
+  const sinImpuestos = numero(t(raiz, 'totalSinImpuestos'));
+  const total = numero(t(raiz, 'importeTotal')) || (sinImpuestos + iva);
+
+  return {
+    codigo,
+    tipoNombre: tipo.nombre,
+    esCompraPorNaturaleza: tipo.compra,
+    clave,
+    autorizacion,
+    emisorRuc: t(raiz, 'ruc'),
+    emisorNombre: t(raiz, 'razonSocial') || t(raiz, 'nombreComercial'),
+    recibeId: alguno(raiz, tipo.recibe),
+    numeroDoc: [t(raiz, 'estab'), t(raiz, 'ptoEmi'), t(raiz, 'secuencial')]
+      .filter(Boolean).join('-'),
+    fecha: fechaSri(t(raiz, 'fechaEmision')),
+    bases,
+    sinImpuestos,
+    iva,
+    retenido,
+    total: retenido || total,
+  };
+}
+
+// ===========================================================================
+//  La cuenta que se propone
+// ===========================================================================
+
+/**
+ * Las cuentas que el buzón sabe proponer.
+ *
+ * Todas existen en el catálogo de la Superintendencia de Compañías y todas son
+ * de DETALLE —comprobado por scripts/verificar-reglas-contables.py—, porque
+ * una cuenta TOTAL no admite movimientos y presentar estados financieros con
+ * saldos en una de ellas hace que se rechacen.
+ */
+const CUENTAS_DE_COMPRA = [
+  { codigo: '510102', nombre: 'Compras netas locales de bienes (mercadería)' },
+  { codigo: '520105', nombre: 'Honorarios, comisiones y dietas a personas naturales' },
+  { codigo: '520108', nombre: 'Mantenimiento y reparaciones' },
+  { codigo: '520109', nombre: 'Arrendamiento operativo' },
+  { codigo: '520111', nombre: 'Promoción y publicidad' },
+  { codigo: '520112', nombre: 'Combustibles' },
+  { codigo: '520115', nombre: 'Transporte' },
+  { codigo: '520118', nombre: 'Agua, energía, luz y telecomunicaciones' },
+];
+
+/**
+ * Propone una cuenta mirando el nombre del proveedor.
+ *
+ * Es una ayuda, no un dictamen: acierta con la gasolinera y con la eléctrica, y
+ * se queda en mercadería cuando no reconoce nada. Por eso la pantalla pide
+ * confirmar. Cuando el contador conteste la pregunta 6, esto se sustituye por
+ * lo que él diga, y además se recordará por proveedor: la primera compra a cada
+ * uno se clasifica una vez y las siguientes van solas.
+ */
+function proponerCuenta(nombreProveedor) {
+  const n = String(nombreProveedor ?? '').toLowerCase();
+  const reglas = [
+    [/combustib|gasolin|petr[oó]l|primax|terpel|lubric/, '520112'],
+    [/el[eé]ctric|energ[íi]a|cnel|agua|telecomunic|claro|movistar|\bcnt\b|internet/, '520118'],
+    [/transport|flete|carga|log[íi]stic|courier/, '520115'],
+    [/honorari|asesor|consultor|abogad|contad|auditor|estudio jur/, '520105'],
+    [/arriend|alquil|arrendamiento|inmobiliar/, '520109'],
+    [/manteni|repuest|taller|mec[aá]nic|ferreter/, '520108'],
+    [/public|imprenta|rotulac|marketing|radio|prensa/, '520111'],
+  ];
+  for (const [patron, cuenta] of reglas) if (patron.test(n)) return cuenta;
+  return '510102';
+}
+
+// ===========================================================================
+//  El lote que está sobre la mesa
+// ===========================================================================
+
+/**
+ * Lo que se acaba de soltar, todavía sin registrar.
+ *
+ * Vive en el módulo y no en el almacén a propósito: hasta que alguien confirme,
+ * esto no es contabilidad, es un montón de archivos sobre la mesa. Se pierde al
+ * recargar, y eso está bien.
+ */
+let lote = [];
+
+const vaciarLote = () => { lote = []; };
+
+/** Analiza los archivos soltados y los deja listos para confirmar. */
+async function analizar(archivos) {
+  const empresa = empresaActiva();
+  const yaEstan = new Set([
+    ...(await cargar.compras()).map((c) => c.clave),
+    ...(await cargar.comprobantes()).map((c) => c.clave ?? c.claveAcceso).filter(Boolean),
+  ]);
+  const enEsteLote = new Set();
+
+  const nuevos = [];
+  for (const archivo of archivos) {
+    const fila = { archivo: archivo.name, tamano: archivo.size };
+
+    if (!/\.xml$/i.test(archivo.name)) {
+      nuevos.push({ ...fila, estado: 'NO_SIRVE',
+        porque: 'Solo XML. El PDF es para leer; el XML es el que trae los datos.' });
+      continue;
+    }
+
+    let leido;
+    try {
+      leido = leerXml(await archivo.text());
+    } catch {
+      leido = { error: 'No pude leer el archivo.' };
+    }
+
+    if (leido.error) {
+      nuevos.push({ ...fila, estado: 'NO_SIRVE', porque: leido.error });
+      continue;
+    }
+
+    // Que el comprobante sea de esta empresa. Soltar en la carpeta equivocada
+    // el archivo de otra compañía es el error más fácil de cometer y el más
+    // caro: metería las compras de un cliente en los libros de otro.
+    const esCompra = leido.recibeId === empresa.ruc;
+    const esVentaNuestra = leido.emisorRuc === empresa.ruc;
+    if (!esCompra && !esVentaNuestra) {
+      nuevos.push({ ...leido, ...fila, estado: 'AJENO',
+        porque: `Ni el emisor (${leido.emisorRuc}) ni el receptor (${leido.recibeId || '—'}) ` +
+                `son el RUC de ${empresa.razonSocial} (${empresa.ruc}).` });
+      continue;
+    }
+    if (esVentaNuestra && !esCompra) {
+      nuevos.push({ ...leido, ...fila, estado: 'ES_VENTA',
+        porque: 'Es un comprobante que emitió esta empresa. Las ventas ya están en ' +
+                'Facturación; aquí se registran las compras.' });
+      continue;
+    }
+
+    if (yaEstan.has(leido.clave) || enEsteLote.has(leido.clave)) {
+      nuevos.push({ ...leido, ...fila, estado: 'REPETIDO',
+        porque: 'Esa clave de acceso ya está registrada. Registrarla de nuevo duplicaría el gasto.' });
+      continue;
+    }
+
+    enEsteLote.add(leido.clave);
+    nuevos.push({ ...leido, ...fila, estado: 'NUEVO',
+      cuenta: proponerCuenta(leido.emisorNombre) });
+  }
+
+  lote = nuevos;
+  return nuevos;
+}
+
+const cambiarCuenta = (clave, cuenta) => {
+  const fila = lote.find((f) => f.clave === clave);
+  if (fila) fila.cuenta = cuenta;
+};
+
+/** Registra los que están listos. Devuelve cuántos entraron. */
+async function registrarLote() {
+  const listos = lote.filter((f) => f.estado === 'NUEVO');
+  if (!listos.length) return 0;
+
+  const cuantos = await guardar.compras(listos.map((f) => ({
+    clave: f.clave,
+    tipo: f.codigo,
+    tipoNombre: f.tipoNombre,
+    numero: f.numeroDoc,
+    fecha: f.fecha,
+    proveedorRuc: f.emisorRuc,
+    proveedorNombre: f.emisorNombre,
+    sinImpuestos: f.sinImpuestos,
+    iva: f.iva,
+    retenido: f.retenido,
+    total: f.total,
+    bases: f.bases,
+    cuenta: f.cuenta,
+    autorizacion: f.autorizacion?.numero ?? null,
+    origen: f.archivo,
+  })));
+
+  lote = [];
+  return cuantos;
+}
+
+// ===========================================================================
+//  La pantalla
+// ===========================================================================
+
+const SELLOS = {
+  NUEVO: ['bg-verde-claro text-verde', 'check_circle', 'Listo para registrar'],
+  REPETIDO: ['bg-ambar-fondo text-ambar-texto', 'content_copy', 'Ya registrado'],
+  AJENO: ['bg-rojo-fondo text-rojo-texto', 'block', 'De otra empresa'],
+  ES_VENTA: ['bg-papel text-tinta-suave', 'call_made', 'Es una venta suya'],
+  NO_SIRVE: ['bg-rojo-fondo text-rojo-texto', 'error', 'No se pudo leer'],
+};
+
+const sello = (estado) => {
+  const [clases, ico, texto] = SELLOS[estado] ?? SELLOS.NO_SIRVE;
+  return html`<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-bold ${crudo(clases)}">
+    ${icono(ico, 'text-[14px]')}${texto}</span>`;
+};
+
+const zona = () => html`
+  <div id="zona-buzon"
+       class="relative rounded-2xl border-2 border-dashed border-papel-linea bg-white
+              px-6 py-10 text-center transition hover:border-verde">
+    <input type="file" id="archivos-buzon" multiple accept=".xml,text/xml,application/xml"
+           class="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+           aria-label="Elegir archivos XML">
+    <div class="w-14 h-14 mx-auto rounded-2xl bg-verde-claro flex items-center justify-center">
+      ${icono('cloud_upload', 'text-[28px] text-verde')}
+    </div>
+    <p class="mt-4 text-sm font-bold">Suelte aquí los XML de sus compras</p>
+    <p class="mt-1.5 text-sm text-tinta-suave max-w-lg mx-auto leading-relaxed">
+      O toque para elegirlos. Puede soltar muchos a la vez: el lote entero que descargó
+      del portal del SRI, o los que le llegaron por correo.
+    </p>
+    <p class="mt-3 text-[11px] text-tinta-suave">
+      Se leen en su propio equipo. Nada se envía a ningún sitio.
+    </p>
+  </div>`;
+
+async function buzon() {
+  const empresa = empresaActiva();
+  const registradas = await cargar.compras();
+  const hayLote = lote.length > 0;
+  const listos = lote.filter((f) => f.estado === 'NUEVO');
+
+  const filas = lote.map((f) => html`
+    <tr>
+      <td class="px-5 py-3">
+        <p class="text-sm font-semibold">${f.tipoNombre ?? 'Archivo'}</p>
+        <p class="text-[11px] text-tinta-suave font-mono">${f.archivo}</p>
+      </td>
+      <td class="px-5 py-3">
+        ${f.emisorNombre ? html`
+          <p class="text-sm">${f.emisorNombre}</p>
+          <p class="text-[11px] text-tinta-suave font-mono">${f.emisorRuc} · ${f.numeroDoc}</p>`
+          : html`<span class="text-sm text-tinta-suave">—</span>`}
+      </td>
+      <td class="px-5 py-3 text-sm">${f.fecha ? fecha(f.fecha) : '—'}</td>
+      <td class="px-5 py-3 text-right text-sm tabular-nums">${f.sinImpuestos != null ? usd(f.sinImpuestos) : '—'}</td>
+      <td class="px-5 py-3 text-right text-sm tabular-nums">${f.iva != null ? usd(f.iva) : '—'}</td>
+      <td class="px-5 py-3 text-right text-sm font-semibold tabular-nums">${f.total != null ? usd(f.total) : '—'}</td>
+      <td class="px-5 py-3">
+        ${sello(f.estado)}
+        ${f.porque ? html`<p class="mt-1.5 text-[11px] text-tinta-suave max-w-xs leading-relaxed">${f.porque}</p>` : ''}
+      </td>
+      <td class="px-5 py-3">
+        ${f.estado === 'NUEVO' ? html`
+          <select data-cuenta-de="${f.clave}"
+                  class="w-full max-w-[17rem] px-2.5 py-2 rounded-lg border border-papel-linea
+                         bg-papel text-[12px] font-medium">
+            ${CUENTAS_DE_COMPRA.map((c) => crudo(
+              `<option value="${c.codigo}"${c.codigo === f.cuenta ? ' selected' : ''}>` +
+              `${c.codigo} · ${c.nombre}</option>`))}
+          </select>
+          <p class="mt-1 text-[10px] text-tinta-suave">Propuesta. Confírmela o cámbiela.</p>` : ''}
+      </td>
+    </tr>`);
+
+  return html`
+    ${cabecera({
+      titulo: 'Buzón de comprobantes',
+      descripcion: 'Suelte los XML que recibió y el sistema los registra. Sin digitar un solo número.',
+      acciones: [boton('Compras registradas', { ruta: '#/compras', tipo: 'secundario', ico: 'inventory' })],
+    })}
+
+    ${zona()}
+
+    ${hayLote ? html`
+      <div class="mt-6 bg-white border border-papel-linea rounded-2xl overflow-hidden relieve">
+        <div class="px-5 py-4 border-b border-papel-linea flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p class="text-sm font-bold">${String(lote.length)} archivo${lote.length === 1 ? '' : 's'} leído${lote.length === 1 ? '' : 's'}</p>
+            <p class="text-xs text-tinta-suave">
+              ${String(listos.length)} listo${listos.length === 1 ? '' : 's'} para registrar en
+              ${empresa.razonSocial}
+            </p>
+          </div>
+          <div class="flex items-center gap-2">
+            ${boton('Descartar', { ruta: '#', tipo: 'secundario', ico: 'close', id: 'descartar-lote' })}
+            ${listos.length ? boton(`Registrar ${listos.length}`, {
+              ruta: '#', ico: 'library_add', id: 'registrar-lote' }) : ''}
+          </div>
+        </div>
+        ${tabla([
+          { texto: 'Comprobante' }, { texto: 'Proveedor' }, { texto: 'Fecha' },
+          { texto: 'Subtotal', der: true }, { texto: 'IVA', der: true }, { texto: 'Total', der: true },
+          { texto: 'Estado' }, { texto: 'Cuenta del subtotal' },
+        ], filas)}
+      </div>
+
+      ${listos.length ? aviso({
+        tono: 'info', ico: 'account_tree',
+        titulo: 'Lo que va a pasar en los libros',
+        texto: `Cada comprobante genera su asiento: el subtotal a la cuenta que usted confirme, ` +
+               `el IVA a crédito tributario (1010501) y el total a cuentas por pagar (2010301). ` +
+               `Esas dos últimas no admiten criterio; la del subtotal sí, y por eso se le pregunta.`,
+      }) : ''}` : ''}
+
+    ${!hayLote ? html`
+      <div class="mt-8 grid gap-4 lg:grid-cols-3">
+        ${[
+          ['download', 'De dónde saca los archivos',
+           'Del portal del SRI, en «Comprobantes electrónicos recibidos»: los entrega en lote. ' +
+           'Y del correo, porque todo proveedor manda el XML junto al PDF.'],
+          ['shield', 'Por qué no los busca Kontia sola',
+           'Porque tendría que pedirle su clave del SRI, y esa clave abre todo lo tributario de ' +
+           'su empresa. No la pedimos. Usted los descarga y los suelta aquí.'],
+          ['rule', 'Qué comprueba antes de registrar',
+           'Que el comprobante sea de esta empresa, que la clave de acceso de 49 dígitos esté ' +
+           'completa, y que no esté ya registrado. Un gasto duplicado es una glosa esperando.'],
+        ].map(([ico, titulo, texto]) => html`
+          <div class="bg-white border border-papel-linea rounded-2xl p-5 relieve">
+            <div class="w-10 h-10 rounded-xl bg-verde-claro flex items-center justify-center">
+              ${icono(ico, 'text-[20px] text-verde')}
+            </div>
+            <h3 class="mt-3 text-sm font-bold">${titulo}</h3>
+            <p class="mt-1.5 text-[13px] text-tinta-suave leading-relaxed">${texto}</p>
+          </div>`)}
+      </div>
+
+      ${registradas.length ? html`
+        <div class="mt-6 flex items-center gap-2 text-sm text-tinta-suave">
+          ${icono('history', 'text-[18px]')}
+          <span>Ya hay ${String(registradas.length)} compra${registradas.length === 1 ? '' : 's'} registrada${registradas.length === 1 ? '' : 's'}.</span>
+          <a href="#/compras" class="font-semibold text-verde hover:underline">Verlas</a>
+        </div>` : ''}
+
+      <div class="mt-8 bg-white border border-papel-linea rounded-2xl p-5 relieve">
+        <div class="flex items-start gap-3">
+          ${icono('folder_shared', 'text-[22px] text-verde')}
+          <div>
+            <h3 class="text-sm font-bold">Lo que viene: la carpeta de cada empresa</h3>
+            <p class="mt-1.5 text-[13px] text-tinta-suave leading-relaxed max-w-3xl">
+              Hoy se sueltan aquí, en el sistema. El paso siguiente es que cada empresa tenga su
+              carpeta y que baste con dejar el archivo dentro —desde el teléfono, desde el
+              escritorio o reenviando el correo del proveedor— para que el registro aparezca solo.
+              La carpeta será de Kontia y no de un servicio de terceros, porque una factura dice
+              a quién le compra usted y cuánto: eso no tiene por qué pasar por las manos de nadie más.
+            </p>
+          </div>
+        </div>
+      </div>` : ''}`;
+}
+
+/** Engancha la zona de soltado, el selector de cuenta y los dos botones. */
+function conectarBuzon() {
+  const caja = document.getElementById('zona-buzon');
+  const entrada = document.getElementById('archivos-buzon');
+
+  const trabajar = async (archivos) => {
+    if (!archivos || !archivos.length) return;
+    if (caja) {
+      caja.classList.add('opacity-60');
+      const p = caja.querySelector('p');
+      if (p) p.textContent = 'Leyendo…';
+    }
+    await analizar([...archivos]);
+    window.dispatchEvent(new CustomEvent('kontia:redibujar'));
+  };
+
+  if (entrada) {
+    entrada.addEventListener('change', (ev) => trabajar(ev.target.files));
+  }
+
+  if (caja) {
+    // Sin `preventDefault` el navegador abre el archivo en una pestaña nueva y
+    // se pierde todo lo que hubiera en pantalla.
+    for (const evento of ['dragenter', 'dragover']) {
+      caja.addEventListener(evento, (ev) => {
+        ev.preventDefault();
+        caja.classList.add('border-verde', 'bg-verde-claro/40');
+      });
+    }
+    for (const evento of ['dragleave', 'drop']) {
+      caja.addEventListener(evento, (ev) => {
+        ev.preventDefault();
+        caja.classList.remove('border-verde', 'bg-verde-claro/40');
+      });
+    }
+    caja.addEventListener('drop', (ev) => trabajar(ev.dataTransfer?.files));
+  }
+
+  document.getElementById('descartar-lote')?.addEventListener('click', (ev) => {
+    ev.preventDefault();
+    vaciarLote();
+    window.dispatchEvent(new CustomEvent('kontia:redibujar'));
+  });
+
+  document.getElementById('registrar-lote')?.addEventListener('click', async (ev) => {
+    ev.preventDefault();
+    const cuantos = await registrarLote();
+    dejarRecado({
+      tono: 'exito', ico: 'check_circle',
+      titulo: `${cuantos} comprobante${cuantos === 1 ? '' : 's'} registrado${cuantos === 1 ? '' : 's'}`,
+      texto: 'Con su asiento generado. Ninguno se digitó a mano.',
+    });
+    location.hash = '#/compras';
+  });
+
+  document.addEventListener('change', (ev) => {
+    const s = ev.target.closest('[data-cuenta-de]');
+    if (s) cambiarCuenta(s.dataset.cuentaDe, s.value);
+  });
+}
+
+
+  return { leerXml, CUENTAS_DE_COMPRA, proponerCuenta, vaciarLote, analizar, cambiarCuenta, registrarLote, buzon, conectarBuzon };
+})();
+
+// ---- src/vistas/compras.js ---------------------------------------
+const __src_vistas_compras_js = (function () {
+  const { html, crudo, icono, usd, fecha, cabecera, boton, vacio, tabla } = __src_ui_js;
+  const { cargar } = __src_almacen_js;
+  const { asientoDeCompra, nombreCuenta } = __src_datos_contables_js;
+
+/**
+ * Las compras registradas, y el asiento que generó cada una.
+ *
+ * Esta pantalla existe para poder comprobar el trabajo del buzón. No basta con
+ * que el sistema diga «registré doce facturas»: hay que poder abrir cualquiera
+ * de ellas y ver contra qué cuentas quedó, con los números a la vista. Un
+ * sistema contable en el que no se puede auditar lo que hizo la máquina no es
+ * más rápido, es más peligroso.
+ */
+
+
+
+
+
+const centavos = (n) => Math.round(Number(n ?? 0) * 100);
+
+async function compras() {
+  const lista = await cargar.compras();
+
+  if (!lista.length) {
+    return html`
+      ${cabecera({ titulo: 'Compras', descripcion: 'Lo que la empresa compró, con su IVA y su asiento.' })}
+      ${vacio({
+        ico: 'cloud_upload',
+        titulo: 'Todavía no hay compras registradas',
+        texto: 'No hace falta digitarlas. Suelte en el buzón los XML que le enviaron sus ' +
+               'proveedores o el lote que descargó del portal del SRI, y aparecen aquí con su ' +
+               'asiento hecho.',
+        accion: boton('Ir al buzón', { ruta: '#/buzon', ico: 'cloud_upload' }),
+      })}`;
+  }
+
+  // Las sumas se hacen en centavos enteros y se dividen al final. Sumar
+  // decimales de punto flotante arrastra un centavo cada tantas filas, y un
+  // centavo de diferencia en una declaración es una hora de buscar por qué.
+  const suma = (campo) => lista.reduce((s, c) => s + centavos(c[campo]), 0) / 100;
+  const conIva = lista.filter((c) => centavos(c.iva) > 0).length;
+
+  const resumen = [
+    ['Comprobantes', String(lista.length), 'receipt_long', ''],
+    ['Base imponible', usd(suma('sinImpuestos')), 'functions', ''],
+    ['IVA · crédito tributario', usd(suma('iva')), 'savings', 'text-verde'],
+    ['Total comprado', usd(suma('total')), 'payments', ''],
+  ];
+
+  const filas = lista.map((c) => {
+    const asiento = asientoDeCompra(c);
+    return html`
+      <tr class="align-top">
+        <td class="px-5 py-3">
+          <p class="text-sm font-semibold">${c.proveedorNombre || c.proveedorRuc}</p>
+          <p class="text-[11px] text-tinta-suave font-mono">${c.proveedorRuc} · ${c.tipoNombre} ${c.numero}</p>
+        </td>
+        <td class="px-5 py-3 text-sm whitespace-nowrap">${c.fecha ? fecha(c.fecha) : '—'}</td>
+        <td class="px-5 py-3 text-right text-sm tabular-nums">${usd(c.sinImpuestos)}</td>
+        <td class="px-5 py-3 text-right text-sm tabular-nums">${usd(c.iva)}</td>
+        <td class="px-5 py-3 text-right text-sm font-semibold tabular-nums">${usd(c.total)}</td>
+        <td class="px-5 py-3">
+          <details class="group">
+            <summary class="cursor-pointer inline-flex items-center gap-1.5 text-[12px] font-semibold text-verde">
+              ${icono('account_tree', 'text-[16px]')}Ver el asiento
+            </summary>
+            <div class="mt-2.5 rounded-xl border border-papel-linea bg-papel p-3">
+              <p class="text-[11px] text-tinta-suave">${asiento.glosa}</p>
+              <table class="mt-2 w-full text-[12px]">
+                <tbody class="divide-y divide-papel-linea">
+                  ${asiento.lineas.map((l) => html`
+                    <tr>
+                      <td class="py-1.5 pr-3 font-mono text-[11px] text-tinta-suave">${l.cuenta}</td>
+                      <td class="py-1.5 pr-3">${nombreCuenta(l.cuenta)}</td>
+                      <td class="py-1.5 text-right tabular-nums">${l.debe ? usd(l.debe) : ''}</td>
+                      <td class="py-1.5 text-right tabular-nums">${l.haber ? usd(l.haber) : ''}</td>
+                    </tr>`)}
+                </tbody>
+              </table>
+              <p class="mt-2 text-[10px] text-tinta-suave font-mono">
+                Clave de acceso ${c.clave}
+              </p>
+            </div>
+          </details>
+        </td>
+      </tr>`;
+  });
+
+  return html`
+    ${cabecera({
+      titulo: 'Compras',
+      descripcion: `${lista.length} comprobante${lista.length === 1 ? '' : 's'} registrado${lista.length === 1 ? '' : 's'} desde el buzón, sin digitar.`,
+      acciones: [boton('Soltar más XML', { ruta: '#/buzon', ico: 'cloud_upload' })],
+    })}
+
+    <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      ${resumen.map(([etiqueta, valor, ico, clase]) => html`
+        <div class="bg-white border border-papel-linea rounded-2xl p-5 relieve">
+          <div class="flex items-center justify-between">
+            <p class="text-[11px] font-bold uppercase tracking-wide text-tinta-suave">${etiqueta}</p>
+            ${icono(ico, 'text-[18px] text-tinta-suave')}
+          </div>
+          <p class="mt-2 text-2xl font-bold tabular-nums ${crudo(clase)}">${valor}</p>
+        </div>`)}
+    </div>
+
+    <div class="mt-6 bg-white border border-papel-linea rounded-2xl overflow-hidden relieve">
+      <div class="px-5 py-4 border-b border-papel-linea">
+        <p class="text-sm font-bold">Detalle</p>
+        <p class="text-xs text-tinta-suave">
+          ${String(conIva)} de ${String(lista.length)} con IVA. El IVA pagado es un activo
+          —crédito tributario—, no un gasto: se descuenta del IVA cobrado en la declaración.
+        </p>
+      </div>
+      ${tabla([
+        { texto: 'Proveedor' }, { texto: 'Fecha' }, { texto: 'Base', der: true },
+        { texto: 'IVA', der: true }, { texto: 'Total', der: true }, { texto: 'Contabilidad' },
+      ], filas)}
+    </div>`;
+}
+
+
+  return { compras };
+})();
+
 // ---- src/vistas/proteccion-datos.js ------------------------------
 const __src_vistas_proteccion_datos_js = (function () {
   const { html, crudo, icono, cabecera, aviso, boton } = __src_ui_js;
@@ -8447,8 +9304,8 @@ async function proteccionDatos() {
 const __src_vistas_impuestos_js = (function () {
   const { html, crudo, usd, dinero, icono, cabecera, aviso, boton, fecha, fechaLarga, empresaEnBlanco } = __src_ui_js;
   const { barraCompuesta, leyenda, VERDE, AMBAR } = __src_graficos_js;
-  const { formulario104, nombreCuenta } = __src_datos_contables_js;
-  const { esLaDeEjemplo } = __src_almacen_js;
+  const { formulario104, nombreCuenta, balanceDeComprobacion, diarioCon } = __src_datos_contables_js;
+  const { esLaDeEjemplo, cargar } = __src_almacen_js;
 
 /**
  * Impuestos: el formulario 104 y el anexo transaccional.
@@ -8477,7 +9334,9 @@ async function declaracionIva() {
     })}`;
   }
 
-  const f = formulario104();
+  // La declaracion sale de los saldos, y los saldos incluyen el IVA de las
+  // compras que entraron por el buzon: ese es el credito tributario del mes.
+  const f = formulario104(balanceDeComprobacion(diarioCon(await cargar.compras())));
   const dias = Math.ceil((f.vence - new Date(2026, 8, 30)) / (24 * 60 * 60 * 1000));
 
   return html`
@@ -8877,6 +9736,78 @@ const CONSULTAS = [
     fecha: new Date(2026, 8, 11), respuesta: null },
 ];
 
+/**
+ * Las consultas legales que llegan, vistas desde la plataforma.
+ *
+ * Aqui trabaja el abogado, no la empresa. Y aqui se ve por que este servicio no
+ * puede vivir mezclado con la contabilidad: la empresa ve su consulta y nada
+ * mas; quien atiende ve la cola de todas, sin entrar a los datos de ninguna.
+ * Se lee el asunto y la empresa que pregunta, no sus libros.
+ */
+async function consultasRecibidas() {
+  const COLA = [
+    { empresa: 'Agroquimicos Perez S.A.', asunto: '¿El flete que cobro al cliente lleva IVA?',
+      recibida: new Date(2026, 8, 9), estado: 'RESPONDIDA', horas: 6 },
+    { empresa: 'Agroquimicos Perez S.A.',
+      asunto: 'Me llego una glosa por diferencias en el anexo de 2025',
+      recibida: new Date(2026, 8, 11), estado: 'EN ESTUDIO', horas: 22 },
+    { empresa: 'Comercial Nobol Cia. Ltda.',
+      asunto: '¿Debo emitir liquidacion de compra a un agricultor sin RUC?',
+      recibida: new Date(2026, 8, 12), estado: 'NUEVA', horas: 2 },
+  ];
+
+  const pendientes = COLA.filter((c) => c.estado !== 'RESPONDIDA');
+
+  const TONOS = {
+    NUEVA: 'bg-rojo-fondo text-rojo-texto',
+    'EN ESTUDIO': 'bg-ambar-fondo text-ambar-texto',
+    RESPONDIDA: 'bg-verde-claro text-verde',
+  };
+
+  return html`
+    ${crudo(cabecera({
+      titulo: 'Consultas legales',
+      descripcion: 'La cola de lo que preguntan las empresas suscritas. Es un servicio que se '
+        + 'presta junto al sistema, no una operacion contable.',
+    }))}
+
+    <div class="grid gap-4 sm:grid-cols-3 mb-6">
+      ${cifra('Sin responder', String(pendientes.length), 'gavel',
+        'El compromiso es 48 horas habiles', pendientes.length ? 'ambar' : 'verde')}
+      ${cifra('Respondidas este mes',
+        String(COLA.filter((c) => c.estado === 'RESPONDIDA').length), 'task_alt')}
+      ${cifra('La mas antigua sin responder',
+        pendientes.length ? `${Math.max(...pendientes.map((c) => c.horas))} h` : '—', 'schedule')}
+    </div>
+
+    <div class="bg-white border border-papel-linea rounded-2xl relieve overflow-hidden">
+      ${tabla([
+        { texto: 'Empresa' }, { texto: 'Asunto' }, { texto: 'Recibida' },
+        { texto: 'Espera', der: true }, { texto: 'Estado' },
+      ], COLA.map((c) => html`
+        <tr>
+          <td class="px-5 py-3 text-sm font-medium">${c.empresa}</td>
+          <td class="px-5 py-3 text-sm">${c.asunto}</td>
+          <td class="px-5 py-3 text-sm whitespace-nowrap">${fecha(c.recibida)}</td>
+          <td class="px-5 py-3 text-right text-sm tabular-nums">${String(c.horas)} h</td>
+          <td class="px-5 py-3">
+            <span class="text-[11px] font-bold px-2.5 py-1 rounded-full whitespace-nowrap ${crudo(TONOS[c.estado])}">
+              ${c.estado}
+            </span>
+          </td>
+        </tr>`))}
+    </div>
+
+    <div class="mt-5 p-4 rounded-2xl bg-white border border-papel-linea relieve flex items-start gap-3">
+      ${icono('shield', 'text-[20px] text-verde')}
+      <p class="text-[13px] text-tinta-suave leading-relaxed max-w-3xl">
+        Responder una consulta no da acceso a los libros de la empresa. Si para contestarla hace
+        falta ver un comprobante o un asiento, se pide autorizacion por la pantalla de soporte,
+        queda anotado quien entro y a que, y el acceso caduca en dos horas.
+      </p>
+    </div>`;
+}
+
 async function consultaLegal() {
   return html`
     ${crudo(cabecera({
@@ -8936,7 +9867,7 @@ async function consultaLegal() {
 }
 
 
-  return { suscripciones, usoPlataforma, soporte, consultaLegal };
+  return { suscripciones, usoPlataforma, soporte, consultasRecibidas, consultaLegal };
 })();
 
 // ---- src/app.js --------------------------------------------------
@@ -8958,9 +9889,11 @@ const __src_app_js = (function () {
   const { cuentasPorCobrar, cuentasPorPagar, bancos } = __src_vistas_finanzas_js;
   const { inventario, nomina, activosFijos } = __src_vistas_operaciones_js;
   const { proveedores } = __src_vistas_proveedores_js;
+  const { buzon, conectarBuzon } = __src_vistas_buzon_js;
+  const { compras } = __src_vistas_compras_js;
   const { proteccionDatos } = __src_vistas_proteccion_datos_js;
   const { declaracionIva, anexoTransaccional } = __src_vistas_impuestos_js;
-  const { suscripciones, usoPlataforma, soporte, consultaLegal } = __src_vistas_plataforma_js;
+  const { suscripciones, usoPlataforma, soporte, consultaLegal, consultasRecibidas } = __src_vistas_plataforma_js;
   const { aviso, crudo, recogerRecado } = __src_ui_js;
   const { empresaActiva } = __src_almacen_js;
 
@@ -8972,6 +9905,8 @@ const __src_app_js = (function () {
  * dato, se dibuja. Es la forma más aburrida de hacerlo, y por eso se puede leer
  * entera en una tarde.
  */
+
+
 
 
 
@@ -9042,6 +9977,8 @@ const RUTAS = [
   { patron: /^#\/bancos\/?$/, vista: bancos },
 
   { patron: /^#\/proveedores\/?$/, vista: proveedores },
+  { patron: /^#\/buzon\/?$/, vista: buzon, alDibujar: conectarBuzon },
+  { patron: /^#\/compras\/?$/, vista: compras },
   { patron: /^#\/inventario\/?$/, vista: inventario },
   { patron: /^#\/nomina\/?$/, vista: nomina },
   { patron: /^#\/activos\/?$/, vista: activosFijos },
@@ -9058,6 +9995,7 @@ const RUTAS = [
   { patron: /^#\/admin\/suscripciones\/?$/, vista: suscripciones, admin: true },
   { patron: /^#\/admin\/uso\/?$/, vista: usoPlataforma, admin: true },
   { patron: /^#\/admin\/soporte\/?$/, vista: soporte, admin: true },
+  { patron: /^#\/admin\/consultas\/?$/, vista: consultasRecibidas, admin: true },
   { patron: /^#\/admin\/datos\/?$/, vista: proteccionDatos, admin: true },
 ];
 
