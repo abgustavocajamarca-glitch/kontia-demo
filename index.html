@@ -689,6 +689,262 @@ const barra = (proporcion, clase = 'bg-verde') => crudo(
   return { esc, crudo, html, dinero, usd, fecha, fechaLarga, fechaHora, claveLegible, icono, ESTADOS, chipEstado, cabecera, boton, vacio, dato, aviso, dejarRecado, recogerRecado, tabla, barra };
 })();
 
+// ---- src/graficos.js ---------------------------------------------
+const __src_graficos_js = (function () {
+  const { crudo, esc, dinero } = __src_ui_js;
+
+/**
+ * Gráficos en SVG, dibujados a mano.
+ *
+ * No hay librería de gráficos, y es deliberado. Una librería de estas pesa más
+ * que toda esta aplicación junta, obliga a cargarla desde internet antes de
+ * poder dibujar nada, y para lo que hace falta aquí —barras, una línea, una
+ * dona— el SVG a mano es menos código del que costaría configurarla.
+ *
+ * LAS REGLAS QUE SIGUEN TODOS LOS GRÁFICOS DE AQUÍ, porque un gráfico que
+ * miente es peor que no tener gráfico:
+ *
+ * 1. **Una sola escala, y empieza en cero.** Recortar el eje para que las
+ *    diferencias parezcan mayores es la forma más vieja de mentir con un
+ *    gráfico. En cifras de dinero no se hace nunca.
+ * 2. **Toda marca tiene su valor escrito.** Si hay que adivinar la altura de
+ *    una barra, el gráfico no está informando: está decorando.
+ * 3. **Nada se sale del lienzo.** El viewBox reserva sitio para las etiquetas
+ *    de los extremos, que es donde se cortan siempre.
+ * 4. **Los números se alinean.** Las cifras llevan `tabular-nums` para que las
+ *    unidades queden una debajo de otra y se puedan comparar de un vistazo.
+ */
+
+
+
+const VERDE = '#0F7B4F';
+const VERDE_CLARO = '#C7E9D6';
+const TINTA_SUAVE = '#5C6660';
+const LINEA = '#E6EBE8';
+const AMBAR = '#F59E0B';
+const ROJO = '#C4331D';
+
+const PALETA = [VERDE, '#3FA37A', AMBAR, '#7C93A6', ROJO, '#8B6FB0'];
+
+/** Redondea el tope hacia arriba a una cifra "bonita": 4.317 -> 5.000 */
+function topeBonito(max) {
+  if (max <= 0) return 1;
+  const magnitud = 10 ** Math.floor(Math.log10(max));
+  for (const paso of [1, 1.25, 1.5, 2, 2.5, 3, 4, 5, 7.5, 10]) {
+    if (max <= paso * magnitud) return paso * magnitud;
+  }
+  return 10 * magnitud;
+}
+
+const corto = (n) => {
+  const a = Math.abs(n);
+  if (a >= 1000000) return (n / 1000000).toFixed(a >= 10000000 ? 0 : 1).replace('.', ',') + 'M';
+  if (a >= 1000) return (n / 1000).toFixed(a >= 10000 ? 0 : 1).replace('.', ',') + 'k';
+  return String(Math.round(n));
+};
+
+// ===========================================================================
+//  Barras verticales
+// ===========================================================================
+
+/**
+ * @param {{etiqueta: string, valor: number, tono?: string}[]} datos
+ */
+function barras(datos, { alto = 200, moneda = true, titulo = '' } = {}) {
+  if (!datos.length) return crudo('');
+
+  const ANCHO = 720;
+  const IZQ = 52, DER = 12, ARRIBA = 14, ABAJO = 30;
+  const tope = topeBonito(Math.max(...datos.map((d) => d.valor)));
+  const util = { x: ANCHO - IZQ - DER, y: alto - ARRIBA - ABAJO };
+
+  const paso = util.x / datos.length;
+  const anchoBarra = Math.min(46, paso * 0.62);
+  const y = (v) => ARRIBA + util.y - (v / tope) * util.y;
+
+  const marcas = [0, 0.25, 0.5, 0.75, 1].map((f) => tope * f);
+
+  return crudo(`
+    <svg viewBox="0 0 ${ANCHO} ${alto}" class="w-full" style="height:${alto}px"
+         role="img" aria-label="${esc(titulo || 'Gráfico de barras')}">
+      ${marcas.map((v) => `
+        <line x1="${IZQ}" y1="${y(v).toFixed(1)}" x2="${ANCHO - DER}" y2="${y(v).toFixed(1)}"
+              stroke="${LINEA}" stroke-width="1"/>
+        <text x="${IZQ - 8}" y="${(y(v) + 3.5).toFixed(1)}" text-anchor="end"
+              font-size="10" fill="${TINTA_SUAVE}"
+              style="font-variant-numeric:tabular-nums">${esc(corto(v))}</text>`).join('')}
+
+      ${datos.map((d, i) => {
+        const cx = IZQ + paso * i + paso / 2;
+        const altura = Math.max(2, ARRIBA + util.y - y(d.valor));
+        const tono = d.tono ?? VERDE;
+        return `
+        <g>
+          <rect x="${(cx - anchoBarra / 2).toFixed(1)}" y="${y(d.valor).toFixed(1)}"
+                width="${anchoBarra.toFixed(1)}" height="${altura.toFixed(1)}"
+                rx="4" fill="${tono}" opacity="0.9">
+            <title>${esc(d.etiqueta)}: ${esc(moneda ? '$' + dinero(d.valor) : String(d.valor))}</title>
+          </rect>
+          <text x="${cx.toFixed(1)}" y="${alto - 10}" text-anchor="middle"
+                font-size="10.5" font-weight="600" fill="${TINTA_SUAVE}">${esc(d.etiqueta)}</text>
+        </g>`;
+      }).join('')}
+    </svg>`);
+}
+
+// ===========================================================================
+//  Línea con área
+// ===========================================================================
+
+function linea(datos, { alto = 200, moneda = true, titulo = '' } = {}) {
+  if (datos.length < 2) return crudo('');
+
+  const ANCHO = 720;
+  const IZQ = 52, DER = 14, ARRIBA = 16, ABAJO = 30;
+  const tope = topeBonito(Math.max(...datos.map((d) => d.valor)));
+  const util = { x: ANCHO - IZQ - DER, y: alto - ARRIBA - ABAJO };
+
+  const px = (i) => IZQ + (i / (datos.length - 1)) * util.x;
+  const py = (v) => ARRIBA + util.y - (v / tope) * util.y;
+
+  const puntos = datos.map((d, i) => `${px(i).toFixed(1)},${py(d.valor).toFixed(1)}`);
+  const trazo = 'M' + puntos.join(' L');
+  const area = `${trazo} L${px(datos.length - 1).toFixed(1)},${(ARRIBA + util.y).toFixed(1)} ` +
+               `L${px(0).toFixed(1)},${(ARRIBA + util.y).toFixed(1)} Z`;
+  const ultimo = datos[datos.length - 1];
+
+  return crudo(`
+    <svg viewBox="0 0 ${ANCHO} ${alto}" class="w-full" style="height:${alto}px"
+         role="img" aria-label="${esc(titulo || 'Gráfico de líneas')}">
+      <defs>
+        <linearGradient id="degradado-linea" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="${VERDE}" stop-opacity="0.22"/>
+          <stop offset="100%" stop-color="${VERDE}" stop-opacity="0"/>
+        </linearGradient>
+      </defs>
+
+      ${[0, 0.5, 1].map((f) => `
+        <line x1="${IZQ}" y1="${py(tope * f).toFixed(1)}" x2="${ANCHO - DER}" y2="${py(tope * f).toFixed(1)}"
+              stroke="${LINEA}" stroke-width="1"/>
+        <text x="${IZQ - 8}" y="${(py(tope * f) + 3.5).toFixed(1)}" text-anchor="end"
+              font-size="10" fill="${TINTA_SUAVE}"
+              style="font-variant-numeric:tabular-nums">${esc(corto(tope * f))}</text>`).join('')}
+
+      <path d="${area}" fill="url(#degradado-linea)"/>
+      <path d="${trazo}" fill="none" stroke="${VERDE}" stroke-width="2.4"
+            stroke-linejoin="round" stroke-linecap="round"/>
+
+      ${datos.map((d, i) => `
+        <circle cx="${px(i).toFixed(1)}" cy="${py(d.valor).toFixed(1)}" r="3.5"
+                fill="#fff" stroke="${VERDE}" stroke-width="2">
+          <title>${esc(d.etiqueta)}: ${esc(moneda ? '$' + dinero(d.valor) : String(d.valor))}</title>
+        </circle>`).join('')}
+
+      <circle cx="${px(datos.length - 1).toFixed(1)}" cy="${py(ultimo.valor).toFixed(1)}" r="5.5"
+              fill="${VERDE}" stroke="#fff" stroke-width="2"/>
+
+      ${datos.map((d, i) => (datos.length > 8 && i % 2 ? '' : `
+        <text x="${px(i).toFixed(1)}" y="${alto - 10}" text-anchor="middle"
+              font-size="10.5" font-weight="600" fill="${TINTA_SUAVE}">${esc(d.etiqueta)}</text>`)).join('')}
+    </svg>`);
+}
+
+// ===========================================================================
+//  Dona · para composición, nunca para comparar
+// ===========================================================================
+
+function dona(datos, { tamano = 168, centro = '', subcentro = '' } = {}) {
+  const total = datos.reduce((a, d) => a + d.valor, 0);
+  if (!total) return crudo('');
+
+  const R = 62, GROSOR = 20, C = tamano / 2;
+  const perimetro = 2 * Math.PI * R;
+  let acumulado = 0;
+
+  const arcos = datos.map((d, i) => {
+    const fraccion = d.valor / total;
+    const tramo = fraccion * perimetro;
+    const desfase = -acumulado * perimetro;
+    acumulado += fraccion;
+    return `<circle cx="${C}" cy="${C}" r="${R}" fill="none"
+              stroke="${d.tono ?? PALETA[i % PALETA.length]}" stroke-width="${GROSOR}"
+              stroke-dasharray="${tramo.toFixed(2)} ${(perimetro - tramo).toFixed(2)}"
+              stroke-dashoffset="${desfase.toFixed(2)}"
+              transform="rotate(-90 ${C} ${C})" stroke-linecap="butt">
+              <title>${esc(d.etiqueta)}: ${esc(dinero(d.valor))} (${(fraccion * 100).toFixed(1)}%)</title>
+            </circle>`;
+  }).join('');
+
+  return crudo(`
+    <svg viewBox="0 0 ${tamano} ${tamano}" style="width:${tamano}px;height:${tamano}px"
+         role="img" aria-label="Composición">
+      <circle cx="${C}" cy="${C}" r="${R}" fill="none" stroke="${LINEA}" stroke-width="${GROSOR}"/>
+      ${arcos}
+      ${centro ? `<text x="${C}" y="${C - 2}" text-anchor="middle" font-size="18"
+                        font-weight="800" fill="#1A1D1F"
+                        style="font-variant-numeric:tabular-nums">${esc(centro)}</text>` : ''}
+      ${subcentro ? `<text x="${C}" y="${C + 15}" text-anchor="middle" font-size="9.5"
+                           font-weight="600" fill="${TINTA_SUAVE}">${esc(subcentro)}</text>` : ''}
+    </svg>`);
+}
+
+/** La leyenda de una dona. Va aparte para poder colocarla al lado o debajo. */
+function leyenda(datos, { moneda = true } = {}) {
+  const total = datos.reduce((a, d) => a + d.valor, 0) || 1;
+  return crudo(datos.map((d, i) => `
+    <div class="flex items-center gap-2.5 py-1.5">
+      <span class="w-2.5 h-2.5 rounded-sm shrink-0"
+            style="background:${d.tono ?? PALETA[i % PALETA.length]}"></span>
+      <span class="text-xs text-tinta-suave truncate flex-1">${esc(d.etiqueta)}</span>
+      <span class="text-xs font-bold tabular whitespace-nowrap">
+        ${esc(moneda ? '$' + dinero(d.valor) : String(d.valor))}
+      </span>
+      <span class="text-[11px] text-tinta-suave tabular w-11 text-right">
+        ${((d.valor / total) * 100).toFixed(0)}%
+      </span>
+    </div>`).join(''));
+}
+
+// ===========================================================================
+//  Chispa · la línea diminuta que cabe dentro de una tarjeta
+// ===========================================================================
+
+function chispa(valores, { ancho = 96, alto = 28, tono = VERDE } = {}) {
+  if (valores.length < 2) return crudo('');
+  const min = Math.min(...valores), max = Math.max(...valores);
+  const rango = max - min || 1;
+  const px = (i) => (i / (valores.length - 1)) * (ancho - 4) + 2;
+  const py = (v) => alto - 3 - ((v - min) / rango) * (alto - 6);
+  const d = 'M' + valores.map((v, i) => `${px(i).toFixed(1)},${py(v).toFixed(1)}`).join(' L');
+
+  return crudo(`
+    <svg viewBox="0 0 ${ancho} ${alto}" style="width:${ancho}px;height:${alto}px" aria-hidden="true">
+      <path d="${d}" fill="none" stroke="${tono}" stroke-width="1.8"
+            stroke-linejoin="round" stroke-linecap="round" opacity="0.85"/>
+      <circle cx="${px(valores.length - 1).toFixed(1)}" cy="${py(valores[valores.length - 1]).toFixed(1)}"
+              r="2.6" fill="${tono}"/>
+    </svg>`);
+}
+
+// ===========================================================================
+//  Barra de composición · una sola línea horizontal con tramos
+// ===========================================================================
+
+function barraCompuesta(datos, { alto = 10 } = {}) {
+  const total = datos.reduce((a, d) => a + d.valor, 0) || 1;
+  return crudo(`
+    <div class="flex w-full rounded-full overflow-hidden" style="height:${alto}px">
+      ${datos.map((d, i) => `
+        <div style="width:${((d.valor / total) * 100).toFixed(2)}%;
+                    background:${d.tono ?? PALETA[i % PALETA.length]}"
+             title="${esc(d.etiqueta)}: ${esc(dinero(d.valor))}"></div>`).join('')}
+    </div>`);
+}
+
+
+  return { VERDE, VERDE_CLARO, TINTA_SUAVE, AMBAR, ROJO, PALETA, barras, linea, dona, leyenda, chispa, barraCompuesta };
+})();
+
 // ---- src/sesion.js -----------------------------------------------
 const __src_sesion_js = (function () {
 
@@ -1179,6 +1435,474 @@ const guardar = {
   return { reiniciar, cargar, guardar };
 })();
 
+// ---- src/datos-contables.js --------------------------------------
+const __src_datos_contables_js = (function () {
+  const { COMPROBANTES } = __src_datos_js;
+
+/**
+ * La semilla de contabilidad y operaciones.
+ *
+ * Las cuentas NO están inventadas: los códigos y los nombres salen del Plan de
+ * Cuentas de la Superintendencia de Compañías, el mismo catálogo oficial que
+ * está extraído en `db/contabilidad/plan-de-cuentas.csv`. Un código que no esté
+ * ahí hace que la presentación de estados financieros se rechace, así que
+ * inventarlos en una demostración sería enseñar algo que después no sirve.
+ *
+ * Y los asientos de venta se GENERAN de las facturas aplicando la regla R1 de
+ * `docs/contabilidad/reglas-de-asiento.md`, no están escritos a mano. Así la
+ * pantalla enseña el mecanismo de verdad: si la regla cambia, cambian los
+ * asientos, que es exactamente lo que va a pasar cuando el contador conteste.
+ */
+
+
+
+// ===========================================================================
+//  Plan de cuentas · subconjunto del catálogo oficial
+// ===========================================================================
+
+const CUENTAS = [
+  { codigo: '1', nombre: 'ACTIVO', tipo: 'TOTAL', naturaleza: 'DEUDORA' },
+  { codigo: '101', nombre: 'Activo corriente', tipo: 'TOTAL', naturaleza: 'DEUDORA' },
+  { codigo: '10101', nombre: 'Efectivo y equivalentes al efectivo', tipo: 'DETALLE', naturaleza: 'DEUDORA' },
+  { codigo: '1010205', nombre: 'Documentos y cuentas por cobrar clientes no relacionados', tipo: 'TOTAL', naturaleza: 'DEUDORA' },
+  { codigo: '101020502', nombre: 'De actividades ordinarias que no generen intereses', tipo: 'DETALLE', naturaleza: 'DEUDORA' },
+  { codigo: '1010209', nombre: '(-) Provisión cuentas incobrables y deterioro', tipo: 'DETALLE', naturaleza: 'ACREEDORA' },
+  { codigo: '1010305', nombre: 'Inventarios de productos terminados y mercadería en almacén', tipo: 'DETALLE', naturaleza: 'DEUDORA' },
+  { codigo: '1010501', nombre: 'Crédito tributario a favor de la empresa (IVA)', tipo: 'DETALLE', naturaleza: 'DEUDORA' },
+  { codigo: '1010502', nombre: 'Crédito tributario a favor de la empresa (I. R.)', tipo: 'DETALLE', naturaleza: 'DEUDORA' },
+  { codigo: '102', nombre: 'Activo no corriente', tipo: 'TOTAL', naturaleza: 'DEUDORA' },
+  { codigo: '10201', nombre: 'Propiedades, planta y equipo', tipo: 'TOTAL', naturaleza: 'DEUDORA' },
+  { codigo: '1020105', nombre: 'Muebles y enseres', tipo: 'DETALLE', naturaleza: 'DEUDORA' },
+  { codigo: '1020106', nombre: 'Maquinaria y equipo', tipo: 'DETALLE', naturaleza: 'DEUDORA' },
+  { codigo: '1020108', nombre: 'Equipo de computación', tipo: 'DETALLE', naturaleza: 'DEUDORA' },
+  { codigo: '1020109', nombre: 'Vehículos, equipos de transporte', tipo: 'DETALLE', naturaleza: 'DEUDORA' },
+  { codigo: '1020112', nombre: '(-) Depreciación acumulada propiedades, planta y equipo', tipo: 'DETALLE', naturaleza: 'ACREEDORA' },
+
+  { codigo: '2', nombre: 'PASIVO', tipo: 'TOTAL', naturaleza: 'ACREEDORA' },
+  { codigo: '201', nombre: 'Pasivo corriente', tipo: 'TOTAL', naturaleza: 'ACREEDORA' },
+  { codigo: '2010301', nombre: 'Cuentas y documentos por pagar · locales', tipo: 'DETALLE', naturaleza: 'ACREEDORA' },
+  { codigo: '2010701', nombre: 'Con la Administración Tributaria', tipo: 'DETALLE', naturaleza: 'ACREEDORA' },
+  { codigo: '2010703', nombre: 'Con el IESS', tipo: 'DETALLE', naturaleza: 'ACREEDORA' },
+  { codigo: '2010704', nombre: 'Por beneficios de ley a empleados', tipo: 'DETALLE', naturaleza: 'ACREEDORA' },
+  { codigo: '20110', nombre: 'Anticipos de clientes', tipo: 'DETALLE', naturaleza: 'ACREEDORA' },
+
+  { codigo: '3', nombre: 'PATRIMONIO NETO', tipo: 'TOTAL', naturaleza: 'ACREEDORA' },
+  { codigo: '30101', nombre: 'Capital suscrito o asignado', tipo: 'DETALLE', naturaleza: 'ACREEDORA' },
+  { codigo: '30601', nombre: 'Ganancias acumuladas', tipo: 'DETALLE', naturaleza: 'ACREEDORA' },
+
+  { codigo: '4', nombre: 'INGRESOS', tipo: 'TOTAL', naturaleza: 'ACREEDORA' },
+  { codigo: '4101', nombre: 'Venta de bienes', tipo: 'DETALLE', naturaleza: 'ACREEDORA' },
+  { codigo: '4102', nombre: 'Prestación de servicios', tipo: 'DETALLE', naturaleza: 'ACREEDORA' },
+  { codigo: '4110', nombre: '(-) Descuento en ventas', tipo: 'DETALLE', naturaleza: 'DEUDORA' },
+  { codigo: '4111', nombre: '(-) Devoluciones en ventas', tipo: 'DETALLE', naturaleza: 'DEUDORA' },
+
+  { codigo: '51', nombre: 'COSTO DE VENTAS Y PRODUCCIÓN', tipo: 'TOTAL', naturaleza: 'DEUDORA' },
+  { codigo: '510102', nombre: '(+) Compras netas locales de bienes no producidos por la compañía', tipo: 'DETALLE', naturaleza: 'DEUDORA' },
+
+  { codigo: '52', nombre: 'GASTOS', tipo: 'TOTAL', naturaleza: 'DEUDORA' },
+  { codigo: '520101', nombre: 'Sueldos, salarios y demás remuneraciones', tipo: 'DETALLE', naturaleza: 'DEUDORA' },
+  { codigo: '520102', nombre: 'Aportes a la seguridad social (incluido fondo de reserva)', tipo: 'DETALLE', naturaleza: 'DEUDORA' },
+  { codigo: '520108', nombre: 'Mantenimiento y reparaciones', tipo: 'DETALLE', naturaleza: 'DEUDORA' },
+  { codigo: '520109', nombre: 'Arrendamiento operativo', tipo: 'DETALLE', naturaleza: 'DEUDORA' },
+  { codigo: '520111', nombre: 'Promoción y publicidad', tipo: 'DETALLE', naturaleza: 'DEUDORA' },
+  { codigo: '520112', nombre: 'Combustibles', tipo: 'DETALLE', naturaleza: 'DEUDORA' },
+  { codigo: '520118', nombre: 'Agua, energía, luz y telecomunicaciones', tipo: 'DETALLE', naturaleza: 'DEUDORA' },
+  { codigo: '520121', nombre: 'Depreciaciones · propiedades, planta y equipo', tipo: 'DETALLE', naturaleza: 'DEUDORA' },
+];
+
+const cuenta = (codigo) => CUENTAS.find((c) => c.codigo === codigo);
+const nombreCuenta = (codigo) => cuenta(codigo)?.nombre ?? '(cuenta desconocida)';
+
+// ===========================================================================
+//  Asientos
+// ===========================================================================
+
+const centavos = (n) => Math.round(n * 100);
+
+/**
+ * La regla R1 hecha código.
+ *
+ * Está aquí y en un solo sitio a propósito: es la regla que el contador todavía
+ * tiene que confirmar, y cuando la confirme se cambia aquí y cambian todos los
+ * asientos de venta del sistema. Si estuviera repetida en cada pantalla, habría
+ * que encontrarlas todas.
+ */
+function asientoDeFactura(c) {
+  const t = c.totales;
+  const lineas = [
+    { cuenta: '101020502', debe: t.total, haber: 0,
+      detalle: `${c.cliente.razonSocial} · ${c.numero}` },
+    { cuenta: '4101', debe: 0, haber: t.sinImpuestos,
+      detalle: 'Venta de bienes' },
+  ];
+  if (t.iva > 0) {
+    lineas.push({ cuenta: '2010701', debe: 0, haber: t.iva, detalle: 'IVA cobrado 15%' });
+  }
+  return {
+    numero: null,
+    fecha: c.fecha,
+    tipo: 'VENTA',
+    origen: c.numero,
+    glosa: `Factura ${c.numero} a ${c.cliente.razonSocial}`,
+    lineas,
+    generado: true,
+  };
+}
+
+/** Asientos escritos a mano: compras, pagos, nómina, depreciación. */
+const MANUALES = [
+  {
+    fecha: new Date(2026, 8, 1), tipo: 'APERTURA',
+    glosa: 'Saldos de apertura del mes',
+    lineas: [
+      { cuenta: '10101', debe: 18420.55, haber: 0, detalle: 'Banco Pichincha cta. cte.' },
+      { cuenta: '101020502', debe: 24180.40, haber: 0, detalle: 'Cartera de clientes' },
+      { cuenta: '1010305', debe: 41250.00, haber: 0, detalle: 'Mercadería en bodega' },
+      { cuenta: '1020106', debe: 28000.00, haber: 0, detalle: 'Maquinaria' },
+      { cuenta: '1020109', debe: 32000.00, haber: 0, detalle: 'Camión de reparto' },
+      { cuenta: '1020112', debe: 0, haber: 14600.00, detalle: 'Depreciación acumulada' },
+      { cuenta: '2010301', debe: 0, haber: 19850.95, detalle: 'Proveedores' },
+      { cuenta: '30101', debe: 0, haber: 60000.00, detalle: 'Capital suscrito' },
+      { cuenta: '30601', debe: 0, haber: 49400.00, detalle: 'Ganancias acumuladas' },
+    ],
+  },
+  {
+    fecha: new Date(2026, 8, 5), tipo: 'COMPRA',
+    origen: '001-001-000008842',
+    glosa: 'Compra de urea a Fertilizantes del Pacífico S.A.',
+    lineas: [
+      { cuenta: '510102', debe: 8400.00, haber: 0, detalle: '300 sacos de urea' },
+      { cuenta: '1010501', debe: 1260.00, haber: 0, detalle: 'IVA en compras 15%' },
+      { cuenta: '2010301', debe: 0, haber: 9660.00, detalle: 'Fertilizantes del Pacífico S.A.' },
+    ],
+  },
+  {
+    fecha: new Date(2026, 8, 8), tipo: 'PAGO',
+    glosa: 'Pago a Fertilizantes del Pacífico S.A.',
+    lineas: [
+      { cuenta: '2010301', debe: 9660.00, haber: 0, detalle: 'Cancelación factura 8842' },
+      { cuenta: '10101', debe: 0, haber: 9660.00, detalle: 'Transferencia bancaria' },
+    ],
+  },
+  {
+    fecha: new Date(2026, 8, 10), tipo: 'GASTO',
+    origen: '002-001-000001204',
+    glosa: 'Arriendo de bodega · septiembre',
+    lineas: [
+      { cuenta: '520109', debe: 1200.00, haber: 0, detalle: 'Bodega Km 14.5' },
+      { cuenta: '1010501', debe: 180.00, haber: 0, detalle: 'IVA en compras 15%' },
+      { cuenta: '10101', debe: 0, haber: 1380.00, detalle: 'Transferencia bancaria' },
+    ],
+  },
+  {
+    fecha: new Date(2026, 8, 12), tipo: 'GASTO',
+    origen: '001-005-000045512',
+    glosa: 'Energía eléctrica y telefonía',
+    lineas: [
+      { cuenta: '520118', debe: 486.20, haber: 0, detalle: 'CNEL y CNT' },
+      { cuenta: '1010501', debe: 72.93, haber: 0, detalle: 'IVA en compras 15%' },
+      { cuenta: '10101', debe: 0, haber: 559.13, detalle: 'Débito bancario' },
+    ],
+  },
+  {
+    fecha: new Date(2026, 8, 15), tipo: 'GASTO',
+    origen: '003-001-000000771',
+    glosa: 'Combustible y mantenimiento del camión',
+    lineas: [
+      { cuenta: '520112', debe: 640.00, haber: 0, detalle: 'Diésel' },
+      { cuenta: '520108', debe: 380.00, haber: 0, detalle: 'Cambio de aceite y frenos' },
+      { cuenta: '1010501', debe: 153.00, haber: 0, detalle: 'IVA en compras 15%' },
+      { cuenta: '10101', debe: 0, haber: 1173.00, detalle: 'Pago en efectivo' },
+    ],
+  },
+  {
+    fecha: new Date(2026, 8, 20), tipo: 'COBRO',
+    glosa: 'Cobro a Consorcio Agrícola Daule S.A.',
+    lineas: [
+      { cuenta: '10101', debe: 12400.00, haber: 0, detalle: 'Transferencia recibida' },
+      { cuenta: '101020502', debe: 0, haber: 12400.00, detalle: 'Abono a cartera' },
+    ],
+  },
+  {
+    // Las facturas del mes se asientan una a una al emitirlas. Este resumen
+    // representa las 146 restantes, las que no estan en el listado de ejemplo,
+    // para que los libros digan exactamente lo mismo que el tablero: 42.318,50
+    // de ventas y 5.730,00 de IVA. Un sistema donde el resumen y los libros no
+    // coinciden no sirve para nada, por bonito que se vea el resumen.
+    fecha: new Date(2026, 8, 28), tipo: 'VENTA',
+    glosa: 'Resumen de las demás facturas del mes (146 comprobantes)',
+    lineas: [
+      { cuenta: '101020502', debe: 46260.95, haber: 0, detalle: 'Cartera del mes' },
+      { cuenta: '4101', debe: 0, haber: 40731.50, detalle: 'Ventas de bienes' },
+      { cuenta: '2010701', debe: 0, haber: 5529.45, detalle: 'IVA cobrado 15%' },
+    ],
+  },
+  {
+    fecha: new Date(2026, 8, 29), tipo: 'COBRO',
+    glosa: 'Cobros del mes a clientes varios',
+    lineas: [
+      { cuenta: '10101', debe: 38000.00, haber: 0, detalle: 'Depósitos y transferencias' },
+      { cuenta: '101020502', debe: 0, haber: 38000.00, detalle: 'Abonos a cartera' },
+    ],
+  },
+  {
+    fecha: new Date(2026, 8, 30), tipo: 'NOMINA',
+    glosa: 'Rol de pagos · septiembre',
+    lineas: [
+      { cuenta: '520101', debe: 4850.00, haber: 0, detalle: 'Sueldos de 4 empleados' },
+      { cuenta: '520102', debe: 589.28, haber: 0, detalle: 'Aporte patronal 12,15%' },
+      { cuenta: '2010703', debe: 0, haber: 1047.08, detalle: 'Aportes IESS por pagar' },
+      { cuenta: '2010704', debe: 0, haber: 4392.20, detalle: 'Sueldos por pagar' },
+    ],
+  },
+  {
+    fecha: new Date(2026, 8, 30), tipo: 'AJUSTE',
+    glosa: 'Depreciación del mes',
+    lineas: [
+      { cuenta: '520121', debe: 766.67, haber: 0, detalle: 'Maquinaria y vehículos' },
+      { cuenta: '1020112', debe: 0, haber: 766.67, detalle: 'Depreciación acumulada' },
+    ],
+  },
+];
+
+/**
+ * El libro diario completo, ordenado por fecha y numerado.
+ *
+ * Los asientos de venta no están escritos: se calculan de las facturas
+ * autorizadas con la regla R1. Una factura devuelta por el SRI no entra —no
+ * existe para el fisco, así que tampoco para los libros— y un borrador tampoco.
+ */
+function construirDiario() {
+  const deVentas = COMPROBANTES
+    .filter((c) => c.estado === 'AUTORIZADO')
+    .map(asientoDeFactura);
+
+  return [...MANUALES, ...deVentas]
+    .sort((a, b) => new Date(a.fecha) - new Date(b.fecha))
+    .map((a, i) => ({
+      ...a,
+      numero: String(i + 1).padStart(4, '0'),
+      debe: a.lineas.reduce((s, l) => s + l.debe, 0),
+      haber: a.lineas.reduce((s, l) => s + l.haber, 0),
+    }));
+}
+
+const DIARIO = construirDiario();
+
+/**
+ * El balance de comprobación: los saldos de todas las cuentas movidas.
+ *
+ * Su único propósito es este: **si los totales no coinciden, hay un error**.
+ * No es un informe bonito, es una alarma. Por eso la pantalla que lo muestra
+ * enseña la diferencia aunque sea cero.
+ */
+function balanceDeComprobacion(diario = DIARIO) {
+  const saldos = new Map();
+  for (const asiento of diario) {
+    for (const l of asiento.lineas) {
+      const s = saldos.get(l.cuenta) ?? { debe: 0, haber: 0 };
+      s.debe += centavos(l.debe);
+      s.haber += centavos(l.haber);
+      saldos.set(l.cuenta, s);
+    }
+  }
+  return [...saldos.entries()]
+    .map(([codigo, s]) => {
+      const neto = s.debe - s.haber;
+      return {
+        codigo,
+        nombre: nombreCuenta(codigo),
+        naturaleza: cuenta(codigo)?.naturaleza ?? 'DEUDORA',
+        debe: s.debe / 100,
+        haber: s.haber / 100,
+        saldoDeudor: neto > 0 ? neto / 100 : 0,
+        saldoAcreedor: neto < 0 ? -neto / 100 : 0,
+      };
+    })
+    .sort((a, b) => a.codigo.localeCompare(b.codigo));
+}
+
+/** Los movimientos de una sola cuenta, con su saldo corriendo línea a línea. */
+function mayorDe(codigo, diario = DIARIO) {
+  let saldo = 0;
+  const movimientos = [];
+  for (const a of diario) {
+    for (const l of a.lineas) {
+      if (l.cuenta !== codigo) continue;
+      saldo += centavos(l.debe) - centavos(l.haber);
+      movimientos.push({
+        fecha: a.fecha, asiento: a.numero, glosa: a.glosa, detalle: l.detalle,
+        debe: l.debe, haber: l.haber, saldo: saldo / 100,
+      });
+    }
+  }
+  return movimientos;
+}
+
+// ===========================================================================
+//  Cartera, bancos y operaciones
+// ===========================================================================
+
+const CARTERA_COBRAR = [
+  { cliente: 'Bananera del Litoral Cía. Ltda.', documento: '001-001-000000148', emision: new Date(2026, 8, 24), vence: new Date(2026, 9, 24), monto: 1394.25, abonado: 0 },
+  { cliente: 'Hacienda San José Cía. Ltda.', documento: '001-001-000000145', emision: new Date(2026, 8, 22), vence: new Date(2026, 9, 22), monto: 393.30, abonado: 0 },
+  { cliente: 'Consorcio Agrícola Daule S.A.', documento: '001-001-000000131', emision: new Date(2026, 7, 18), vence: new Date(2026, 8, 17), monto: 5840.00, abonado: 2000.00 },
+  { cliente: 'Ferretería Nobol Cía. Ltda.', documento: '001-001-000000118', emision: new Date(2026, 6, 30), vence: new Date(2026, 7, 29), monto: 2310.75, abonado: 0 },
+  { cliente: 'Bananera del Litoral Cía. Ltda.', documento: '001-002-000000027', emision: new Date(2026, 6, 12), vence: new Date(2026, 7, 11), monto: 4120.00, abonado: 1500.00 },
+];
+
+const CARTERA_PAGAR = [
+  { proveedor: 'Fertilizantes del Pacífico S.A.', documento: '001-001-000009104', emision: new Date(2026, 8, 26), vence: new Date(2026, 9, 26), monto: 7240.00, abonado: 0 },
+  { proveedor: 'Transportes Samborondón S.A.', documento: '002-001-000003318', emision: new Date(2026, 8, 19), vence: new Date(2026, 9, 3), monto: 1180.50, abonado: 0 },
+  { proveedor: 'Semillas del Guayas Cía. Ltda.', documento: '001-001-000002205', emision: new Date(2026, 7, 28), vence: new Date(2026, 8, 27), monto: 3450.00, abonado: 1000.00 },
+];
+
+/**
+ * Los bancos. La suma de `saldoLibros` tiene que ser exactamente el saldo de la
+ * cuenta 10101 en el mayor: si la pantalla de bancos dice una cosa y los libros
+ * otra, una de las dos miente y no se sabe cuál.
+ *
+ * La diferencia con `saldoBanco` sí es normal: son cheques girados que el
+ * beneficiario todavía no cobró y depósitos que el banco aún no acreditó. Eso
+ * es lo que resuelve una conciliación.
+ */
+const BANCOS = [
+  { banco: 'Banco Pichincha', cuenta: '2100••••4471', tipo: 'Corriente',
+    saldoLibros: 49848.42, saldoBanco: 51228.42,
+    partidas: [
+      { concepto: 'Cheque 004821 girado y no cobrado', valor: -1380.00 },
+      { concepto: 'Nota de débito por comisiones', valor: 0 },
+    ] },
+  { banco: 'Banco Bolivariano', cuenta: '0850••••1192', tipo: 'Ahorros',
+    saldoLibros: 6200.00, saldoBanco: 6200.00, partidas: [] },
+];
+
+const INVENTARIO = [
+  { codigo: 'FERT-UREA-01', descripcion: 'Urea fertilizante granulada 50kg', unidad: 'SACO', cantidad: 268, costo: 24.10, precio: 28.50, minimo: 80 },
+  { codigo: 'INSECT-GLI-05', descripcion: 'Glifosato concentrado 480 SL 20L', unidad: 'BIDÓN', cantidad: 42, costo: 38.00, precio: 45.00, minimo: 25 },
+  { codigo: 'SEM-ARR-02', descripcion: 'Semilla certificada arroz INIAP 14', unidad: 'SACO', cantidad: 18, costo: 26.40, precio: 31.25, minimo: 40 },
+  { codigo: 'AGR-001', descripcion: 'Fertilizante foliar', unidad: 'LITRO', cantidad: 130, costo: 37.50, precio: 45.00, minimo: 50 },
+  { codigo: 'AGR-014', descripcion: 'Herbicida selectivo', unidad: 'LITRO', cantidad: 9, costo: 71.00, precio: 85.00, minimo: 20 },
+];
+
+const EMPLEADOS = [
+  { nombre: 'Juan Carlos Pérez Andrade', cargo: 'Gerente general', cedula: '0912345678', sueldo: 1800.00, ingreso: new Date(2019, 2, 1) },
+  { nombre: 'María Elena Vaca Ruiz', cargo: 'Facturación', cedula: '0918273645', sueldo: 900.00, ingreso: new Date(2022, 5, 15) },
+  { nombre: 'Diego Sánchez Mora', cargo: 'Bodega', cedula: '0923456789', sueldo: 620.00, ingreso: new Date(2023, 0, 9) },
+  { nombre: 'Rosa Chávez Piedra', cargo: 'Contabilidad', cedula: '0934567890', sueldo: 1530.00, ingreso: new Date(2021, 8, 20) },
+];
+
+const ACTIVOS_FIJOS = [
+  { codigo: 'AF-001', descripcion: 'Camión Hino 300 · reparto', cuenta: '1020109', compra: new Date(2023, 3, 12), costo: 32000.00, vidaUtil: 5, depreciado: 9066.67 },
+  { codigo: 'AF-002', descripcion: 'Mezcladora de fertilizante', cuenta: '1020106', compra: new Date(2022, 6, 4), costo: 28000.00, vidaUtil: 10, depreciado: 5533.33 },
+  { codigo: 'AF-003', descripcion: 'Equipos de computación · 3 estaciones', cuenta: '1020108', compra: new Date(2024, 1, 20), costo: 4200.00, vidaUtil: 3, depreciado: 2216.67 },
+  { codigo: 'AF-004', descripcion: 'Mobiliario de oficina', cuenta: '1020105', compra: new Date(2021, 10, 8), costo: 3800.00, vidaUtil: 10, depreciado: 1836.67 },
+];
+
+// ===========================================================================
+//  Lo que ve el super administrador
+// ===========================================================================
+
+const SUSCRIPCIONES = [
+  { empresa: 'Agroquímicos Pérez S.A.', plan: 'Profesional', valor: 49.90, ciclo: 'Mensual', proximo: new Date(2026, 9, 12), estado: 'AL DÍA' },
+  { empresa: 'Comercial Nobol Cía. Ltda.', plan: 'Básico', valor: 24.90, ciclo: 'Mensual', proximo: new Date(2026, 9, 4), estado: 'AL DÍA' },
+  { empresa: 'Transportes Samborondón S.A.', plan: 'Profesional', valor: 499.00, ciclo: 'Anual', proximo: new Date(2027, 5, 20), estado: 'AL DÍA' },
+  { empresa: 'Panadería La Espiga', plan: 'Básico', valor: 0, ciclo: 'Prueba', proximo: new Date(2026, 8, 29), estado: 'EN PRUEBA' },
+  { empresa: 'Ferretería Central del Guayas S.A.', plan: 'Profesional', valor: 49.90, ciclo: 'Mensual', proximo: new Date(2026, 8, 8), estado: 'VENCIDA' },
+];
+
+const USO_MENSUAL = [
+  { mes: 'Abr', comprobantes: 402 }, { mes: 'May', comprobantes: 471 },
+  { mes: 'Jun', comprobantes: 518 }, { mes: 'Jul', comprobantes: 560 },
+  { mes: 'Ago', comprobantes: 604 }, { mes: 'Sep', comprobantes: 623 },
+];
+
+const SOPORTE = [
+  { empresa: 'Ferretería Central del Guayas S.A.', asunto: 'El SRI devolvió un comprobante y no entienden por qué',
+    abierto: new Date(2026, 8, 11, 9, 42), estado: 'ACCESO ABIERTO', caduca: new Date(2026, 8, 11, 11, 42) },
+  { empresa: 'Panadería La Espiga', asunto: 'No saben cargar el certificado de firma',
+    abierto: new Date(2026, 8, 10, 15, 20), estado: 'RESUELTO', caduca: null },
+  { empresa: 'Comercial Nobol Cía. Ltda.', asunto: 'Pidió pasar a ambiente de producción',
+    abierto: new Date(2026, 8, 9, 11, 5), estado: 'ESPERANDO A LA EMPRESA', caduca: null },
+];
+
+// ===========================================================================
+//  Los otros comprobantes que emite una empresa
+//
+//  El motor ya los genera y los firma (packages/sri-core); lo que faltaba eran
+//  las pantallas. Los datos de aquí son de ejemplo, como todo lo demás.
+// ===========================================================================
+
+const RETENCIONES = [
+  { numero: '001-001-000000031', proveedor: 'Fertilizantes del Pacífico S.A.', ruc: '0990123456001',
+    fecha: new Date(2026, 8, 5), sustento: '001-001-000008842', baseIR: 8400.00, porcentajeIR: 1.75,
+    baseIVA: 1260.00, porcentajeIVA: 30, estado: 'AUTORIZADO' },
+  { numero: '001-001-000000030', proveedor: 'Transportes Samborondón S.A.', ruc: '0992871045001',
+    fecha: new Date(2026, 8, 19), sustento: '002-001-000003318', baseIR: 1026.52, porcentajeIR: 1,
+    baseIVA: 153.98, porcentajeIVA: 70, estado: 'AUTORIZADO' },
+  { numero: '001-001-000000029', proveedor: 'Semillas del Guayas Cía. Ltda.', ruc: '0991765432001',
+    fecha: new Date(2026, 7, 28), sustento: '001-001-000002205', baseIR: 3000.00, porcentajeIR: 1.75,
+    baseIVA: 450.00, porcentajeIVA: 30, estado: 'AUTORIZADO' },
+];
+
+const NOTAS_CREDITO = [
+  { numero: '001-001-000000012', cliente: 'Ferretería Nobol Cía. Ltda.', identificacion: '0987654321001',
+    fecha: new Date(2026, 8, 18), modifica: '001-001-000000139', motivo: 'Devolución de 4 sacos en mal estado',
+    base: 114.00, iva: 17.10, estado: 'AUTORIZADO' },
+  { numero: '001-001-000000011', cliente: 'Consorcio Agrícola Daule S.A.', identificacion: '0991204859001',
+    fecha: new Date(2026, 8, 6), modifica: '001-001-000000127', motivo: 'Descuento por pronto pago',
+    base: 240.00, iva: 36.00, estado: 'AUTORIZADO' },
+];
+
+const GUIAS_REMISION = [
+  { numero: '001-001-000000204', destinatario: 'Bananera del Litoral Cía. Ltda.',
+    partida: new Date(2026, 8, 24), llegada: new Date(2026, 8, 25),
+    desde: 'Km 14.5 Vía Daule', hasta: 'Samborondón, Km 12',
+    transportista: 'Transportes Samborondón S.A.', placa: 'GBA-4471',
+    documento: '001-001-000000148', estado: 'AUTORIZADO' },
+  { numero: '001-001-000000203', destinatario: 'Hacienda San José Cía. Ltda.',
+    partida: new Date(2026, 8, 22), llegada: new Date(2026, 8, 22),
+    desde: 'Km 14.5 Vía Daule', hasta: 'Daule, vía Santa Lucía',
+    transportista: 'Agroquímicos Pérez S.A.', placa: 'GSJ-1120',
+    documento: '001-001-000000145', estado: 'AUTORIZADO' },
+];
+
+// ===========================================================================
+//  Impuestos · lo que se declara cada mes
+//
+//  Las casillas son las del formulario 104 del SRI. Los valores NO se teclean:
+//  salen de los libros, que es justo el sentido de tener un sistema contable.
+// ===========================================================================
+
+function formulario104(saldos = balanceDeComprobacion()) {
+  const saldo = (codigo) => saldos.find((s) => s.codigo === codigo) ?? { saldoDeudor: 0, saldoAcreedor: 0 };
+  const ivaCobrado = saldo('2010701').saldoAcreedor;
+  const ivaPagado = saldo('1010501').saldoDeudor;
+  const ventas15 = 38200.00;
+  const ventas0 = 4118.50;
+
+  const aPagar = Math.round((ivaCobrado - ivaPagado) * 100) / 100;
+  return {
+    periodo: 'Septiembre 2026',
+    casillas: [
+      { casilla: '401', concepto: 'Ventas locales gravadas con tarifa 15%', valor: ventas15, cuenta: '4101' },
+      { casilla: '403', concepto: 'Ventas locales gravadas con tarifa 0%', valor: ventas0, cuenta: '4101' },
+      { casilla: '409', concepto: 'Total de ventas y otras operaciones', valor: ventas15 + ventas0, total: true },
+      { casilla: '429', concepto: 'IVA generado en ventas', valor: ivaCobrado, cuenta: '2010701' },
+      { casilla: '500', concepto: 'Adquisiciones gravadas con tarifa 15%', valor: 10926.20, cuenta: '510102' },
+      { casilla: '564', concepto: 'IVA en compras · crédito tributario', valor: ivaPagado, cuenta: '1010501' },
+      { casilla: '601', concepto: 'Impuesto causado', valor: Math.max(0, aPagar), total: true },
+      { casilla: '902', concepto: 'Total a pagar', valor: Math.max(0, aPagar), total: true, fuerte: true },
+    ],
+    ivaCobrado, ivaPagado, aPagar,
+    vence: new Date(2026, 9, 14),
+  };
+}
+
+
+  return { CUENTAS, cuenta, nombreCuenta, asientoDeFactura, DIARIO, balanceDeComprobacion, mayorDe, CARTERA_COBRAR, CARTERA_PAGAR, BANCOS, INVENTARIO, EMPLEADOS, ACTIVOS_FIJOS, SUSCRIPCIONES, USO_MENSUAL, SOPORTE, RETENCIONES, NOTAS_CREDITO, GUIAS_REMISION, formulario104 };
+})();
+
 // ---- src/disposicion.js ------------------------------------------
 const __src_disposicion_js = (function () {
   const { html, crudo, esc, icono } = __src_ui_js;
@@ -1202,20 +1926,40 @@ const __src_disposicion_js = (function () {
 
 
 const MENU_EMPRESA = [
-  { grupo: 'Menú principal', enlaces: [
+  { grupo: 'Comprobantes', enlaces: [
     { ico: 'dashboard', texto: 'Resumen', ruta: '#/resumen' },
-    { ico: 'receipt_long', texto: 'Facturación electrónica', ruta: '#/comprobantes' },
+    { ico: 'receipt_long', texto: 'Facturación', ruta: '#/comprobantes' },
     { ico: 'content_cut', texto: 'Retenciones', ruta: '#/retenciones' },
-    { ico: 'local_shipping', texto: 'Guías de remisión', ruta: '#/guias' },
     { ico: 'assignment_return', texto: 'Notas de crédito', ruta: '#/notas-credito' },
-    { ico: 'storefront', texto: 'Puntos de emisión', ruta: '#/puntos-emision' },
+    { ico: 'local_shipping', texto: 'Guías de remisión', ruta: '#/guias' },
   ] },
-  { grupo: 'Gestión y catálogo', enlaces: [
+  { grupo: 'Contabilidad', enlaces: [
+    { ico: 'account_tree', texto: 'Plan de cuentas', ruta: '#/plan-cuentas' },
+    { ico: 'menu_book', texto: 'Libro diario', ruta: '#/diario' },
+    { ico: 'auto_stories', texto: 'Libro mayor', ruta: '#/mayor' },
+    { ico: 'balance', texto: 'Balance de comprobación', ruta: '#/comprobacion' },
+    { ico: 'trending_up', texto: 'Estado de resultados', ruta: '#/resultados' },
+    { ico: 'account_balance_wallet', texto: 'Situación financiera', ruta: '#/situacion' },
+  ] },
+  { grupo: 'Dinero', enlaces: [
+    { ico: 'request_quote', texto: 'Cuentas por cobrar', ruta: '#/por-cobrar' },
+    { ico: 'credit_card', texto: 'Cuentas por pagar', ruta: '#/por-pagar' },
+    { ico: 'account_balance', texto: 'Bancos', ruta: '#/bancos' },
+  ] },
+  { grupo: 'Operaciones', enlaces: [
     { ico: 'group', texto: 'Clientes', ruta: '#/clientes' },
-    { ico: 'inventory_2', texto: 'Productos y servicios', ruta: '#/productos' },
-    { ico: 'bar_chart', texto: 'Reportes contables', ruta: '#/reportes' },
+    { ico: 'inventory_2', texto: 'Productos', ruta: '#/productos' },
+    { ico: 'warehouse', texto: 'Inventario', ruta: '#/inventario' },
+    { ico: 'badge', texto: 'Nómina', ruta: '#/nomina' },
+    { ico: 'precision_manufacturing', texto: 'Activos fijos', ruta: '#/activos' },
+  ] },
+  { grupo: 'Impuestos', enlaces: [
+    { ico: 'description', texto: 'Declaración de IVA', ruta: '#/iva' },
+    { ico: 'folder_zip', texto: 'Anexo transaccional', ruta: '#/anexo' },
+    { ico: 'gavel', texto: 'Consulta legal', ruta: '#/consulta' },
   ] },
   { grupo: 'Sistema', enlaces: [
+    { ico: 'storefront', texto: 'Puntos de emisión', ruta: '#/puntos-emision' },
     { ico: 'settings', texto: 'Configuración', ruta: '#/configuracion' },
     { ico: 'verified', texto: 'Certificado de firma', ruta: '#/certificado' },
     { ico: 'manage_accounts', texto: 'Usuarios', ruta: '#/usuarios' },
@@ -1372,7 +2116,6 @@ function marco(contenido, { ruta = '', admin = false } = {}) {
 
 /** Pantalla suelta, sin armazón: el inicio de sesión y la selección de empresa. */
 const suelta = (contenido) => html`<div class="min-h-screen">${crudo(contenido)}</div>`;
-
 
 // ===========================================================================
 //  Abrir y cerrar el menú en el teléfono
@@ -1687,8 +2430,9 @@ document.addEventListener('click', (ev) => {
 
 // ---- src/vistas/resumen.js ---------------------------------------
 const __src_vistas_resumen_js = (function () {
-  const { html, crudo, usd, dinero, icono, chipEstado, fechaHora, aviso } = __src_ui_js;
+  const { html, crudo, usd, icono, chipEstado, fechaHora, aviso } = __src_ui_js;
   const { cargar } = __src_almacen_js;
+  const { linea, chispa, VERDE, AMBAR, ROJO } = __src_graficos_js;
 
 /**
  * El tablero de la empresa: lo primero que se ve al entrar.
@@ -1701,12 +2445,14 @@ const __src_vistas_resumen_js = (function () {
 
 
 
-const tarjetaCifra = ({ ico, etiqueta, valor, pie, tono = 'verde' }) => {
+
+const tarjetaCifra = ({ ico, etiqueta, valor, pie, tono = 'verde', serie = null }) => {
   const tonos = {
     verde: 'bg-verde-claro text-verde',
     ambar: 'bg-ambar-fondo text-ambar-texto',
     rojo: 'bg-rojo-fondo text-rojo-texto',
   };
+  const colorChispa = { verde: VERDE, ambar: AMBAR, rojo: ROJO }[tono];
   return html`
     <div class="bg-white border border-papel-linea rounded-2xl p-5">
       <div class="flex items-start justify-between">
@@ -1716,7 +2462,10 @@ const tarjetaCifra = ({ ico, etiqueta, valor, pie, tono = 'verde' }) => {
         </span>
       </div>
       <p class="mt-3 text-[30px] font-extrabold tracking-tight tabular">${valor}</p>
-      <p class="mt-1 text-xs text-tinta-suave">${pie}</p>
+      <div class="mt-1 flex items-end justify-between gap-3">
+        <p class="text-xs text-tinta-suave leading-snug">${pie}</p>
+        ${serie ? crudo(`<span class="shrink-0 opacity-70">${chispa(serie, { tono: colorChispa })}</span>`) : ''}
+      </div>
     </div>`;
 };
 
@@ -1766,13 +2515,15 @@ async function resumen() {
         pie: `${r.autorizados} autorizados · ${r.pendientes} pendientes · ${r.devueltos} devueltos` })}
       ${tarjetaCifra({ ico: 'payments', etiqueta: 'Ventas del mes',
         valor: usd(r.ventasDelMes),
-        pie: `Base 15% ${usd(r.base15)} · Base 0% ${usd(r.base0)}` })}
+        pie: `Base 15% ${usd(r.base15)} · Base 0% ${usd(r.base0)}`,
+        serie: r.meses.map((m) => m.valor) })}
       ${tarjetaCifra({ ico: 'account_balance', etiqueta: 'IVA generado',
         valor: usd(r.ivaGenerado),
         pie: `${usd(r.base15)} × 15%`, tono: 'ambar' })}
       ${tarjetaCifra({ ico: 'trending_up', etiqueta: 'Promedio mensual',
         valor: usd(r.promedioMensual),
-        pie: `${usd(r.ingresosAnio)} en ${r.mesesTranscurridos} meses` })}
+        pie: `${usd(r.ingresosAnio)} en ${r.mesesTranscurridos} meses`,
+        serie: r.meses.map((m) => m.valor) })}
     </div>
 
     <div class="mt-5 grid gap-5 lg:grid-cols-3">
@@ -1786,19 +2537,8 @@ async function resumen() {
             </p>
           </div>
         </div>
-        <div class="flex items-stretch gap-2 sm:gap-3 h-44">
-          ${r.meses.map((m) => html`
-            <div class="flex-1 flex flex-col items-center justify-end gap-2 group">
-              <span class="text-[10px] font-bold text-tinta-suave opacity-0 group-hover:opacity-100 transition tabular">
-                ${dinero(m.valor)}
-              </span>
-              <div class="w-full flex-1 flex items-end">
-                ${crudo(`<div class="w-full rounded-t-md bg-verde/85 group-hover:bg-verde transition"
-                              style="height:${Math.round((m.valor / tope) * 100)}%"></div>`)}
-              </div>
-              <span class="text-[10px] font-semibold text-tinta-suave">${m.mes}</span>
-            </div>`)}
-        </div>
+        ${linea(r.meses.map((m) => ({ etiqueta: m.mes, valor: m.valor })),
+                 { alto: 210, titulo: 'Ingresos por mes de 2026' })}
       </section>
 
       <section class="bg-white border border-papel-linea rounded-2xl p-5">
@@ -2166,7 +2906,6 @@ async function comprobante(numero) {
     </div>`;
 }
 
-
 // ===========================================================================
 //  Emitir desde la ficha
 // ===========================================================================
@@ -2220,7 +2959,7 @@ function conectarComprobante() {
 
 // ---- src/vistas/emision.js ---------------------------------------
 const __src_vistas_emision_js = (function () {
-  const { html, crudo, esc, usd, dinero, cabecera, aviso, boton, icono } = __src_ui_js;
+  const { html, crudo, esc, usd, dinero, cabecera, aviso, boton } = __src_ui_js;
   const { totalizar, FORMAS_PAGO } = __src_datos_js;
   const { cargar, guardar } = __src_almacen_js;
 
@@ -3698,6 +4437,1913 @@ async function adminAuditoria() {
   return { adminEmpresas, adminFicha, adminAlta, adminAuditoria };
 })();
 
+// ---- src/vistas/contabilidad.js ----------------------------------
+const __src_vistas_contabilidad_js = (function () {
+  const { html, crudo, esc, usd, dinero, icono, tabla, cabecera, aviso, boton, fecha, vacio } = __src_ui_js;
+  const { barras } = __src_graficos_js;
+  const { CUENTAS, DIARIO, balanceDeComprobacion, mayorDe, nombreCuenta } = __src_datos_contables_js;
+
+/**
+ * Los libros: plan de cuentas, diario, mayor y balance de comprobación.
+ *
+ * Estas cuatro pantallas son la contabilidad de verdad. Las tres primeras son
+ * registro; la cuarta es una **alarma**: si las sumas del balance de
+ * comprobación no coinciden, hay un error en alguna parte, y el sistema tiene
+ * que decirlo en grande en lugar de enseñar un informe bonito y descuadrado.
+ *
+ * Por eso la diferencia se muestra siempre, aunque sea cero. Un cero visible
+ * dice "se comprobó"; la ausencia de la cifra no dice nada.
+ */
+
+
+
+
+
+const AVISO_PROVISIONAL = {
+  tono: 'ambar', ico: 'gavel',
+  titulo: 'Estas reglas todavía no las ha revisado un contador',
+  texto: 'Las cuentas salen del catálogo oficial de la Superintendencia y los asientos ' +
+         'cuadran, pero los criterios —contra qué cuenta va cada gasto, cuándo se ' +
+         'registra el costo— están pendientes de revisión profesional. No use esto para ' +
+         'declarar nada todavía.',
+};
+
+const ETIQUETA_TIPO = {
+  APERTURA: 'bg-papel text-tinta-suave',
+  VENTA: 'bg-verde-claro text-verde',
+  COMPRA: 'bg-[#EEF2F6] text-[#3E5A73]',
+  PAGO: 'bg-ambar-fondo text-ambar-texto',
+  COBRO: 'bg-verde-claro text-verde',
+  GASTO: 'bg-[#F6F0F8] text-[#6B4A80]',
+  NOMINA: 'bg-[#FFF1EC] text-[#9A4B2E]',
+  AJUSTE: 'bg-papel text-tinta-suave',
+};
+
+const chipTipo = (t) => crudo(
+  `<span class="text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-full ` +
+  `${ETIQUETA_TIPO[t] ?? 'bg-papel text-tinta-suave'}">${esc(t)}</span>`);
+
+// ===========================================================================
+//  Plan de cuentas
+// ===========================================================================
+
+async function planDeCuentas() {
+  const sangria = (codigo) => (codigo.length + 1) / 2 - 1;
+
+  const cuerpo = CUENTAS.map((c) => {
+    const esTotal = c.tipo === 'TOTAL';
+    return html`
+      <tr class="${esTotal ? 'bg-papel/60' : ''} hover:bg-papel transition">
+        <td class="px-5 py-2.5 text-xs font-bold tabular whitespace-nowrap">${c.codigo}</td>
+        <td class="px-5 py-2.5">
+          <span class="text-sm ${esTotal ? 'font-bold' : ''}"
+                style="padding-left:${sangria(c.codigo) * 16}px">${c.nombre}</span>
+        </td>
+        <td class="px-5 py-2.5 text-right">
+          <span class="text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-full
+                       ${crudo(esTotal ? 'bg-papel-linea text-tinta-suave' : 'bg-verde-claro text-verde')}">
+            ${esTotal ? 'Total' : 'Detalle'}
+          </span>
+        </td>
+        <td class="px-5 py-2.5 text-right text-xs text-tinta-suave">${c.naturaleza}</td>
+      </tr>`;
+  });
+
+  return html`
+    ${crudo(cabecera({
+      titulo: 'Plan de cuentas',
+      descripcion: 'Las cuentas con las que se registra todo. Salen del catálogo oficial ' +
+                   'de la Superintendencia de Compañías, no de una plantilla.',
+      acciones: boton('Añadir subcuenta', { ico: 'add', tipo: 'secundario' }),
+    }))}
+
+    ${crudo(aviso({
+      tono: 'info', ico: 'verified',
+      titulo: 'Por qué los códigos no se pueden inventar',
+      texto: 'Son los del catálogo con el que las compañías ecuatorianas presentan sus ' +
+             'estados financieros. Un código que no esté ahí hace que la presentación se ' +
+             'rechace. Cada empresa puede abrir subcuentas de detalle debajo, nunca por encima.',
+    }))}
+
+    <section class="bg-white border border-papel-linea rounded-2xl overflow-hidden">
+      ${crudo(tabla([
+        { texto: 'Código' }, { texto: 'Cuenta' },
+        { texto: 'Tipo', der: true }, { texto: 'Naturaleza', der: true },
+      ], cuerpo))}
+    </section>`;
+}
+
+// ===========================================================================
+//  Libro diario
+// ===========================================================================
+
+async function libroDiario() {
+  const totalDebe = DIARIO.reduce((s, a) => s + a.debe, 0);
+  const generados = DIARIO.filter((a) => a.generado).length;
+
+  const asientos = DIARIO.map((a) => html`
+    <article class="bg-white border border-papel-linea rounded-2xl overflow-hidden">
+      <header class="flex flex-wrap items-center gap-3 px-5 py-3.5 border-b border-papel-linea bg-papel/40">
+        <span class="text-sm font-extrabold tabular">#${a.numero}</span>
+        ${chipTipo(a.tipo)}
+        <span class="text-xs text-tinta-suave whitespace-nowrap">${fecha(a.fecha)}</span>
+        <span class="text-sm flex-1 min-w-[200px] truncate">${a.glosa}</span>
+        ${a.generado ? crudo(
+          '<span class="text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-full ' +
+          'bg-verde-claro text-verde" title="Lo generó el sistema al emitir el comprobante">' +
+          'automático</span>') : ''}
+        <span class="text-sm font-bold tabular whitespace-nowrap">${usd(a.debe)}</span>
+      </header>
+
+      <div class="overflow-x-auto">
+        <table class="w-full text-sm min-w-[520px]">
+          <tbody class="divide-y divide-papel-linea">
+            ${a.lineas.map((l) => html`
+              <tr>
+                <td class="px-5 py-2 w-24 text-xs font-bold tabular align-top">${l.cuenta}</td>
+                <td class="px-2 py-2">
+                  <span class="block text-sm ${l.haber > 0 ? 'pl-6' : ''}">${nombreCuenta(l.cuenta)}</span>
+                  <span class="block text-[11px] text-tinta-suave ${l.haber > 0 ? 'pl-6' : ''}">${l.detalle}</span>
+                </td>
+                <td class="px-3 py-2 text-right text-sm tabular w-28 whitespace-nowrap">
+                  ${l.debe > 0 ? dinero(l.debe) : ''}
+                </td>
+                <td class="px-5 py-2 text-right text-sm tabular w-28 whitespace-nowrap">
+                  ${l.haber > 0 ? dinero(l.haber) : ''}
+                </td>
+              </tr>`)}
+            <tr class="bg-papel/60">
+              <td class="px-5 py-2"></td>
+              <td class="px-2 py-2 text-[11px] font-bold uppercase tracking-wide text-tinta-suave">Sumas iguales</td>
+              <td class="px-3 py-2 text-right text-sm font-extrabold tabular">${dinero(a.debe)}</td>
+              <td class="px-5 py-2 text-right text-sm font-extrabold tabular">${dinero(a.haber)}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </article>`);
+
+  return html`
+    ${crudo(cabecera({
+      titulo: 'Libro diario',
+      descripcion: 'Todo lo que pasó, en orden, con su fecha y su origen. Septiembre de 2026.',
+      acciones: [boton('Exportar', { ico: 'download', tipo: 'secundario' }),
+                 boton('Asiento manual', { ico: 'add' })],
+    }))}
+
+    ${crudo(aviso(AVISO_PROVISIONAL))}
+
+    <div class="grid gap-4 sm:grid-cols-3 mb-5">
+      ${[['Asientos del mes', String(DIARIO.length), 'receipt_long'],
+         ['Movido en el mes', usd(totalDebe), 'swap_horiz'],
+         ['Generados por el sistema', `${generados} de ${DIARIO.length}`, 'bolt']].map(([t, v, i]) => html`
+        <div class="bg-white border border-papel-linea rounded-2xl p-5">
+          <div class="flex items-start justify-between">
+            <p class="text-[11px] font-bold uppercase tracking-wide text-tinta-suave">${t}</p>
+            <span class="w-9 h-9 rounded-xl bg-verde-claro text-verde flex items-center justify-center">
+              ${icono(i, 'text-[18px]')}
+            </span>
+          </div>
+          <p class="mt-3 text-[26px] font-extrabold tracking-tight tabular">${v}</p>
+        </div>`)}
+    </div>
+
+    <div class="space-y-4">${asientos}</div>`;
+}
+
+// ===========================================================================
+//  Libro mayor
+// ===========================================================================
+
+async function libroMayor(codigo) {
+  const conMovimiento = balanceDeComprobacion();
+  const elegida = codigo && conMovimiento.some((c) => c.codigo === codigo)
+    ? codigo : conMovimiento[0]?.codigo;
+  if (!elegida) {
+    return html`<section class="bg-white border border-papel-linea rounded-2xl">
+      ${crudo(vacio({ ico: 'menu_book', titulo: 'Todavía no hay movimientos',
+        texto: 'El libro mayor se llena solo conforme se registran asientos.' }))}</section>`;
+  }
+
+  const movimientos = mayorDe(elegida);
+  const saldoFinal = movimientos.length ? movimientos[movimientos.length - 1].saldo : 0;
+
+  const cuerpo = movimientos.map((m) => html`
+    <tr class="hover:bg-papel transition">
+      <td class="px-5 py-3 text-xs text-tinta-suave whitespace-nowrap">${fecha(m.fecha)}</td>
+      <td class="px-3 py-3 text-xs font-bold tabular">#${m.asiento}</td>
+      <td class="px-3 py-3">
+        <span class="block text-sm truncate max-w-[300px]">${m.glosa}</span>
+        <span class="block text-[11px] text-tinta-suave truncate max-w-[300px]">${m.detalle}</span>
+      </td>
+      <td class="px-3 py-3 text-right text-sm tabular">${m.debe > 0 ? dinero(m.debe) : ''}</td>
+      <td class="px-3 py-3 text-right text-sm tabular">${m.haber > 0 ? dinero(m.haber) : ''}</td>
+      <td class="px-5 py-3 text-right text-sm font-bold tabular whitespace-nowrap">${dinero(m.saldo)}</td>
+    </tr>`);
+
+  return html`
+    ${crudo(cabecera({
+      titulo: 'Libro mayor',
+      descripcion: 'Todo lo que entró y salió de una cuenta, con su saldo después de cada movimiento.',
+    }))}
+
+    <div class="grid gap-5 lg:grid-cols-4">
+      <nav class="lg:col-span-1 bg-white border border-papel-linea rounded-2xl overflow-hidden h-fit">
+        <p class="px-4 py-3 text-[11px] font-bold uppercase tracking-wide text-tinta-suave border-b border-papel-linea">
+          Cuentas con movimiento
+        </p>
+        <ul class="max-h-[520px] overflow-y-auto divide-y divide-papel-linea">
+          ${conMovimiento.map((c) => html`
+            <li>
+              <a href="#/mayor/${c.codigo}"
+                 class="block px-4 py-2.5 hover:bg-papel transition ${crudo(
+                   c.codigo === elegida ? 'bg-verde-claro' : '')}">
+                <span class="block text-xs font-bold tabular ${crudo(c.codigo === elegida ? 'text-verde' : '')}">
+                  ${c.codigo}
+                </span>
+                <span class="block text-[11px] text-tinta-suave truncate">${c.nombre}</span>
+              </a>
+            </li>`)}
+        </ul>
+      </nav>
+
+      <section class="lg:col-span-3 bg-white border border-papel-linea rounded-2xl overflow-hidden">
+        <header class="px-5 py-4 border-b border-papel-linea flex flex-wrap items-center justify-between gap-3">
+          <div class="min-w-0">
+            <p class="text-xs font-bold tabular text-tinta-suave">${elegida}</p>
+            <h2 class="text-base font-bold truncate">${nombreCuenta(elegida)}</h2>
+          </div>
+          <div class="text-right">
+            <p class="text-[11px] font-bold uppercase tracking-wide text-tinta-suave">Saldo</p>
+            <p class="text-xl font-extrabold tabular">${usd(Math.abs(saldoFinal))}
+              <span class="text-xs font-semibold text-tinta-suave">
+                ${saldoFinal >= 0 ? 'deudor' : 'acreedor'}
+              </span>
+            </p>
+          </div>
+        </header>
+        ${crudo(tabla([
+          { texto: 'Fecha' }, { texto: 'Asiento' }, { texto: 'Concepto' },
+          { texto: 'Debe', der: true }, { texto: 'Haber', der: true }, { texto: 'Saldo', der: true },
+        ], cuerpo))}
+      </section>
+    </div>`;
+}
+
+// ===========================================================================
+//  Balance de comprobación
+// ===========================================================================
+
+async function balanceComprobacion() {
+  const filas = balanceDeComprobacion();
+  const centavos = (n) => Math.round(n * 100);
+  const suma = (campo) => filas.reduce((s, f) => s + centavos(f[campo]), 0);
+
+  const totalDebe = suma('debe'), totalHaber = suma('haber');
+  const totalDeudor = suma('saldoDeudor'), totalAcreedor = suma('saldoAcreedor');
+  const cuadraSumas = totalDebe === totalHaber;
+  const cuadraSaldos = totalDeudor === totalAcreedor;
+  const cuadra = cuadraSumas && cuadraSaldos;
+
+  const cuerpo = filas.map((f) => html`
+    <tr class="hover:bg-papel transition">
+      <td class="px-5 py-2.5 text-xs font-bold tabular whitespace-nowrap">
+        <a href="#/mayor/${f.codigo}" class="hover:text-verde">${f.codigo}</a>
+      </td>
+      <td class="px-3 py-2.5 text-sm truncate max-w-[300px]">${f.nombre}</td>
+      <td class="px-3 py-2.5 text-right text-sm tabular">${dinero(f.debe)}</td>
+      <td class="px-3 py-2.5 text-right text-sm tabular">${dinero(f.haber)}</td>
+      <td class="px-3 py-2.5 text-right text-sm font-semibold tabular">
+        ${f.saldoDeudor ? dinero(f.saldoDeudor) : ''}
+      </td>
+      <td class="px-5 py-2.5 text-right text-sm font-semibold tabular">
+        ${f.saldoAcreedor ? dinero(f.saldoAcreedor) : ''}
+      </td>
+    </tr>`);
+
+  return html`
+    ${crudo(cabecera({
+      titulo: 'Balance de comprobación',
+      descripcion: 'Septiembre de 2026 · la prueba de que los libros no tienen errores de registro.',
+      acciones: boton('Exportar', { ico: 'download', tipo: 'secundario' }),
+    }))}
+
+    ${crudo(aviso({
+      tono: cuadra ? 'info' : 'rojo',
+      ico: cuadra ? 'check_circle' : 'error',
+      titulo: cuadra ? 'Los libros cuadran' : 'LOS LIBROS NO CUADRAN',
+      texto: cuadra
+        ? 'Las sumas del debe y del haber coinciden, y los saldos deudores igualan a los ' +
+          'acreedores. Esto no prueba que la contabilidad sea correcta —un asiento puede ' +
+          'cuadrar y estar mal— pero sí que no falta ni sobra ningún registro.'
+        : 'Hay una diferencia entre el debe y el haber. Algún asiento se registró a medias. ' +
+          'No se puede cerrar el mes ni presentar nada hasta encontrarlo.',
+    }))}
+
+    <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4 mb-5">
+      ${[['Cuentas con movimiento', String(filas.length), 'account_tree', 'verde'],
+         ['Sumas del debe', usd(totalDebe / 100), 'south_west', 'verde'],
+         ['Sumas del haber', usd(totalHaber / 100), 'north_east', 'verde'],
+         ['Diferencia', usd(Math.abs(totalDebe - totalHaber) / 100), cuadra ? 'check' : 'priority_high',
+          cuadra ? 'verde' : 'rojo']].map(([t, v, i, tono]) => html`
+        <div class="bg-white border rounded-2xl p-5 ${crudo(
+          tono === 'rojo' ? 'border-rojo-borde' : 'border-papel-linea')}">
+          <div class="flex items-start justify-between">
+            <p class="text-[11px] font-bold uppercase tracking-wide text-tinta-suave">${t}</p>
+            <span class="w-9 h-9 rounded-xl flex items-center justify-center ${crudo(
+              tono === 'rojo' ? 'bg-rojo-fondo text-rojo-texto' : 'bg-verde-claro text-verde')}">
+              ${icono(i, 'text-[18px]')}
+            </span>
+          </div>
+          <p class="mt-3 text-[24px] font-extrabold tracking-tight tabular">${v}</p>
+        </div>`)}
+    </div>
+
+    <section class="bg-white border border-papel-linea rounded-2xl overflow-hidden">
+      <div class="overflow-x-auto">
+        <table class="w-full text-sm min-w-[680px]">
+          <thead>
+            <tr class="border-b border-papel-linea">
+              <th class="px-5 py-3 text-[11px] font-bold uppercase tracking-wide text-tinta-suave text-left">Código</th>
+              <th class="px-3 py-3 text-[11px] font-bold uppercase tracking-wide text-tinta-suave text-left">Cuenta</th>
+              <th colspan="2" class="px-3 py-3 text-[11px] font-bold uppercase tracking-wide text-tinta-suave text-center border-l border-papel-linea">Sumas</th>
+              <th colspan="2" class="px-3 py-3 text-[11px] font-bold uppercase tracking-wide text-tinta-suave text-center border-l border-papel-linea">Saldos</th>
+            </tr>
+            <tr class="border-b border-papel-linea text-[10px] font-bold uppercase tracking-wide text-tinta-suave">
+              <th></th><th></th>
+              <th class="px-3 pb-2 text-right border-l border-papel-linea">Debe</th>
+              <th class="px-3 pb-2 text-right">Haber</th>
+              <th class="px-3 pb-2 text-right border-l border-papel-linea">Deudor</th>
+              <th class="px-5 pb-2 text-right">Acreedor</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-papel-linea">${cuerpo}</tbody>
+          <tfoot>
+            <tr class="bg-papel border-t-2 border-tinta">
+              <td class="px-5 py-3"></td>
+              <td class="px-3 py-3 text-[11px] font-extrabold uppercase tracking-wide">Totales</td>
+              <td class="px-3 py-3 text-right text-sm font-extrabold tabular">${dinero(totalDebe / 100)}</td>
+              <td class="px-3 py-3 text-right text-sm font-extrabold tabular">${dinero(totalHaber / 100)}</td>
+              <td class="px-3 py-3 text-right text-sm font-extrabold tabular">${dinero(totalDeudor / 100)}</td>
+              <td class="px-5 py-3 text-right text-sm font-extrabold tabular">${dinero(totalAcreedor / 100)}</td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </section>
+
+    <section class="mt-5 bg-white border border-papel-linea rounded-2xl p-5">
+      <h2 class="text-sm font-bold mb-1">Las diez cuentas con más movimiento</h2>
+      <p class="text-xs text-tinta-suave mb-5">Suma del debe y del haber del mes.</p>
+      ${barras(filas
+        .map((f) => ({ etiqueta: f.codigo, valor: f.debe + f.haber }))
+        .sort((a, b) => b.valor - a.valor)
+        .slice(0, 10), { alto: 190, titulo: 'Cuentas con más movimiento' })}
+    </section>`;
+}
+
+
+  return { planDeCuentas, libroDiario, libroMayor, balanceComprobacion };
+})();
+
+// ---- src/vistas/estados.js ---------------------------------------
+const __src_vistas_estados_js = (function () {
+  const { html, crudo, esc, usd, dinero, icono, cabecera, aviso, boton } = __src_ui_js;
+  const { dona, leyenda, barraCompuesta, VERDE, AMBAR } = __src_graficos_js;
+  const { balanceDeComprobacion } = __src_datos_contables_js;
+
+/**
+ * Los dos estados financieros que pide la Superintendencia.
+ *
+ * Se calculan del balance de comprobación, no se escriben a mano. Eso importa
+ * más de lo que parece: un estado financiero tecleado aparte puede decir una
+ * cosa mientras los libros dicen otra, y entonces hay dos verdades. Aquí solo
+ * hay una, y si los libros cambian, los estados cambian solos.
+ *
+ * La comprobación que sale en pantalla —activo = pasivo + patrimonio— no es
+ * decoración: es la ecuación contable, y si no se cumple, algo está mal.
+ */
+
+
+
+
+
+const centavos = (n) => Math.round(n * 100);
+
+/** Agrupa los saldos por el grupo al que pertenece cada cuenta (1, 2, 3, 4, 5). */
+function agrupar() {
+  const filas = balanceDeComprobacion();
+  const grupo = (codigo) => codigo[0];
+  const neto = (f) => f.saldoDeudor - f.saldoAcreedor;
+
+  const por = {};
+  for (const f of filas) {
+    const g = grupo(f.codigo);
+    (por[g] ??= []).push({ ...f, neto: neto(f) });
+  }
+  return por;
+}
+
+/**
+ * El total de un grupo, respetando el signo de cada cuenta.
+ *
+ * Aquí está la trampa que descuadra los balances: dentro del activo hay cuentas
+ * de saldo acreedor —la depreciación acumulada, la provisión de incobrables—
+ * que **restan**. Sumar su valor absoluto infla el activo justo el doble de lo
+ * que deberían restar, y la ecuación deja de cerrar.
+ *
+ * Por eso se suma el neto con su signo y se orienta al final según la
+ * naturaleza del grupo: el activo y los gastos crecen por el debe, el pasivo,
+ * el patrimonio y los ingresos por el haber.
+ */
+const NATURALEZA_DEL_GRUPO = { 1: 1, 2: -1, 3: -1, 4: -1, 5: 1 };
+
+function totalDelGrupo(lista, grupo) {
+  const signo = NATURALEZA_DEL_GRUPO[grupo] ?? 1;
+  const neto = (lista ?? []).reduce((s, f) => s + centavos(f.neto), 0);
+  return (neto * signo) / 100;
+}
+
+/** Lo que se enseña en la línea: negativo si la cuenta resta dentro de su grupo. */
+function valorDeLinea(f, grupo) {
+  const signo = NATURALEZA_DEL_GRUPO[grupo] ?? 1;
+  return (centavos(f.neto) * signo) / 100;
+}
+
+/** Una línea de un estado financiero. */
+const renglon = (codigo, nombre, valor, { fuerte = false, sangria = 0 } = {}) => html`
+  <div class="flex items-baseline gap-3 py-2 ${crudo(fuerte ? 'border-t border-papel-linea mt-1 pt-3' : '')}">
+    ${codigo ? crudo(`<span class="text-[11px] font-bold tabular text-tinta-suave w-20 shrink-0">${esc(codigo)}</span>`)
+             : crudo('<span class="w-20 shrink-0"></span>')}
+    <span class="flex-1 text-sm ${crudo(fuerte ? 'font-extrabold' : '')}"
+          style="padding-left:${sangria * 14}px">${nombre}</span>
+    <span class="text-sm tabular whitespace-nowrap ${crudo(fuerte ? 'font-extrabold text-base' : 'font-semibold')}">
+      ${dinero(valor)}
+    </span>
+  </div>`;
+
+// ===========================================================================
+//  Estado de resultados
+// ===========================================================================
+
+async function estadoResultados() {
+  const por = agrupar();
+  const ingresos = totalDelGrupo(por['4'], 4);
+  const costo = totalDelGrupo(por['5']?.filter((f) => f.codigo.startsWith('51')), 5);
+  const gastos = totalDelGrupo(por['5']?.filter((f) => f.codigo.startsWith('52')), 5);
+  const bruta = Math.round((ingresos - costo) * 100) / 100;
+  const resultado = Math.round((bruta - gastos) * 100) / 100;
+  const margen = ingresos ? (resultado / ingresos) * 100 : 0;
+
+  const detalleGastos = (por['5'] ?? [])
+    .filter((f) => f.codigo.startsWith('52'))
+    .map((f) => ({ etiqueta: f.nombre, valor: valorDeLinea(f, 5) }))
+    .filter((f) => f.valor > 0)
+    .sort((a, b) => b.valor - a.valor);
+
+  return html`
+    ${crudo(cabecera({
+      titulo: 'Estado de resultados',
+      descripcion: 'Septiembre de 2026 · qué se ganó y en qué se gastó. Se calcula de los libros.',
+      acciones: boton('Exportar', { ico: 'download', tipo: 'secundario' }),
+    }))}
+
+    <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4 mb-5">
+      ${[['Ingresos', usd(ingresos), 'trending_up', 'verde'],
+         ['Costo de ventas', usd(costo), 'inventory_2', 'verde'],
+         ['Gastos', usd(gastos), 'payments', 'ambar'],
+         [resultado >= 0 ? 'Ganancia del mes' : 'Pérdida del mes', usd(Math.abs(resultado)),
+          resultado >= 0 ? 'savings' : 'trending_down', resultado >= 0 ? 'verde' : 'rojo']]
+        .map(([t, v, i, tono]) => html`
+        <div class="bg-white border border-papel-linea rounded-2xl p-5">
+          <div class="flex items-start justify-between">
+            <p class="text-[11px] font-bold uppercase tracking-wide text-tinta-suave">${t}</p>
+            <span class="w-9 h-9 rounded-xl flex items-center justify-center ${crudo({
+              verde: 'bg-verde-claro text-verde', ambar: 'bg-ambar-fondo text-ambar-texto',
+              rojo: 'bg-rojo-fondo text-rojo-texto' }[tono])}">
+              ${icono(i, 'text-[18px]')}
+            </span>
+          </div>
+          <p class="mt-3 text-[26px] font-extrabold tracking-tight tabular">${v}</p>
+        </div>`)}
+    </div>
+
+    <div class="grid gap-5 lg:grid-cols-5">
+      <section class="lg:col-span-3 bg-white border border-papel-linea rounded-2xl p-5 sm:p-6">
+        <h2 class="text-sm font-bold mb-1">Del ingreso al resultado</h2>
+        <p class="text-xs text-tinta-suave mb-4">Cada línea sale de las cuentas de los libros.</p>
+
+        ${renglon('4', 'INGRESOS DE ACTIVIDADES ORDINARIAS', ingresos, { fuerte: true })}
+        ${(por['4'] ?? []).map((f) => renglon(f.codigo, f.nombre, valorDeLinea(f, 4), { sangria: 1 }))}
+
+        ${renglon('51', 'COSTO DE VENTAS Y PRODUCCIÓN', costo, { fuerte: true })}
+        ${(por['5'] ?? []).filter((f) => f.codigo.startsWith('51'))
+          .map((f) => renglon(f.codigo, f.nombre, valorDeLinea(f, 5), { sangria: 1 }))}
+
+        <div class="my-3 px-3 py-2.5 rounded-xl bg-verde-claro flex items-baseline gap-3">
+          <span class="text-[11px] font-bold tabular text-verde w-20 shrink-0">42</span>
+          <span class="flex-1 text-sm font-extrabold text-verde">GANANCIA BRUTA</span>
+          <span class="text-base font-extrabold tabular text-verde">${dinero(bruta)}</span>
+        </div>
+
+        ${renglon('52', 'GASTOS', gastos, { fuerte: true })}
+        ${(por['5'] ?? []).filter((f) => f.codigo.startsWith('52'))
+          .map((f) => renglon(f.codigo, f.nombre, valorDeLinea(f, 5), { sangria: 1 }))}
+
+        <div class="mt-4 px-4 py-3.5 rounded-xl flex items-baseline gap-3 ${crudo(
+          resultado >= 0 ? 'bg-tinta text-white' : 'bg-rojo text-white')}">
+          <span class="flex-1 text-sm font-extrabold uppercase tracking-wide">
+            ${resultado >= 0 ? 'Ganancia antes de impuestos' : 'Pérdida del ejercicio'}
+          </span>
+          <span class="text-xl font-extrabold tabular">${usd(Math.abs(resultado))}</span>
+        </div>
+        <p class="mt-2 text-[11px] text-tinta-suave text-right">
+          Margen sobre ingresos: ${dinero(margen)}%
+        </p>
+      </section>
+
+      <div class="lg:col-span-2 space-y-5">
+        <section class="bg-white border border-papel-linea rounded-2xl p-5">
+          <h2 class="text-sm font-bold mb-1">En qué se va el dinero</h2>
+          <p class="text-xs text-tinta-suave mb-4">Reparto de los gastos del mes.</p>
+          <div class="flex justify-center mb-2">
+            ${dona(detalleGastos.slice(0, 6), { centro: usd(gastos), subcentro: 'gastos' })}
+          </div>
+          <div class="divide-y divide-papel-linea">
+            ${leyenda(detalleGastos.slice(0, 6))}
+          </div>
+        </section>
+
+        <section class="bg-white border border-papel-linea rounded-2xl p-5">
+          <h2 class="text-sm font-bold mb-3">Cómo se reparte cada dólar vendido</h2>
+          ${barraCompuesta([
+            { etiqueta: 'Costo', valor: costo, tono: '#7C93A6' },
+            { etiqueta: 'Gastos', valor: gastos, tono: AMBAR },
+            { etiqueta: 'Resultado', valor: Math.max(0, resultado), tono: VERDE },
+          ], { alto: 14 })}
+          <div class="mt-4 divide-y divide-papel-linea">
+            ${leyenda([
+              { etiqueta: 'Costo de ventas', valor: costo, tono: '#7C93A6' },
+              { etiqueta: 'Gastos operativos', valor: gastos, tono: AMBAR },
+              { etiqueta: 'Queda para la empresa', valor: Math.max(0, resultado), tono: VERDE },
+            ])}
+          </div>
+        </section>
+      </div>
+    </div>`;
+}
+
+// ===========================================================================
+//  Estado de situación financiera (balance general)
+// ===========================================================================
+
+async function balanceGeneral() {
+  const por = agrupar();
+  const activo = totalDelGrupo(por['1'], 1);
+  const pasivo = totalDelGrupo(por['2'], 2);
+
+  // El patrimonio de cierre incluye el resultado del periodo, que todavia no se
+  // ha trasladado a ganancias acumuladas. Sin sumarlo, la ecuacion no cierra, y
+  // esa es justo la comprobacion que esta pantalla existe para ensenar.
+  const patrimonioLibros = totalDelGrupo(por['3'], 3);
+  const ingresos = totalDelGrupo(por['4'], 4);
+  const costoYGastos = totalDelGrupo(por['5'], 5);
+  const resultado = Math.round((ingresos - costoYGastos) * 100) / 100;
+  const patrimonio = Math.round((patrimonioLibros + resultado) * 100) / 100;
+
+  const diferencia = Math.round((activo - pasivo - patrimonio) * 100) / 100;
+  const cuadra = Math.abs(diferencia) < 0.005;
+
+  const bloque = (titulo, grupo, filas, total) => html`
+    <section class="bg-white border border-papel-linea rounded-2xl p-5 sm:p-6">
+      <div class="flex items-baseline justify-between mb-3">
+        <h2 class="text-sm font-extrabold uppercase tracking-wide">${titulo}</h2>
+        <span class="text-base font-extrabold tabular">${dinero(total)}</span>
+      </div>
+      <div class="divide-y divide-papel-linea">
+        ${(filas ?? []).map((f) => html`
+          <div class="flex items-baseline gap-3 py-2">
+            <span class="text-[11px] font-bold tabular text-tinta-suave w-20 shrink-0">${f.codigo}</span>
+            <span class="flex-1 text-sm">${f.nombre}</span>
+            <span class="text-sm font-semibold tabular whitespace-nowrap ${crudo(
+              valorDeLinea(f, grupo) < 0 ? 'text-tinta-suave' : '')}">${dinero(valorDeLinea(f, grupo))}</span>
+          </div>`)}
+      </div>
+    </section>`;
+
+  const composicion = [
+    { etiqueta: 'Pasivo', valor: pasivo, tono: AMBAR },
+    { etiqueta: 'Patrimonio', valor: patrimonio, tono: VERDE },
+  ];
+
+  return html`
+    ${crudo(cabecera({
+      titulo: 'Estado de situación financiera',
+      descripcion: 'Al 30 de septiembre de 2026 · qué tiene la empresa, qué debe y qué es suyo.',
+      acciones: boton('Exportar', { ico: 'download', tipo: 'secundario' }),
+    }))}
+
+    ${crudo(aviso({
+      tono: cuadra ? 'info' : 'rojo',
+      ico: cuadra ? 'balance' : 'error',
+      titulo: cuadra
+        ? 'La ecuación contable se cumple'
+        : `La ecuación NO se cumple · diferencia de ${usd(Math.abs(diferencia))}`,
+      texto: cuadra
+        ? `Activo ${usd(activo)} = Pasivo ${usd(pasivo)} + Patrimonio ${usd(patrimonio)}. ` +
+          'Lo que la empresa tiene es exactamente igual a lo que debe más lo que es suyo. ' +
+          'Si esto no cuadrara, el balance no se podría presentar.'
+        : 'Lo que la empresa tiene no coincide con lo que debe más lo que es suyo. Hay un ' +
+          'error de registro que hay que encontrar antes de presentar nada.',
+    }))}
+
+    <div class="grid gap-4 sm:grid-cols-3 mb-5">
+      ${[['Activo', activo, 'account_balance_wallet', 'Lo que tiene'],
+         ['Pasivo', pasivo, 'credit_card', 'Lo que debe'],
+         ['Patrimonio', patrimonio, 'savings', 'Lo que es suyo']].map(([t, v, i, pie]) => html`
+        <div class="bg-white border border-papel-linea rounded-2xl p-5">
+          <div class="flex items-start justify-between">
+            <p class="text-[11px] font-bold uppercase tracking-wide text-tinta-suave">${t}</p>
+            <span class="w-9 h-9 rounded-xl bg-verde-claro text-verde flex items-center justify-center">
+              ${icono(i, 'text-[18px]')}
+            </span>
+          </div>
+          <p class="mt-3 text-[26px] font-extrabold tracking-tight tabular">${usd(v)}</p>
+          <p class="mt-1 text-xs text-tinta-suave">${pie}</p>
+        </div>`)}
+    </div>
+
+    <div class="grid gap-5 lg:grid-cols-2">
+      <div class="space-y-5">
+        ${bloque('Activo', 1, por['1'], activo)}
+      </div>
+      <div class="space-y-5">
+        ${bloque('Pasivo', 2, por['2'], pasivo)}
+        ${bloque('Patrimonio', 3, [
+          ...(por['3'] ?? []),
+          { codigo: '3603', nombre: 'Resultado del ejercicio (aún sin trasladar)', neto: -resultado },
+        ], patrimonio)}
+
+        <section class="bg-white border border-papel-linea rounded-2xl p-5">
+          <h2 class="text-sm font-bold mb-1">Con qué se financia lo que tiene</h2>
+          <p class="text-xs text-tinta-suave mb-4">
+            Cuánto del activo lo pusieron terceros y cuánto los socios.
+          </p>
+          ${barraCompuesta(composicion, { alto: 14 })}
+          <div class="mt-4 divide-y divide-papel-linea">${leyenda(composicion)}</div>
+        </section>
+      </div>
+    </div>`;
+}
+
+
+  return { estadoResultados, balanceGeneral };
+})();
+
+// ---- src/vistas/documentos.js ------------------------------------
+const __src_vistas_documentos_js = (function () {
+  const { html, crudo, usd, dinero, icono, tabla, cabecera, aviso, boton, chipEstado, fecha, vacio } = __src_ui_js;
+  const { RETENCIONES, NOTAS_CREDITO, GUIAS_REMISION } = __src_datos_contables_js;
+
+/**
+ * Los otros tres comprobantes: retenciones, notas de crédito y guías de
+ * remisión.
+ *
+ * El motor ya los genera y los firma desde hace tiempo; lo que faltaba eran
+ * estas pantallas. Cada una explica para qué sirve el documento, porque son los
+ * tres que la gente confunde: una nota de crédito no borra una factura, una
+ * guía no cobra nada, y una retención es dinero de un tercero.
+ */
+
+
+
+
+const tarjetaCifra = (etiqueta, valor, ico, pie = '') => html`
+  <div class="bg-white border border-papel-linea rounded-2xl p-5">
+    <div class="flex items-start justify-between">
+      <p class="text-[11px] font-bold uppercase tracking-wide text-tinta-suave">${etiqueta}</p>
+      <span class="w-9 h-9 rounded-xl bg-verde-claro text-verde flex items-center justify-center">
+        ${icono(ico, 'text-[18px]')}
+      </span>
+    </div>
+    <p class="mt-3 text-[26px] font-extrabold tracking-tight tabular">${valor}</p>
+    ${pie ? html`<p class="mt-1 text-xs text-tinta-suave">${pie}</p>` : ''}
+  </div>`;
+
+// ===========================================================================
+//  Retenciones
+// ===========================================================================
+
+async function retenciones() {
+  const con = (r) => ({
+    ...r,
+    ir: Math.round(r.baseIR * r.porcentajeIR) / 100,
+    iva: Math.round(r.baseIVA * r.porcentajeIVA) / 100,
+  });
+  const lista = RETENCIONES.map(con);
+  const total = lista.reduce((s, r) => s + r.ir + r.iva, 0);
+
+  const cuerpo = lista.map((r) => html`
+    <tr class="hover:bg-papel transition">
+      <td class="px-5 py-3.5">
+        <span class="block text-sm font-semibold tabular">${r.numero}</span>
+        <span class="block text-[11px] text-tinta-suave">sustento ${r.sustento}</span>
+      </td>
+      <td class="px-5 py-3.5">
+        <span class="block text-sm truncate max-w-[240px]">${r.proveedor}</span>
+        <span class="block text-[11px] text-tinta-suave tabular">${r.ruc}</span>
+      </td>
+      <td class="px-5 py-3.5 text-sm text-tinta-suave whitespace-nowrap">${fecha(r.fecha)}</td>
+      <td class="px-5 py-3.5 text-right">
+        <span class="block text-sm tabular">${dinero(r.ir)}</span>
+        <span class="block text-[11px] text-tinta-suave">${dinero(r.porcentajeIR)}% sobre ${dinero(r.baseIR)}</span>
+      </td>
+      <td class="px-5 py-3.5 text-right">
+        <span class="block text-sm tabular">${dinero(r.iva)}</span>
+        <span class="block text-[11px] text-tinta-suave">${r.porcentajeIVA}% sobre ${dinero(r.baseIVA)}</span>
+      </td>
+      <td class="px-5 py-3.5 text-right text-sm font-bold tabular">${dinero(r.ir + r.iva)}</td>
+      <td class="px-5 py-3.5 text-right">${chipEstado(r.estado)}</td>
+    </tr>`);
+
+  return html`
+    ${crudo(cabecera({
+      titulo: 'Comprobantes de retención',
+      descripcion: 'Lo que la empresa retiene a sus proveedores cuando les paga, y entrega al SRI.',
+      acciones: boton('Nueva retención', { ico: 'add' }),
+    }))}
+
+    ${crudo(aviso({
+      tono: 'ambar', ico: 'account_balance',
+      titulo: 'Este dinero no es de la empresa',
+      texto: 'Lo retenido se le descuenta al proveedor y se entrega al SRI en la declaración ' +
+             'del mes. Desde que se retiene hasta que se declara es una deuda, no un ingreso. ' +
+             'Por eso aparece en el pasivo y no en las ganancias.',
+    }))}
+
+    <div class="grid gap-4 sm:grid-cols-3 mb-5">
+      ${tarjetaCifra('Retenciones del mes', String(lista.length), 'content_cut')}
+      ${tarjetaCifra('Total retenido', usd(total), 'savings', 'Se entrega al SRI el 14 de octubre')}
+      ${tarjetaCifra('Emitidas a tiempo', `${lista.length} de ${lista.length}`, 'schedule',
+        'Dentro de los 5 días hábiles que exige la ley')}
+    </div>
+
+    <section class="bg-white border border-papel-linea rounded-2xl overflow-hidden">
+      ${crudo(tabla([
+        { texto: 'Número' }, { texto: 'Proveedor' }, { texto: 'Fecha' },
+        { texto: 'Renta', der: true }, { texto: 'IVA', der: true },
+        { texto: 'Total', der: true }, { texto: 'Estado', der: true },
+      ], cuerpo))}
+    </section>`;
+}
+
+// ===========================================================================
+//  Notas de crédito
+// ===========================================================================
+
+async function notasCredito() {
+  const total = NOTAS_CREDITO.reduce((s, n) => s + n.base + n.iva, 0);
+
+  const cuerpo = NOTAS_CREDITO.map((n) => html`
+    <tr class="hover:bg-papel transition">
+      <td class="px-5 py-3.5 text-sm font-semibold tabular">${n.numero}</td>
+      <td class="px-5 py-3.5">
+        <span class="block text-sm truncate max-w-[240px]">${n.cliente}</span>
+        <span class="block text-[11px] text-tinta-suave tabular">${n.identificacion}</span>
+      </td>
+      <td class="px-5 py-3.5">
+        <span class="block text-sm tabular">${n.modifica}</span>
+        <span class="block text-[11px] text-tinta-suave">documento que modifica</span>
+      </td>
+      <td class="px-5 py-3.5 text-sm text-tinta-suave max-w-[220px]">${n.motivo}</td>
+      <td class="px-5 py-3.5 text-right text-sm font-bold tabular">${dinero(n.base + n.iva)}</td>
+      <td class="px-5 py-3.5 text-right">${chipEstado(n.estado)}</td>
+    </tr>`);
+
+  return html`
+    ${crudo(cabecera({
+      titulo: 'Notas de crédito',
+      descripcion: 'Para corregir o anular una factura ya autorizada.',
+      acciones: boton('Nueva nota de crédito', { ico: 'add' }),
+    }))}
+
+    ${crudo(aviso({
+      tono: 'info', ico: 'history_edu',
+      titulo: 'Una factura autorizada no se borra nunca',
+      texto: 'Si estaba mal, o el cliente devolvió la mercadería, se emite una nota de crédito ' +
+             'que la corrige y deja constancia de los dos documentos. Borrar una factura ' +
+             'emitida es imposible en el SRI, y también aquí: los libros tienen que poder ' +
+             'explicar qué pasó, no solo cómo quedó.',
+    }))}
+
+    <div class="grid gap-4 sm:grid-cols-3 mb-5">
+      ${tarjetaCifra('Notas del mes', String(NOTAS_CREDITO.length), 'assignment_return')}
+      ${tarjetaCifra('Valor corregido', usd(total), 'undo')}
+      ${tarjetaCifra('Sobre las ventas del mes', `${((total / 42318.50) * 100).toFixed(1)}%`, 'percent',
+        'Una proporción alta merece revisarse')}
+    </div>
+
+    <section class="bg-white border border-papel-linea rounded-2xl overflow-hidden">
+      ${crudo(tabla([
+        { texto: 'Número' }, { texto: 'Cliente' }, { texto: 'Modifica a' },
+        { texto: 'Motivo' }, { texto: 'Valor', der: true }, { texto: 'Estado', der: true },
+      ], cuerpo))}
+    </section>`;
+}
+
+// ===========================================================================
+//  Guías de remisión
+// ===========================================================================
+
+async function guiasRemision() {
+  const cuerpo = GUIAS_REMISION.map((g) => html`
+    <tr class="hover:bg-papel transition">
+      <td class="px-5 py-3.5">
+        <span class="block text-sm font-semibold tabular">${g.numero}</span>
+        <span class="block text-[11px] text-tinta-suave">ampara ${g.documento}</span>
+      </td>
+      <td class="px-5 py-3.5 text-sm truncate max-w-[220px]">${g.destinatario}</td>
+      <td class="px-5 py-3.5">
+        <span class="block text-sm">${g.desde}</span>
+        <span class="block text-[11px] text-tinta-suave">→ ${g.hasta}</span>
+      </td>
+      <td class="px-5 py-3.5">
+        <span class="block text-sm">${g.transportista}</span>
+        <span class="block text-[11px] text-tinta-suave tabular">${g.placa}</span>
+      </td>
+      <td class="px-5 py-3.5 text-sm text-tinta-suave whitespace-nowrap">
+        ${fecha(g.partida)} → ${fecha(g.llegada)}
+      </td>
+      <td class="px-5 py-3.5 text-right">${chipEstado(g.estado)}</td>
+    </tr>`);
+
+  return html`
+    ${crudo(cabecera({
+      titulo: 'Guías de remisión',
+      descripcion: 'El documento que acompaña a la mercadería mientras viaja.',
+      acciones: boton('Nueva guía', { ico: 'add' }),
+    }))}
+
+    ${crudo(aviso({
+      tono: 'info', ico: 'local_shipping',
+      titulo: 'Una guía no vende nada',
+      texto: 'No lleva precios, ni impuestos, ni total: ampara el traslado, no la venta. ' +
+             'Tampoco lleva fecha de emisión, lleva fecha de inicio y fin del transporte, ' +
+             'porque lo que cubre es el viaje. Si la mercadería se mueve sin ella, el ' +
+             'problema es del transportista en la carretera.',
+    }))}
+
+    <section class="bg-white border border-papel-linea rounded-2xl overflow-hidden">
+      ${GUIAS_REMISION.length ? crudo(tabla([
+        { texto: 'Número' }, { texto: 'Destinatario' }, { texto: 'Ruta' },
+        { texto: 'Transportista' }, { texto: 'Viaje' }, { texto: 'Estado', der: true },
+      ], cuerpo)) : crudo(vacio({
+        ico: 'local_shipping', titulo: 'Todavía no ha emitido ninguna guía',
+        texto: 'Se emite cuando la mercadería sale del establecimiento hacia el cliente.',
+        accion: boton('Emitir la primera guía', { ico: 'add' }),
+      }))}
+    </section>`;
+}
+
+
+  return { retenciones, notasCredito, guiasRemision };
+})();
+
+// ---- src/vistas/finanzas.js --------------------------------------
+const __src_vistas_finanzas_js = (function () {
+  const { html, crudo, usd, dinero, icono, tabla, cabecera, aviso, boton, fecha } = __src_ui_js;
+  const { dona, leyenda, barraCompuesta, VERDE, AMBAR, ROJO } = __src_graficos_js;
+  const { CARTERA_COBRAR, CARTERA_PAGAR, BANCOS } = __src_datos_contables_js;
+
+/**
+ * Cartera y bancos: a quién hay que cobrarle, a quién hay que pagarle y cuánto
+ * dinero hay de verdad.
+ *
+ * La pantalla de cartera está ordenada por antigüedad y no por fecha, porque la
+ * pregunta que se hace un dueño de negocio no es "qué facturé" sino "qué
+ * llevo esperando demasiado". Un cobro de hace noventa días no es una cuenta
+ * por cobrar: es un problema.
+ */
+
+
+
+
+
+const HOY = new Date(2026, 8, 30);
+const DIA = 24 * 60 * 60 * 1000;
+
+const TRAMOS = [
+  { nombre: 'Por vencer', desde: -Infinity, hasta: 0, tono: VERDE },
+  { nombre: '1 a 30 días', desde: 1, hasta: 30, tono: '#8FBF9F' },
+  { nombre: '31 a 60 días', desde: 31, hasta: 60, tono: AMBAR },
+  { nombre: 'Más de 60 días', desde: 61, hasta: Infinity, tono: ROJO },
+];
+
+const diasVencido = (vence) => Math.floor((HOY - new Date(vence)) / DIA);
+const tramoDe = (d) => TRAMOS.find((t) => d >= t.desde && d <= t.hasta) ?? TRAMOS[0];
+
+function analizar(lista, campoContraparte) {
+  const filas = lista.map((f) => {
+    const dias = diasVencido(f.vence);
+    return { ...f, saldo: Math.round((f.monto - f.abonado) * 100) / 100, dias, tramo: tramoDe(dias) };
+  }).sort((a, b) => b.dias - a.dias);
+
+  const total = filas.reduce((s, f) => s + Math.round(f.saldo * 100), 0) / 100;
+  const porTramo = TRAMOS.map((t) => ({
+    etiqueta: t.nombre, tono: t.tono,
+    valor: filas.filter((f) => f.tramo.nombre === t.nombre)
+                .reduce((s, f) => s + Math.round(f.saldo * 100), 0) / 100,
+  })).filter((t) => t.valor > 0);
+
+  const porContraparte = Object.entries(
+    filas.reduce((acc, f) => {
+      acc[f[campoContraparte]] = (acc[f[campoContraparte]] ?? 0) + Math.round(f.saldo * 100);
+      return acc;
+    }, {})
+  ).map(([etiqueta, v]) => ({ etiqueta, valor: v / 100 })).sort((a, b) => b.valor - a.valor);
+
+  return { filas, total, porTramo, porContraparte };
+}
+
+const chipAntiguedad = (f) => crudo(
+  `<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold"
+         style="background:${f.tramo.tono}1A;color:${f.tramo.tono}">
+     ${f.dias <= 0 ? `faltan ${-f.dias} d` : `${f.dias} d vencido`}
+   </span>`);
+
+function pantallaCartera({ lista, campo, titulo, descripcion, etiquetaContraparte, ico, cobrar }) {
+  const { filas, total, porTramo, porContraparte } = analizar(lista, campo);
+  const vencido = porTramo.filter((t) => t.etiqueta !== 'Por vencer')
+    .reduce((s, t) => s + Math.round(t.valor * 100), 0) / 100;
+
+  const cuerpo = filas.map((f) => html`
+    <tr class="hover:bg-papel transition">
+      <td class="px-5 py-3.5">
+        <span class="block text-sm truncate max-w-[230px]">${f[campo]}</span>
+        <span class="block text-[11px] text-tinta-suave tabular">${f.documento}</span>
+      </td>
+      <td class="px-5 py-3.5 text-sm text-tinta-suave whitespace-nowrap">${fecha(f.vence)}</td>
+      <td class="px-5 py-3.5">${chipAntiguedad(f)}</td>
+      <td class="px-5 py-3.5 text-right text-sm tabular">${dinero(f.monto)}</td>
+      <td class="px-5 py-3.5 text-right text-sm tabular text-tinta-suave">
+        ${f.abonado ? dinero(f.abonado) : '—'}
+      </td>
+      <td class="px-5 py-3.5 text-right text-sm font-bold tabular">${dinero(f.saldo)}</td>
+    </tr>`);
+
+  return html`
+    ${crudo(cabecera({
+      titulo, descripcion,
+      acciones: boton(cobrar ? 'Registrar cobro' : 'Registrar pago', { ico: 'payments' }),
+    }))}
+
+    ${vencido > 0 ? crudo(aviso({
+      tono: 'ambar', ico: 'schedule',
+      titulo: `${usd(vencido)} ${cobrar ? 'vencidos sin cobrar' : 'vencidos sin pagar'}`,
+      texto: cobrar
+        ? 'Cuanto más vieja es una cuenta por cobrar, menos probable es cobrarla. Por eso ' +
+          'esta pantalla se ordena por antigüedad y no por fecha: lo de arriba es lo que ' +
+          'hay que atender hoy.'
+        : 'Una deuda vencida con un proveedor cuesta relaciones antes que dinero. Conviene ' +
+          'atenderlas antes de que lo hagan ellos.',
+    })) : ''}
+
+    <div class="grid gap-5 lg:grid-cols-3 mb-5">
+      <div class="lg:col-span-2 grid gap-4 sm:grid-cols-2">
+        <div class="bg-white border border-papel-linea rounded-2xl p-5">
+          <div class="flex items-start justify-between">
+            <p class="text-[11px] font-bold uppercase tracking-wide text-tinta-suave">
+              ${cobrar ? 'Total por cobrar' : 'Total por pagar'}
+            </p>
+            <span class="w-9 h-9 rounded-xl bg-verde-claro text-verde flex items-center justify-center">
+              ${icono(ico, 'text-[18px]')}
+            </span>
+          </div>
+          <p class="mt-3 text-[30px] font-extrabold tracking-tight tabular">${usd(total)}</p>
+          <p class="mt-1 text-xs text-tinta-suave">${filas.length} documentos</p>
+        </div>
+        <div class="bg-white border border-papel-linea rounded-2xl p-5">
+          <div class="flex items-start justify-between">
+            <p class="text-[11px] font-bold uppercase tracking-wide text-tinta-suave">Vencido</p>
+            <span class="w-9 h-9 rounded-xl bg-ambar-fondo text-ambar-texto flex items-center justify-center">
+              ${icono('schedule', 'text-[18px]')}
+            </span>
+          </div>
+          <p class="mt-3 text-[30px] font-extrabold tracking-tight tabular">${usd(vencido)}</p>
+          <p class="mt-1 text-xs text-tinta-suave">
+            ${total ? ((vencido / total) * 100).toFixed(0) : 0}% del total
+          </p>
+        </div>
+
+        <div class="sm:col-span-2 bg-white border border-papel-linea rounded-2xl p-5">
+          <h2 class="text-sm font-bold mb-1">Antigüedad del saldo</h2>
+          <p class="text-xs text-tinta-suave mb-4">Cuánto lleva esperando cada dólar.</p>
+          ${barraCompuesta(porTramo, { alto: 14 })}
+          <div class="mt-4 divide-y divide-papel-linea">${leyenda(porTramo)}</div>
+        </div>
+      </div>
+
+      <section class="bg-white border border-papel-linea rounded-2xl p-5">
+        <h2 class="text-sm font-bold mb-1">Concentración</h2>
+        <p class="text-xs text-tinta-suave mb-4">
+          ${cobrar ? 'Depender de un solo cliente es un riesgo.' : 'Reparto por proveedor.'}
+        </p>
+        <div class="flex justify-center mb-2">
+          ${dona(porContraparte, { centro: usd(total), subcentro: cobrar ? 'por cobrar' : 'por pagar' })}
+        </div>
+        <div class="divide-y divide-papel-linea">${leyenda(porContraparte)}</div>
+      </section>
+    </div>
+
+    <section class="bg-white border border-papel-linea rounded-2xl overflow-hidden">
+      ${crudo(tabla([
+        { texto: etiquetaContraparte }, { texto: 'Vence' }, { texto: 'Antigüedad' },
+        { texto: 'Monto', der: true }, { texto: 'Abonado', der: true }, { texto: 'Saldo', der: true },
+      ], cuerpo))}
+    </section>`;
+}
+
+const cuentasPorCobrar = async () => pantallaCartera({
+  lista: CARTERA_COBRAR, campo: 'cliente', cobrar: true, ico: 'request_quote',
+  titulo: 'Cuentas por cobrar',
+  descripcion: 'Lo que le deben, ordenado por lo que lleva más tiempo esperando.',
+  etiquetaContraparte: 'Cliente',
+});
+
+const cuentasPorPagar = async () => pantallaCartera({
+  lista: CARTERA_PAGAR, campo: 'proveedor', cobrar: false, ico: 'credit_card',
+  titulo: 'Cuentas por pagar',
+  descripcion: 'Lo que la empresa debe a sus proveedores.',
+  etiquetaContraparte: 'Proveedor',
+});
+
+// ===========================================================================
+//  Bancos
+// ===========================================================================
+
+async function bancos() {
+  const libros = BANCOS.reduce((s, b) => s + Math.round(b.saldoLibros * 100), 0) / 100;
+  const banco = BANCOS.reduce((s, b) => s + Math.round(b.saldoBanco * 100), 0) / 100;
+  const diferencia = Math.round((banco - libros) * 100) / 100;
+
+  return html`
+    ${crudo(cabecera({
+      titulo: 'Bancos y conciliación',
+      descripcion: 'Lo que dicen los libros frente a lo que dice el banco, y por qué no coinciden.',
+      acciones: boton('Importar estado de cuenta', { ico: 'upload_file', tipo: 'secundario' }),
+    }))}
+
+    ${crudo(aviso({
+      tono: 'info', ico: 'compare_arrows',
+      titulo: 'Que no coincidan no significa que esté mal',
+      texto: 'Un cheque girado sale de los libros el día que se firma, pero del banco el día ' +
+             'que alguien lo cobra. Entre esos dos días los saldos difieren, y es normal. ' +
+             'Conciliar es explicar la diferencia línea por línea; lo preocupante es una ' +
+             'diferencia que nadie puede explicar.',
+    }))}
+
+    <div class="grid gap-4 sm:grid-cols-3 mb-5">
+      ${[['Saldo en libros', usd(libros), 'menu_book'],
+         ['Saldo en el banco', usd(banco), 'account_balance'],
+         ['Diferencia por conciliar', usd(Math.abs(diferencia)), 'compare_arrows']].map(([t, v, i]) => html`
+        <div class="bg-white border border-papel-linea rounded-2xl p-5">
+          <div class="flex items-start justify-between">
+            <p class="text-[11px] font-bold uppercase tracking-wide text-tinta-suave">${t}</p>
+            <span class="w-9 h-9 rounded-xl bg-verde-claro text-verde flex items-center justify-center">
+              ${icono(i, 'text-[18px]')}
+            </span>
+          </div>
+          <p class="mt-3 text-[26px] font-extrabold tracking-tight tabular">${v}</p>
+        </div>`)}
+    </div>
+
+    <div class="space-y-5">
+      ${BANCOS.map((b) => html`
+        <section class="bg-white border border-papel-linea rounded-2xl overflow-hidden">
+          <header class="flex flex-wrap items-center gap-4 px-5 py-4 border-b border-papel-linea">
+            <span class="w-11 h-11 rounded-xl bg-verde-claro text-verde flex items-center justify-center">
+              ${icono('account_balance', 'text-[22px]')}
+            </span>
+            <div class="min-w-0 flex-1">
+              <p class="text-sm font-bold">${b.banco}</p>
+              <p class="text-[11px] text-tinta-suave tabular">${b.cuenta} · ${b.tipo}</p>
+            </div>
+            <div class="text-right">
+              <p class="text-[11px] font-bold uppercase tracking-wide text-tinta-suave">En libros</p>
+              <p class="text-lg font-extrabold tabular">${usd(b.saldoLibros)}</p>
+            </div>
+          </header>
+
+          <div class="p-5">
+            <div class="flex items-baseline justify-between py-2">
+              <span class="text-sm text-tinta-suave">Saldo según el banco</span>
+              <span class="text-sm font-semibold tabular">${dinero(b.saldoBanco)}</span>
+            </div>
+            ${b.partidas.filter((p) => p.valor !== 0).map((p) => html`
+              <div class="flex items-baseline justify-between py-2 border-t border-papel-linea">
+                <span class="text-sm text-tinta-suave pl-4">${p.concepto}</span>
+                <span class="text-sm font-semibold tabular">${dinero(p.valor)}</span>
+              </div>`)}
+            <div class="flex items-baseline justify-between py-3 mt-1 border-t-2 border-tinta">
+              <span class="text-sm font-extrabold">Saldo conciliado</span>
+              <span class="text-base font-extrabold tabular">${dinero(b.saldoLibros)}</span>
+            </div>
+          </div>
+        </section>`)}
+    </div>`;
+}
+
+
+  return { cuentasPorCobrar, cuentasPorPagar, bancos };
+})();
+
+// ---- src/vistas/operaciones.js -----------------------------------
+const __src_vistas_operaciones_js = (function () {
+  const { html, crudo, usd, dinero, icono, tabla, cabecera, aviso, boton, fecha, fechaLarga } = __src_ui_js;
+  const { barras, dona, leyenda, barraCompuesta, VERDE, AMBAR } = __src_graficos_js;
+  const { INVENTARIO, EMPLEADOS, ACTIVOS_FIJOS } = __src_datos_contables_js;
+
+/**
+ * Inventario, nómina y activos fijos.
+ *
+ * Las tres pantallas de la Fase 5. Cada una tiene un aviso que no es adorno:
+ * son las tres áreas donde un sistema contable puede hacer más daño si se
+ * construye sin criterio profesional, y conviene que eso se lea en pantalla y
+ * no solo en un documento.
+ */
+
+
+
+
+
+const cifra = (etiqueta, valor, ico, pie = '', tono = 'verde') => html`
+  <div class="bg-white border border-papel-linea rounded-2xl p-5">
+    <div class="flex items-start justify-between">
+      <p class="text-[11px] font-bold uppercase tracking-wide text-tinta-suave">${etiqueta}</p>
+      <span class="w-9 h-9 rounded-xl flex items-center justify-center ${crudo({
+        verde: 'bg-verde-claro text-verde', ambar: 'bg-ambar-fondo text-ambar-texto',
+        rojo: 'bg-rojo-fondo text-rojo-texto' }[tono])}">
+        ${icono(ico, 'text-[18px]')}
+      </span>
+    </div>
+    <p class="mt-3 text-[26px] font-extrabold tracking-tight tabular">${valor}</p>
+    ${pie ? html`<p class="mt-1 text-xs text-tinta-suave">${pie}</p>` : ''}
+  </div>`;
+
+// ===========================================================================
+//  Inventario
+// ===========================================================================
+
+async function inventario() {
+  const filas = INVENTARIO.map((p) => ({
+    ...p,
+    valor: Math.round(p.cantidad * p.costo * 100) / 100,
+    margen: p.costo ? ((p.precio - p.costo) / p.costo) * 100 : 0,
+    bajo: p.cantidad < p.minimo,
+  }));
+  const total = filas.reduce((s, f) => s + Math.round(f.valor * 100), 0) / 100;
+  const bajos = filas.filter((f) => f.bajo);
+
+  const cuerpo = filas.map((f) => html`
+    <tr class="hover:bg-papel transition ${crudo(f.bajo ? 'bg-ambar-fondo/30' : '')}">
+      <td class="px-5 py-3.5 text-xs font-bold tabular">${f.codigo}</td>
+      <td class="px-5 py-3.5 text-sm truncate max-w-[260px]">${f.descripcion}</td>
+      <td class="px-5 py-3.5 text-right">
+        <span class="text-sm font-bold tabular ${crudo(f.bajo ? 'text-ambar-texto' : '')}">${f.cantidad}</span>
+        <span class="block text-[11px] text-tinta-suave">${f.unidad}</span>
+      </td>
+      <td class="px-5 py-3.5 text-right text-sm tabular">${f.minimo}</td>
+      <td class="px-5 py-3.5 text-right text-sm tabular">${dinero(f.costo)}</td>
+      <td class="px-5 py-3.5 text-right text-sm tabular">${dinero(f.precio)}</td>
+      <td class="px-5 py-3.5 text-right text-sm font-semibold tabular">${dinero(f.margen)}%</td>
+      <td class="px-5 py-3.5 text-right text-sm font-bold tabular">${dinero(f.valor)}</td>
+    </tr>`);
+
+  return html`
+    ${crudo(cabecera({
+      titulo: 'Inventario',
+      descripcion: 'Lo que hay en bodega, lo que cuesta y lo que falta reponer.',
+      acciones: [boton('Ajuste de inventario', { ico: 'tune', tipo: 'secundario' }),
+                 boton('Registrar ingreso', { ico: 'add' })],
+    }))}
+
+    ${bajos.length ? crudo(aviso({
+      tono: 'ambar', ico: 'inventory',
+      titulo: `${bajos.length} productos por debajo del mínimo`,
+      texto: bajos.map((b) => `${b.descripcion} (${b.cantidad} de ${b.minimo})`).join(' · ') +
+             '. Reponer antes de que una venta se caiga por falta de mercadería.',
+    })) : ''}
+
+    <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4 mb-5">
+      ${cifra('Valor del inventario', usd(total), 'inventory_2', 'Al costo, no al precio de venta')}
+      ${cifra('Productos distintos', String(filas.length), 'category')}
+      ${cifra('Bajo el mínimo', String(bajos.length), 'warning', 'Necesitan reposición',
+        bajos.length ? 'ambar' : 'verde')}
+      ${cifra('Margen promedio',
+        dinero(filas.reduce((s, f) => s + f.margen, 0) / filas.length) + '%', 'trending_up')}
+    </div>
+
+    <div class="grid gap-5 lg:grid-cols-3 mb-5">
+      <section class="lg:col-span-2 bg-white border border-papel-linea rounded-2xl p-5">
+        <h2 class="text-sm font-bold mb-1">Dónde está el dinero de la bodega</h2>
+        <p class="text-xs text-tinta-suave mb-5">Valor al costo de cada producto.</p>
+        ${barras(filas.map((f) => ({ etiqueta: f.codigo.split('-')[0], valor: f.valor })),
+                 { alto: 180, titulo: 'Valor por producto' })}
+      </section>
+      <section class="bg-white border border-papel-linea rounded-2xl p-5">
+        <h2 class="text-sm font-bold mb-4">Reparto del valor</h2>
+        <div class="flex justify-center mb-2">
+          ${dona(filas.map((f) => ({ etiqueta: f.descripcion, valor: f.valor })),
+                 { centro: usd(total), subcentro: 'en bodega' })}
+        </div>
+        <div class="divide-y divide-papel-linea">
+          ${leyenda(filas.map((f) => ({ etiqueta: f.descripcion, valor: f.valor })))}
+        </div>
+      </section>
+    </div>
+
+    <section class="bg-white border border-papel-linea rounded-2xl overflow-hidden">
+      ${crudo(tabla([
+        { texto: 'Código' }, { texto: 'Producto' }, { texto: 'Existencia', der: true },
+        { texto: 'Mínimo', der: true }, { texto: 'Costo', der: true }, { texto: 'Precio', der: true },
+        { texto: 'Margen', der: true }, { texto: 'Valor', der: true },
+      ], cuerpo))}
+    </section>`;
+}
+
+// ===========================================================================
+//  Nómina
+// ===========================================================================
+
+async function nomina() {
+  // Porcentajes vigentes del IESS para relación de dependencia.
+  const APORTE_PERSONAL = 9.45;
+  const APORTE_PATRONAL = 11.15;
+
+  const filas = EMPLEADOS.map((e) => {
+    const personal = Math.round(e.sueldo * APORTE_PERSONAL) / 100;
+    const patronal = Math.round(e.sueldo * APORTE_PATRONAL) / 100;
+    return {
+      ...e, personal, patronal,
+      liquido: Math.round((e.sueldo - personal) * 100) / 100,
+      costoEmpresa: Math.round((e.sueldo + patronal) * 100) / 100,
+    };
+  });
+
+  const suma = (campo) => filas.reduce((s, f) => s + Math.round(f[campo] * 100), 0) / 100;
+
+  const cuerpo = filas.map((f) => html`
+    <tr class="hover:bg-papel transition">
+      <td class="px-5 py-3.5">
+        <div class="flex items-center gap-3">
+          <span class="w-9 h-9 shrink-0 rounded-full bg-verde-claro text-verde flex items-center justify-center text-[11px] font-extrabold">
+            ${f.nombre.split(' ').map((p) => p[0]).slice(0, 2).join('')}
+          </span>
+          <div class="min-w-0">
+            <span class="block text-sm font-semibold truncate max-w-[180px]">${f.nombre}</span>
+            <span class="block text-[11px] text-tinta-suave tabular">${f.cedula}</span>
+          </div>
+        </div>
+      </td>
+      <td class="px-5 py-3.5 text-sm">${f.cargo}</td>
+      <td class="px-5 py-3.5 text-sm text-tinta-suave whitespace-nowrap">${fechaLarga(f.ingreso)}</td>
+      <td class="px-5 py-3.5 text-right text-sm tabular">${dinero(f.sueldo)}</td>
+      <td class="px-5 py-3.5 text-right text-sm tabular text-tinta-suave">−${dinero(f.personal)}</td>
+      <td class="px-5 py-3.5 text-right text-sm font-bold tabular">${dinero(f.liquido)}</td>
+      <td class="px-5 py-3.5 text-right text-sm tabular">${dinero(f.costoEmpresa)}</td>
+    </tr>`);
+
+  return html`
+    ${crudo(cabecera({
+      titulo: 'Nómina',
+      descripcion: 'Rol de pagos de septiembre de 2026 · 4 empleados en relación de dependencia.',
+      acciones: [boton('Generar rol', { ico: 'description', tipo: 'secundario' }),
+                 boton('Añadir empleado', { ico: 'person_add' })],
+    }))}
+
+    ${crudo(aviso({
+      tono: 'ambar', ico: 'gavel',
+      titulo: 'La nómina no está terminada, y es la que más criterio necesita',
+      texto: 'Faltan décimo tercero, décimo cuarto, fondos de reserva, vacaciones y utilidades. ' +
+             'Cada uno tiene su propia regla de cálculo y su propia fecha, y equivocarse no ' +
+             'es un error contable: es un incumplimiento laboral con consecuencias para el ' +
+             'empleador. Esto no se construye sin revisión profesional.',
+    }))}
+
+    <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4 mb-5">
+      ${cifra('Sueldos del mes', usd(suma('sueldo')), 'payments')}
+      ${cifra('Aporte personal', usd(suma('personal')), 'remove_circle', `${APORTE_PERSONAL}% · lo paga el empleado`)}
+      ${cifra('Aporte patronal', usd(suma('patronal')), 'add_circle', `${APORTE_PATRONAL}% · lo paga la empresa`)}
+      ${cifra('Costo total', usd(suma('costoEmpresa')), 'groups', 'Lo que de verdad cuesta la nómina')}
+    </div>
+
+    <div class="grid gap-5 lg:grid-cols-3 mb-5">
+      <section class="lg:col-span-2 bg-white border border-papel-linea rounded-2xl p-5">
+        <h2 class="text-sm font-bold mb-1">Costo por persona</h2>
+        <p class="text-xs text-tinta-suave mb-5">Sueldo más aporte patronal.</p>
+        ${barras(filas.map((f) => ({ etiqueta: f.nombre.split(' ')[0], valor: f.costoEmpresa })),
+                 { alto: 180, titulo: 'Costo por empleado' })}
+      </section>
+      <section class="bg-white border border-papel-linea rounded-2xl p-5">
+        <h2 class="text-sm font-bold mb-3">A dónde va cada dólar de nómina</h2>
+        ${barraCompuesta([
+          { etiqueta: 'Líquido al empleado', valor: suma('liquido'), tono: VERDE },
+          { etiqueta: 'Aportes al IESS', valor: suma('personal') + suma('patronal'), tono: AMBAR },
+        ], { alto: 14 })}
+        <div class="mt-4 divide-y divide-papel-linea">
+          ${leyenda([
+            { etiqueta: 'Líquido al empleado', valor: suma('liquido'), tono: VERDE },
+            { etiqueta: 'Aportes al IESS', valor: suma('personal') + suma('patronal'), tono: AMBAR },
+          ])}
+        </div>
+      </section>
+    </div>
+
+    <section class="bg-white border border-papel-linea rounded-2xl overflow-hidden">
+      ${crudo(tabla([
+        { texto: 'Empleado' }, { texto: 'Cargo' }, { texto: 'Ingreso' },
+        { texto: 'Sueldo', der: true }, { texto: 'Aporte 9,45%', der: true },
+        { texto: 'Líquido', der: true }, { texto: 'Costo empresa', der: true },
+      ], cuerpo))}
+    </section>`;
+}
+
+// ===========================================================================
+//  Activos fijos
+// ===========================================================================
+
+async function activosFijos() {
+  const filas = ACTIVOS_FIJOS.map((a) => ({
+    ...a,
+    neto: Math.round((a.costo - a.depreciado) * 100) / 100,
+    avance: a.costo ? (a.depreciado / a.costo) * 100 : 0,
+    mensual: Math.round((a.costo / (a.vidaUtil * 12)) * 100) / 100,
+  }));
+  const costo = filas.reduce((s, f) => s + Math.round(f.costo * 100), 0) / 100;
+  const depreciado = filas.reduce((s, f) => s + Math.round(f.depreciado * 100), 0) / 100;
+  const neto = Math.round((costo - depreciado) * 100) / 100;
+  const mensual = filas.reduce((s, f) => s + Math.round(f.mensual * 100), 0) / 100;
+
+  const cuerpo = filas.map((f) => html`
+    <tr class="hover:bg-papel transition">
+      <td class="px-5 py-3.5 text-xs font-bold tabular">${f.codigo}</td>
+      <td class="px-5 py-3.5">
+        <span class="block text-sm truncate max-w-[240px]">${f.descripcion}</span>
+        <span class="block text-[11px] text-tinta-suave tabular">cuenta ${f.cuenta}</span>
+      </td>
+      <td class="px-5 py-3.5 text-sm text-tinta-suave whitespace-nowrap">${fechaLarga(f.compra)}</td>
+      <td class="px-5 py-3.5 text-right text-sm tabular">${dinero(f.costo)}</td>
+      <td class="px-5 py-3.5 text-right text-sm tabular text-tinta-suave">${dinero(f.depreciado)}</td>
+      <td class="px-5 py-3.5 w-36">
+        <div class="flex items-center gap-2">
+          <div class="flex-1 h-1.5 rounded-full bg-papel-linea overflow-hidden">
+            <div class="h-full rounded-full bg-verde" style="width:${Math.min(100, f.avance).toFixed(0)}%"></div>
+          </div>
+          <span class="text-[11px] font-bold tabular text-tinta-suave w-9 text-right">
+            ${f.avance.toFixed(0)}%
+          </span>
+        </div>
+      </td>
+      <td class="px-5 py-3.5 text-right text-sm font-bold tabular">${dinero(f.neto)}</td>
+    </tr>`);
+
+  return html`
+    ${crudo(cabecera({
+      titulo: 'Activos fijos',
+      descripcion: 'Lo que la empresa compró para usar, no para vender, y cuánto le queda de vida.',
+      acciones: boton('Registrar activo', { ico: 'add' }),
+    }))}
+
+    ${crudo(aviso({
+      tono: 'ambar', ico: 'gavel',
+      titulo: 'Cuántos años se deprecia algo no lo decide el programa',
+      texto: 'Los años de vida útil y el método de depreciación tienen reglas tributarias, y ' +
+             'lo que se deprecia mal se convierte en un gasto no deducible. Las cifras de ' +
+             'esta pantalla usan línea recta sobre la vida útil registrada; confirmar cada ' +
+             'caso es trabajo de un contador.',
+    }))}
+
+    <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4 mb-5">
+      ${cifra('Costo de adquisición', usd(costo), 'precision_manufacturing')}
+      ${cifra('Depreciación acumulada', usd(depreciado), 'trending_down',
+        `${((depreciado / costo) * 100).toFixed(0)}% de la vida consumida`)}
+      ${cifra('Valor en libros', usd(neto), 'account_balance_wallet')}
+      ${cifra('Depreciación mensual', usd(mensual), 'calendar_month', 'Gasto de cada mes')}
+    </div>
+
+    <div class="grid gap-5 lg:grid-cols-3 mb-5">
+      <section class="lg:col-span-2 bg-white border border-papel-linea rounded-2xl p-5">
+        <h2 class="text-sm font-bold mb-1">Costo frente a valor en libros</h2>
+        <p class="text-xs text-tinta-suave mb-5">Lo que costó y lo que queda sin depreciar.</p>
+        ${barras(filas.map((f) => ({ etiqueta: f.codigo, valor: f.neto })),
+                 { alto: 180, titulo: 'Valor en libros por activo' })}
+      </section>
+      <section class="bg-white border border-papel-linea rounded-2xl p-5">
+        <h2 class="text-sm font-bold mb-3">Cuánto se ha consumido</h2>
+        ${barraCompuesta([
+          { etiqueta: 'Depreciado', valor: depreciado, tono: '#7C93A6' },
+          { etiqueta: 'Por depreciar', valor: neto, tono: VERDE },
+        ], { alto: 14 })}
+        <div class="mt-4 divide-y divide-papel-linea">
+          ${leyenda([
+            { etiqueta: 'Ya depreciado', valor: depreciado, tono: '#7C93A6' },
+            { etiqueta: 'Valor en libros', valor: neto, tono: VERDE },
+          ])}
+        </div>
+      </section>
+    </div>
+
+    <section class="bg-white border border-papel-linea rounded-2xl overflow-hidden">
+      ${crudo(tabla([
+        { texto: 'Código' }, { texto: 'Activo' }, { texto: 'Compra' },
+        { texto: 'Costo', der: true }, { texto: 'Depreciado', der: true },
+        { texto: 'Vida consumida' }, { texto: 'En libros', der: true },
+      ], cuerpo))}
+    </section>`;
+}
+
+
+  return { inventario, nomina, activosFijos };
+})();
+
+// ---- src/vistas/impuestos.js -------------------------------------
+const __src_vistas_impuestos_js = (function () {
+  const { html, crudo, usd, dinero, icono, cabecera, aviso, boton, fecha, fechaLarga } = __src_ui_js;
+  const { barraCompuesta, leyenda, VERDE, AMBAR } = __src_graficos_js;
+  const { formulario104, nombreCuenta } = __src_datos_contables_js;
+
+/**
+ * Impuestos: el formulario 104 y el anexo transaccional.
+ *
+ * Esta es la pantalla que justifica tener un sistema contable en lugar de una
+ * hoja de cálculo. **Ninguna casilla se teclea**: todas salen de los libros. Si
+ * la declaración se llenara aparte, podría decir una cosa mientras la
+ * contabilidad dice otra, y ante una revisión del SRI eso es exactamente lo que
+ * no se puede explicar.
+ *
+ * Por eso cada casilla muestra de qué cuenta viene. Es la diferencia entre un
+ * número y un número que se puede defender.
+ */
+
+
+
+
+
+async function declaracionIva() {
+  const f = formulario104();
+  const dias = Math.ceil((f.vence - new Date(2026, 8, 30)) / (24 * 60 * 60 * 1000));
+
+  return html`
+    ${crudo(cabecera({
+      titulo: 'Declaración de IVA · formulario 104',
+      descripcion: `${f.periodo} · todas las casillas salen de los libros, ninguna se teclea.`,
+      acciones: [boton('Generar XML', { ico: 'code', tipo: 'secundario' }),
+                 boton('Descargar', { ico: 'download' })],
+    }))}
+
+    ${crudo(aviso({
+      tono: dias <= 7 ? 'ambar' : 'info',
+      ico: 'event',
+      titulo: `Vence el ${fechaLarga(f.vence)} · faltan ${dias} días`,
+      texto: 'La fecha límite depende del noveno dígito del RUC. Declarar tarde tiene multa ' +
+             'e intereses aunque no haya nada que pagar.',
+    }))}
+
+    <div class="grid gap-5 lg:grid-cols-3">
+      <section class="lg:col-span-2 bg-white border border-papel-linea rounded-2xl overflow-hidden">
+        <header class="px-5 py-4 border-b border-papel-linea">
+          <h2 class="text-sm font-bold">Casillas del formulario</h2>
+          <p class="text-[11px] text-tinta-suave mt-0.5">
+            Cada línea indica de qué cuenta del plan sale el valor.
+          </p>
+        </header>
+        <div class="divide-y divide-papel-linea">
+          ${f.casillas.map((c) => html`
+            <div class="flex items-center gap-4 px-5 py-3 ${crudo(
+              c.fuerte ? 'bg-tinta text-white' : c.total ? 'bg-papel/60' : '')}">
+              <span class="w-12 shrink-0 text-xs font-extrabold tabular ${crudo(
+                c.fuerte ? 'text-white/70' : 'text-tinta-suave')}">${c.casilla}</span>
+              <div class="flex-1 min-w-0">
+                <p class="text-sm ${crudo(c.total ? 'font-bold' : '')}">${c.concepto}</p>
+                ${c.cuenta ? html`
+                  <p class="text-[11px] text-tinta-suave truncate">
+                    de la cuenta ${c.cuenta} · ${nombreCuenta(c.cuenta)}
+                  </p>` : ''}
+              </div>
+              <span class="text-sm tabular whitespace-nowrap ${crudo(
+                c.fuerte ? 'font-extrabold text-lg' : c.total ? 'font-extrabold' : 'font-semibold')}">
+                ${dinero(c.valor)}
+              </span>
+            </div>`)}
+        </div>
+      </section>
+
+      <div class="space-y-5">
+        <section class="bg-white border border-papel-linea rounded-2xl p-5">
+          <h2 class="text-sm font-bold mb-1">Cómo sale lo que hay que pagar</h2>
+          <p class="text-xs text-tinta-suave mb-4">
+            El IVA que cobró menos el que pagó en sus compras.
+          </p>
+          <div class="space-y-3">
+            <div class="flex items-baseline justify-between">
+              <span class="text-sm text-tinta-suave">IVA cobrado a clientes</span>
+              <span class="text-sm font-semibold tabular">${dinero(f.ivaCobrado)}</span>
+            </div>
+            <div class="flex items-baseline justify-between">
+              <span class="text-sm text-tinta-suave">− IVA pagado en compras</span>
+              <span class="text-sm font-semibold tabular">${dinero(f.ivaPagado)}</span>
+            </div>
+            <div class="flex items-baseline justify-between pt-3 border-t-2 border-tinta">
+              <span class="text-sm font-extrabold">A pagar al SRI</span>
+              <span class="text-xl font-extrabold tabular">${usd(f.aPagar)}</span>
+            </div>
+          </div>
+          <div class="mt-5">
+            ${barraCompuesta([
+              { etiqueta: 'Crédito tributario', valor: f.ivaPagado, tono: VERDE },
+              { etiqueta: 'A pagar', valor: f.aPagar, tono: AMBAR },
+            ], { alto: 12 })}
+            <div class="mt-3 divide-y divide-papel-linea">
+              ${leyenda([
+                { etiqueta: 'Se descuenta (crédito)', valor: f.ivaPagado, tono: VERDE },
+                { etiqueta: 'Sale de la empresa', valor: f.aPagar, tono: AMBAR },
+              ])}
+            </div>
+          </div>
+        </section>
+
+        <section class="bg-white border-2 border-ambar-borde rounded-2xl p-5">
+          <div class="flex items-center gap-2 text-ambar-texto mb-3">
+            ${icono('science', 'text-[20px]')}
+            <h2 class="text-sm font-bold">Todavía no se envía</h2>
+          </div>
+          <p class="text-[12px] text-tinta-suave leading-relaxed">
+            Las cifras salen de los libros y cuadran, pero el envío al SRI y la firma no
+            están conectados. Y antes de declarar algo de verdad, las reglas contables
+            tienen que estar revisadas por un contador: una declaración se presenta una vez
+            y corregirla después es una declaración sustitutiva.
+          </p>
+        </section>
+      </div>
+    </div>`;
+}
+
+// ===========================================================================
+//  Anexo transaccional
+// ===========================================================================
+
+async function anexoTransaccional() {
+  const bloques = [
+    { nombre: 'Compras', registros: 34, ico: 'shopping_cart',
+      detalle: 'Facturas recibidas de proveedores, con su retención' },
+    { nombre: 'Ventas', registros: 148, ico: 'point_of_sale',
+      detalle: 'Todo lo emitido y autorizado en el mes' },
+    { nombre: 'Retenciones', registros: 3, ico: 'content_cut',
+      detalle: 'Las practicadas a proveedores' },
+    { nombre: 'Comprobantes anulados', registros: 2, ico: 'block',
+      detalle: 'Notas de crédito emitidas' },
+  ];
+  const total = bloques.reduce((s, b) => s + b.registros, 0);
+
+  return html`
+    ${crudo(cabecera({
+      titulo: 'Anexo transaccional simplificado',
+      descripcion: 'El detalle de todas las transacciones del mes, en el formato XML que exige el SRI.',
+      acciones: boton('Generar anexo', { ico: 'code' }),
+    }))}
+
+    ${crudo(aviso({
+      tono: 'info', ico: 'verified',
+      titulo: 'Este anexo sí se puede comprobar antes de enviarlo',
+      texto: 'El SRI publica un esquema (at.xsd) contra el que se valida el archivo. Igual que ' +
+             'con los comprobantes electrónicos: lo que no valide contra el esquema está mal, ' +
+             'y se sabe aquí y no al presentarlo.',
+    }))}
+
+    <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4 mb-5">
+      ${bloques.map((b) => html`
+        <div class="bg-white border border-papel-linea rounded-2xl p-5">
+          <div class="flex items-start justify-between">
+            <p class="text-[11px] font-bold uppercase tracking-wide text-tinta-suave">${b.nombre}</p>
+            <span class="w-9 h-9 rounded-xl bg-verde-claro text-verde flex items-center justify-center">
+              ${icono(b.ico, 'text-[18px]')}
+            </span>
+          </div>
+          <p class="mt-3 text-[26px] font-extrabold tracking-tight tabular">${b.registros}</p>
+          <p class="mt-1 text-xs text-tinta-suave leading-snug">${b.detalle}</p>
+        </div>`)}
+    </div>
+
+    <section class="bg-white border border-papel-linea rounded-2xl p-5 sm:p-6">
+      <h2 class="text-sm font-bold mb-1">Qué se va a generar</h2>
+      <p class="text-xs text-tinta-suave mb-5">
+        ${total} registros en un solo archivo XML, con la estructura de la ficha técnica del SRI.
+      </p>
+      <pre class="text-[11px] leading-relaxed bg-papel rounded-xl p-4 overflow-x-auto"><code>&lt;iva&gt;
+  &lt;TipoIDInformante&gt;R&lt;/TipoIDInformante&gt;
+  &lt;IdInformante&gt;0912345678001&lt;/IdInformante&gt;
+  &lt;razonSocial&gt;AGROQUIMICOS PEREZ S.A.&lt;/razonSocial&gt;
+  &lt;Anio&gt;2026&lt;/Anio&gt;  &lt;Mes&gt;09&lt;/Mes&gt;
+  &lt;compras&gt; … 34 detalles … &lt;/compras&gt;
+  &lt;ventas&gt;  … 148 detalles … &lt;/ventas&gt;
+&lt;/iva&gt;</code></pre>
+      <p class="mt-4 text-[11px] text-tinta-suave leading-relaxed">
+        Es un ejemplo de la forma, no el archivo definitivo: el generador del anexo se
+        construye contra el esquema oficial, igual que se construyó el de los comprobantes.
+      </p>
+    </section>`;
+}
+
+
+  return { declaracionIva, anexoTransaccional };
+})();
+
+// ---- src/vistas/plataforma.js ------------------------------------
+const __src_vistas_plataforma_js = (function () {
+  const { html, crudo, usd, icono, tabla, cabecera, aviso, boton, fecha, fechaHora } = __src_ui_js;
+  const { barras, linea } = __src_graficos_js;
+  const { SUSCRIPCIONES, USO_MENSUAL, SOPORTE } = __src_datos_contables_js;
+
+/**
+ * Las pantallas que le faltaban al super administrador, y la consulta legal.
+ *
+ * Aquí se ve lo mismo de siempre, que es lo que distingue a Kontia: el
+ * administrador de la plataforma administra el SERVICIO. Cobra, mide el
+ * consumo, atiende soporte. En ningún sitio aparece una factura, un cliente ni
+ * un importe de venta de una empresa.
+ *
+ * La pantalla de soporte es la única puerta hacia los datos de una empresa, y
+ * está construida para que esa puerta chirríe: motivo escrito, dos horas de
+ * duración y constancia en la auditoría.
+ */
+
+
+
+
+
+const cifra = (etiqueta, valor, ico, pie = '', tono = 'verde') => html`
+  <div class="bg-white border border-papel-linea rounded-2xl p-5">
+    <div class="flex items-start justify-between">
+      <p class="text-[11px] font-bold uppercase tracking-wide text-tinta-suave">${etiqueta}</p>
+      <span class="w-9 h-9 rounded-xl flex items-center justify-center ${crudo({
+        verde: 'bg-verde-claro text-verde', ambar: 'bg-ambar-fondo text-ambar-texto',
+        rojo: 'bg-rojo-fondo text-rojo-texto' }[tono])}">
+        ${icono(ico, 'text-[18px]')}
+      </span>
+    </div>
+    <p class="mt-3 text-[26px] font-extrabold tracking-tight tabular">${valor}</p>
+    ${pie ? html`<p class="mt-1 text-xs text-tinta-suave">${pie}</p>` : ''}
+  </div>`;
+
+const ESTADO_SUSCRIPCION = {
+  'AL DÍA': 'bg-verde-claro text-verde',
+  'EN PRUEBA': 'bg-ambar-fondo text-ambar-texto',
+  'VENCIDA': 'bg-rojo-fondo text-rojo-texto',
+};
+
+// ===========================================================================
+//  Suscripciones
+// ===========================================================================
+
+async function suscripciones() {
+  const mensual = SUSCRIPCIONES
+    .filter((s) => s.ciclo === 'Mensual' && s.estado === 'AL DÍA')
+    .reduce((a, s) => a + Math.round(s.valor * 100), 0) / 100;
+  const anualizadas = SUSCRIPCIONES
+    .filter((s) => s.ciclo === 'Anual' && s.estado === 'AL DÍA')
+    .reduce((a, s) => a + Math.round((s.valor / 12) * 100), 0) / 100;
+  const recurrente = Math.round((mensual + anualizadas) * 100) / 100;
+  const vencidas = SUSCRIPCIONES.filter((s) => s.estado === 'VENCIDA');
+
+  const cuerpo = SUSCRIPCIONES.map((s) => html`
+    <tr class="hover:bg-papel transition">
+      <td class="px-5 py-3.5 text-sm truncate max-w-[260px]">${s.empresa}</td>
+      <td class="px-5 py-3.5">
+        <span class="text-[11px] font-bold px-2 py-1 rounded-full bg-papel text-tinta-suave">${s.plan}</span>
+      </td>
+      <td class="px-5 py-3.5 text-sm text-tinta-suave">${s.ciclo}</td>
+      <td class="px-5 py-3.5 text-sm text-tinta-suave whitespace-nowrap">${fecha(s.proximo)}</td>
+      <td class="px-5 py-3.5 text-right text-sm font-bold tabular">
+        ${s.valor ? usd(s.valor) : '—'}
+      </td>
+      <td class="px-5 py-3.5 text-right">
+        <span class="text-[11px] font-bold px-2.5 py-1 rounded-full ${crudo(
+          ESTADO_SUSCRIPCION[s.estado] ?? 'bg-papel text-tinta-suave')}">${s.estado}</span>
+      </td>
+    </tr>`);
+
+  return html`
+    ${crudo(cabecera({
+      titulo: 'Suscripciones',
+      descripcion: 'Lo que paga cada empresa por usar Kontia, y cuándo le toca el siguiente cobro.',
+      acciones: boton('Registrar cobro', { ico: 'payments', tipo: 'secundario' }),
+    }))}
+
+    ${vencidas.length ? crudo(aviso({
+      tono: 'ambar', ico: 'credit_card_off',
+      titulo: `${vencidas.length} suscripción vencida`,
+      texto: vencidas.map((v) => v.empresa).join(', ') +
+             '. Suspender el servicio es una decisión que deja a una empresa sin poder ' +
+             'facturar, así que conviene llamar antes de hacerlo.',
+    })) : ''}
+
+    <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4 mb-5">
+      ${cifra('Ingreso recurrente mensual', usd(recurrente), 'autorenew',
+        'Mensuales más la doceava parte de las anuales')}
+      ${cifra('Proyección anual', usd(Math.round(recurrente * 12 * 100) / 100), 'trending_up')}
+      ${cifra('Empresas activas',
+        String(SUSCRIPCIONES.filter((s) => s.estado === 'AL DÍA').length), 'domain')}
+      ${cifra('En periodo de prueba',
+        String(SUSCRIPCIONES.filter((s) => s.estado === 'EN PRUEBA').length), 'schedule',
+        'Aún no generan ingreso', 'ambar')}
+    </div>
+
+    <section class="bg-white border border-papel-linea rounded-2xl overflow-hidden">
+      ${crudo(tabla([
+        { texto: 'Empresa' }, { texto: 'Plan' }, { texto: 'Ciclo' },
+        { texto: 'Próximo cobro' }, { texto: 'Valor', der: true }, { texto: 'Estado', der: true },
+      ], cuerpo))}
+    </section>`;
+}
+
+// ===========================================================================
+//  Uso de la plataforma
+// ===========================================================================
+
+async function usoPlataforma() {
+  const ultimo = USO_MENSUAL[USO_MENSUAL.length - 1];
+  const anterior = USO_MENSUAL[USO_MENSUAL.length - 2];
+  const crecimiento = ((ultimo.comprobantes - anterior.comprobantes) / anterior.comprobantes) * 100;
+  const total = USO_MENSUAL.reduce((s, m) => s + m.comprobantes, 0);
+
+  return html`
+    ${crudo(cabecera({
+      titulo: 'Uso de la plataforma',
+      descripcion: 'Cuántos comprobantes se emiten al mes en todas las empresas juntas.',
+    }))}
+
+    ${crudo(aviso({
+      tono: 'info', ico: 'visibility_off',
+      titulo: 'Cuántos, no cuáles',
+      texto: 'Esta pantalla cuenta comprobantes para dimensionar el servicio y los planes. ' +
+             'No dice a quién se le facturó ni por cuánto, porque esos datos no llegan aquí: ' +
+             'las políticas de la base de datos no los entregan a quien administra la plataforma.',
+    }))}
+
+    <div class="grid gap-4 sm:grid-cols-3 mb-5">
+      ${cifra('Comprobantes este mes', String(ultimo.comprobantes), 'receipt_long')}
+      ${cifra('Crecimiento sobre el mes anterior',
+        (crecimiento >= 0 ? '+' : '') + crecimiento.toFixed(1) + '%',
+        crecimiento >= 0 ? 'trending_up' : 'trending_down')}
+      ${cifra('Total en seis meses', String(total), 'insights')}
+    </div>
+
+    <div class="grid gap-5 lg:grid-cols-2">
+      <section class="bg-white border border-papel-linea rounded-2xl p-5">
+        <h2 class="text-sm font-bold mb-1">Comprobantes por mes</h2>
+        <p class="text-xs text-tinta-suave mb-5">Suma de todas las empresas.</p>
+        ${barras(USO_MENSUAL.map((m) => ({ etiqueta: m.mes, valor: m.comprobantes })),
+                 { alto: 200, moneda: false, titulo: 'Comprobantes por mes' })}
+      </section>
+      <section class="bg-white border border-papel-linea rounded-2xl p-5">
+        <h2 class="text-sm font-bold mb-1">Tendencia</h2>
+        <p class="text-xs text-tinta-suave mb-5">La misma cifra, vista como curva.</p>
+        ${linea(USO_MENSUAL.map((m) => ({ etiqueta: m.mes, valor: m.comprobantes })),
+                { alto: 200, moneda: false, titulo: 'Tendencia de uso' })}
+      </section>
+    </div>`;
+}
+
+// ===========================================================================
+//  Soporte
+// ===========================================================================
+
+async function soporte() {
+  const abiertos = SOPORTE.filter((s) => s.estado !== 'RESUELTO');
+
+  return html`
+    ${crudo(cabecera({
+      titulo: 'Soporte',
+      descripcion: 'Las peticiones de ayuda y los accesos temporales que autoriza cada empresa.',
+    }))}
+
+    ${crudo(aviso({
+      tono: 'ambar', ico: 'key',
+      titulo: 'Entrar a los datos de una empresa deja huella siempre',
+      texto: 'Un acceso de soporte exige escribir el motivo, dura dos horas y se anota en la ' +
+             'auditoría con nombre y hora. La empresa puede leer esa anotación cuando quiera, ' +
+             'y nadie —tampoco usted— puede borrarla.',
+    }))}
+
+    <div class="grid gap-4 sm:grid-cols-3 mb-5">
+      ${cifra('Casos abiertos', String(abiertos.length), 'support_agent')}
+      ${cifra('Accesos activos ahora',
+        String(SOPORTE.filter((s) => s.estado === 'ACCESO ABIERTO').length), 'lock_open',
+        'Caducan solos', 'ambar')}
+      ${cifra('Resueltos este mes',
+        String(SOPORTE.filter((s) => s.estado === 'RESUELTO').length), 'task_alt')}
+    </div>
+
+    <div class="space-y-4">
+      ${SOPORTE.map((s) => html`
+        <article class="bg-white border rounded-2xl p-5 ${crudo(
+          s.estado === 'ACCESO ABIERTO' ? 'border-ambar-borde' : 'border-papel-linea')}">
+          <div class="flex flex-wrap items-start justify-between gap-3">
+            <div class="min-w-0">
+              <p class="text-sm font-bold">${s.empresa}</p>
+              <p class="mt-1 text-sm text-tinta-suave">${s.asunto}</p>
+            </div>
+            <span class="text-[11px] font-bold px-2.5 py-1 rounded-full whitespace-nowrap ${crudo(
+              s.estado === 'ACCESO ABIERTO' ? 'bg-ambar-fondo text-ambar-texto border border-ambar-borde'
+              : s.estado === 'RESUELTO' ? 'bg-verde-claro text-verde'
+              : 'bg-papel text-tinta-suave')}">${s.estado}</span>
+          </div>
+          <div class="mt-4 pt-4 border-t border-papel-linea flex flex-wrap gap-x-8 gap-y-2 text-[11px] text-tinta-suave">
+            <span>Abierto ${fechaHora(s.abierto)}</span>
+            ${s.caduca ? html`
+              <span class="font-bold text-ambar-texto">
+                El acceso caduca ${fechaHora(s.caduca)}
+              </span>` : ''}
+          </div>
+        </article>`)}
+    </div>`;
+}
+
+// ===========================================================================
+//  Consulta legal-tributaria · lo que distingue a Kontia
+// ===========================================================================
+
+const CONSULTAS = [
+  { asunto: '¿El flete que cobro al cliente lleva IVA?', estado: 'RESPONDIDA',
+    fecha: new Date(2026, 8, 9),
+    respuesta: 'Sí. El transporte de carga prestado junto con la venta sigue la suerte del ' +
+               'bien transportado y se factura con la misma tarifa que la mercadería.' },
+  { asunto: 'Me llegó una glosa por diferencias en el anexo de 2025', estado: 'EN ESTUDIO',
+    fecha: new Date(2026, 8, 11), respuesta: null },
+];
+
+async function consultaLegal() {
+  return html`
+    ${crudo(cabecera({
+      titulo: 'Consulta legal-tributaria',
+      descripcion: 'Preguntarle a un abogado desde dentro del sistema, sobre el caso que tiene delante.',
+      acciones: boton('Nueva consulta', { ico: 'add' }),
+    }))}
+
+    <div class="grid gap-5 lg:grid-cols-3">
+      <div class="lg:col-span-2 space-y-4">
+        ${CONSULTAS.map((c) => html`
+          <article class="bg-white border border-papel-linea rounded-2xl p-5">
+            <div class="flex flex-wrap items-start justify-between gap-3">
+              <p class="text-sm font-bold flex-1 min-w-0">${c.asunto}</p>
+              <span class="text-[11px] font-bold px-2.5 py-1 rounded-full whitespace-nowrap ${crudo(
+                c.estado === 'RESPONDIDA' ? 'bg-verde-claro text-verde'
+                : 'bg-ambar-fondo text-ambar-texto')}">${c.estado}</span>
+            </div>
+            <p class="mt-1 text-[11px] text-tinta-suave">${fecha(c.fecha)}</p>
+            ${c.respuesta ? html`
+              <div class="mt-4 p-4 rounded-xl bg-verde-claro/50 border border-verde-medio">
+                <div class="flex items-center gap-2 mb-2 text-verde">
+                  ${icono('gavel', 'text-[16px]')}
+                  <span class="text-[11px] font-bold uppercase tracking-wide">Respuesta</span>
+                </div>
+                <p class="text-sm leading-relaxed">${c.respuesta}</p>
+              </div>` : html`
+              <p class="mt-4 text-[12px] text-tinta-suave">
+                En estudio. Se responde en un máximo de 48 horas hábiles.
+              </p>`}
+          </article>`)}
+      </div>
+
+      <section class="bg-verde text-white rounded-2xl p-6 h-fit">
+        <div class="flex items-center gap-2 mb-3">
+          ${icono('gavel', 'text-[22px]')}
+          <h2 class="text-sm font-bold">Por qué esto no lo tiene la competencia</h2>
+        </div>
+        <div class="space-y-3 text-[13px] leading-relaxed text-emerald-50/90">
+          <p>
+            Un proveedor de software le vende el programa. Si le llega una glosa del SRI, le
+            dice que consulte con su abogado.
+          </p>
+          <p>
+            Kontia lo incluye. La misma persona que construyó el sistema entiende el problema
+            tributario, porque es abogado en ejercicio.
+          </p>
+          <p class="text-white font-semibold">
+            El software lo copia cualquiera. El criterio jurídico, no.
+          </p>
+        </div>
+        <div class="mt-5 pt-5 border-t border-white/20 text-[11px] text-emerald-100/70">
+          Ab. Gustavo Cajamarca Huayamave · Matrícula 09-2018-362 · Daule, Guayas
+        </div>
+      </section>
+    </div>`;
+}
+
+
+  return { suscripciones, usoPlataforma, soporte, consultaLegal };
+})();
+
 // ---- src/app.js --------------------------------------------------
 const __src_app_js = (function () {
   const { sesion } = __src_sesion_js;
@@ -3711,6 +6357,13 @@ const __src_app_js = (function () {
   const { configuracion, certificado, usuarios, puntosEmision } = __src_vistas_empresa_js;
   const { adminEmpresas, adminAlta, adminFicha, adminAuditoria } = __src_vistas_admin_js;
   const { pendiente } = __src_vistas_pendiente_js;
+  const { planDeCuentas, libroDiario, libroMayor, balanceComprobacion } = __src_vistas_contabilidad_js;
+  const { estadoResultados, balanceGeneral } = __src_vistas_estados_js;
+  const { retenciones, notasCredito, guiasRemision } = __src_vistas_documentos_js;
+  const { cuentasPorCobrar, cuentasPorPagar, bancos } = __src_vistas_finanzas_js;
+  const { inventario, nomina, activosFijos } = __src_vistas_operaciones_js;
+  const { declaracionIva, anexoTransaccional } = __src_vistas_impuestos_js;
+  const { suscripciones, usoPlataforma, soporte, consultaLegal } = __src_vistas_plataforma_js;
   const { aviso, crudo, recogerRecado } = __src_ui_js;
 
 /**
@@ -3721,6 +6374,13 @@ const __src_app_js = (function () {
  * dato, se dibuja. Es la forma más aburrida de hacerlo, y por eso se puede leer
  * entera en una tarde.
  */
+
+
+
+
+
+
+
 
 
 
@@ -3765,37 +6425,44 @@ const RUTAS = [
   { patron: /^#\/certificado\/?$/, vista: certificado },
   { patron: /^#\/puntos-emision\/?$/, vista: puntosEmision },
 
+  { patron: /^#\/retenciones\/?$/, vista: retenciones },
+  { patron: /^#\/notas-credito\/?$/, vista: notasCredito },
+  { patron: /^#\/guias\/?$/, vista: guiasRemision },
+
+  { patron: /^#\/plan-cuentas\/?$/, vista: planDeCuentas },
+  { patron: /^#\/diario\/?$/, vista: libroDiario },
+  { patron: /^#\/mayor\/?$/, vista: libroMayor },
+  { patron: /^#\/mayor\/(\d+)\/?$/, vista: libroMayor },
+  { patron: /^#\/comprobacion\/?$/, vista: balanceComprobacion },
+  { patron: /^#\/resultados\/?$/, vista: estadoResultados },
+  { patron: /^#\/situacion\/?$/, vista: balanceGeneral },
+
+  { patron: /^#\/por-cobrar\/?$/, vista: cuentasPorCobrar },
+  { patron: /^#\/por-pagar\/?$/, vista: cuentasPorPagar },
+  { patron: /^#\/bancos\/?$/, vista: bancos },
+
+  { patron: /^#\/inventario\/?$/, vista: inventario },
+  { patron: /^#\/nomina\/?$/, vista: nomina },
+  { patron: /^#\/activos\/?$/, vista: activosFijos },
+
+  { patron: /^#\/iva\/?$/, vista: declaracionIva },
+  { patron: /^#\/anexo\/?$/, vista: anexoTransaccional },
+  { patron: /^#\/consulta\/?$/, vista: consultaLegal },
+
   { patron: /^#\/admin\/empresas\/?$/, vista: adminEmpresas, admin: true },
   { patron: /^#\/admin\/empresas\/nueva\/?$/, vista: adminAlta, admin: true },
   { patron: /^#\/admin\/empresas\/([\w-]+)\/?$/, vista: adminFicha, admin: true },
   { patron: /^#\/admin\/auditoria\/?$/, vista: adminAuditoria, admin: true },
+  { patron: /^#\/admin\/suscripciones\/?$/, vista: suscripciones, admin: true },
+  { patron: /^#\/admin\/uso\/?$/, vista: usoPlataforma, admin: true },
+  { patron: /^#\/admin\/soporte\/?$/, vista: soporte, admin: true },
 ];
 
 /** Las que todavía no están hechas. Se dicen, no se disimulan. */
 const PENDIENTES = {
-  '#/retenciones': ['Retenciones', 'receipt',
-    'Emitir comprobantes de retención, que es lo que hace un agente de retención cuando ' +
-    'paga a un proveedor. El motor ya los genera y los firma; falta la pantalla.'],
-  '#/guias': ['Guías de remisión', 'local_shipping',
-    'El documento que acompaña a la mercadería mientras viaja. No lleva precios ni ' +
-    'impuestos: ampara el traslado, no la venta. El motor ya la genera; falta la pantalla.'],
-  '#/notas-credito': ['Notas de crédito', 'assignment_return',
-    'Para anular o corregir una factura ya autorizada. Una factura emitida no se borra ' +
-    'nunca: se corrige con otro documento que deja constancia. El motor ya las genera.'],
-  '#/reportes': ['Reportes contables', 'bar_chart',
-    'Libro de ventas, libro de compras y los cuadros que pide el SRI. Esto pertenece a ' +
-    'la Fase 2 y no se construye sin un contador que valide las reglas.'],
-  '#/consulta': ['Consulta legal-tributaria', 'gavel',
-    'El módulo que distingue a Kontia de un proveedor de software: poder preguntarle a ' +
-    'un abogado sobre una glosa o un trámite desde dentro del sistema.'],
-  '#/admin/suscripciones': ['Suscripciones', 'receipt_long',
-    'Planes, cobros mensuales y anuales, y el estado de pago de cada empresa.'],
-  '#/admin/uso': ['Uso de la plataforma', 'speed',
-    'Cuántos comprobantes emite cada empresa, para dimensionar el servicio y los planes. ' +
-    'Cuántos, no cuáles.'],
-  '#/admin/soporte': ['Soporte', 'support_agent',
-    'Las peticiones de ayuda y los accesos temporales que una empresa autoriza para que ' +
-    'usted pueda mirar sus datos durante dos horas.'],
+  '#/reportes': ['Reportes contables a medida', 'bar_chart',
+    'Los libros, los estados financieros y las declaraciones ya están. Aquí irán los ' +
+    'reportes que cada empresa pida: por vendedor, por línea de producto, por sucursal.'],
 };
 
 const raiz = () => document.getElementById('raiz');
