@@ -4,7 +4,7 @@
   "description": "Facturación electrónica para el SRI y contabilidad, para empresas de Daule, Nobol y Samborondón.",
   "lang": "es-EC",
   "dir": "ltr",
-  "start_url": "app.html",
+  "start_url": "./#ingresar",
   "scope": "./",
   "display": "standalone",
   "orientation": "any",
@@ -17,9 +17,9 @@
     { "src": "iconos/icono-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
   ],
   "shortcuts": [
-    { "name": "Nueva factura", "url": "app.html#/comprobantes/nuevo",
+    { "name": "Nueva factura", "url": "./#/comprobantes/nuevo",
       "icons": [{ "src": "iconos/icono-192.png", "sizes": "192x192" }] },
-    { "name": "Resumen", "url": "app.html#/resumen",
+    { "name": "Resumen", "url": "./#/resumen",
       "icons": [{ "src": "iconos/icono-192.png", "sizes": "192x192" }] }
   ]
 }

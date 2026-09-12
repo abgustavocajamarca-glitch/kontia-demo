@@ -118,7 +118,7 @@
     color: #fff; font: inherit; font-size: .85rem; font-weight: 700;
     padding: .5rem .85rem; cursor: pointer;
   }
-  @media (max-width: 58rem) {
+  @media (max-width: 66rem) {
     #portada .menu-boton { display: block; }
     #portada .barra { flex-wrap: wrap; }
     #portada .barra nav {
@@ -326,6 +326,40 @@
     text-transform: uppercase; color: var(--verde-p); background: rgba(15,123,79,.1);
     border-radius: 5px; padding: .2rem .5rem; margin-bottom: .7rem;
   }
+
+  /* ═══════════════════════════════════════════ la descarga */
+  /* La ficha de arriba imita la de una tienda de aplicaciones —icono grande,
+     nombre, peso, boton— porque es el lenguaje que la gente ya conoce. */
+  #portada .descarga {
+    display: grid; gap: 1.5rem; align-items: center; margin-top: 0;
+    background: var(--carta); border: 1px solid var(--linea); border-radius: 16px;
+    padding: 1.75rem 1.8rem;
+    box-shadow: 0 1px 2px rgba(20,32,26,.04), 0 8px 26px rgba(20,32,26,.055);
+  }
+  @media (min-width: 44rem) { #portada .descarga { grid-template-columns: auto 1fr; gap: 2rem; } }
+  #portada .descarga-icono img {
+    width: 92px; height: 92px; border-radius: 20px; display: block;
+    box-shadow: 0 2px 6px rgba(12,58,39,.2), 0 10px 24px rgba(12,58,39,.14);
+  }
+  #portada .descarga h2 { font-size: 1.6rem; font-weight: 800; }
+  #portada .descarga-linea { margin-top: .35rem; font-size: .95rem; color: var(--suave); }
+  #portada .descarga-peso {
+    margin-top: .5rem; font-family: 'IBM Plex Mono', ui-monospace, monospace;
+    font-size: .76rem; color: var(--suave); letter-spacing: .02em;
+  }
+  #portada .descarga .btn { min-width: 13rem; }
+  #portada .descarga-nota { margin-top: .9rem; font-size: .84rem; color: var(--suave); max-width: 46ch; }
+
+  /* El equipo que se tiene delante se marca, para no leer tres columnas
+     buscando la propia. */
+  #portada .equipo.suyo { border-color: var(--verde-p); box-shadow: 0 0 0 1px var(--verde-p); }
+  #portada .equipo.suyo .cod::after {
+    content: ' · su equipo'; color: var(--verde-p); font-weight: 600;
+  }
+  #portada .pasos { margin-top: .9rem; padding-left: 1.35rem; list-style: decimal; }
+  #portada .pasos li { margin-top: .5rem; font-size: .92rem; line-height: 1.5; color: var(--suave); }
+  #portada .pasos li strong { color: var(--tinta-p); }
+  #portada .equipo > p:last-child { margin-top: 1rem; font-size: .88rem; }
 
   /* ═══════════════════════════════════════════ el aviso de franja */
   #portada .nota {
@@ -665,6 +699,7 @@
         <a href="#inicio" data-va="inicio">Inicio</a>
         <a href="#funciones" data-va="funciones">Qué hace</a>
         <a href="#privacidad" data-va="privacidad">Privacidad</a>
+        <a href="#descargar" data-va="descargar">Descargar</a>
         <a href="#planes" data-va="planes">Planes</a>
         <a href="#estado" data-va="estado">Estado</a>
         <a href="#contacto" data-va="contacto">Contacto</a>
@@ -799,7 +834,7 @@
     </p>
     <div class="botones">
       <a class="btn btn-1" href="#ingresar">Iniciar sesión</a>
-      <a class="btn btn-2" href="#" id="boton-instalar">Instalar en este equipo</a>
+      <a class="btn btn-2" href="#descargar">Instalar en este equipo</a>
     </div>
     <p style="margin-top:1.6rem;font-size:.84rem">
       Nada de lo que haga en la demostración se envía a ningún sitio. Los datos son de
@@ -1051,7 +1086,125 @@
   </section>
 </div>
 
-<!-- ══════════════════════════════════════════════════════════ 4 · planes -->
+<!-- ══════════════════════════════════════════════════════════ 4 · descargar -->
+<div class="pantalla" id="pag-descargar" hidden>
+
+  <div class="tapa franja">
+    <div class="centro">
+      <span class="rotulo">Descargar</span>
+      <h1>Kontia en su teléfono y en su computadora</h1>
+      <p>
+        Queda con su icono y su propia ventana, como cualquier aplicación. No ocupa
+        espacio, no hay que actualizarla a mano y se instala en menos de un minuto.
+      </p>
+    </div>
+  </div>
+
+  <section class="bloque franja">
+    <div class="centro">
+
+      <div class="descarga">
+        <div class="descarga-icono">
+          <img src="iconos/icono-192.png" alt="">
+        </div>
+        <div>
+          <h2>Kontia</h2>
+          <p class="descarga-linea">Facturación electrónica y contabilidad · SRI Ecuador</p>
+          <p class="descarga-peso">Menos de 1 MB · Español · Ecuador</p>
+          <div class="botones" style="margin-top:1.3rem">
+            <button class="btn btn-verde" data-instalar>Instalar ahora</button>
+          </div>
+          <p class="descarga-nota" id="nota-instalar">
+            Si su navegador no la instala de un toque, siga los pasos de su equipo,
+            aquí abajo. Son dos.
+          </p>
+        </div>
+      </div>
+
+      <div class="encabeza" style="margin-top:3.5rem">
+        <span class="rotulo">Paso a paso</span>
+        <h2>Según el equipo que tenga delante</h2>
+        <p>
+          Su equipo aparece marcado. Los otros dos quedan por si la instala también en
+          el teléfono, o en la computadora de la oficina.
+        </p>
+      </div>
+
+      <div class="rejilla col-3" id="equipos">
+        <div class="carta equipo" data-equipo="android">
+          <span class="cod">Android</span>
+          <h3>Teléfono o tableta</h3>
+          <ol class="pasos">
+            <li>Abra este sitio en <strong>Chrome</strong>.</li>
+            <li>Toque el menú de <strong>tres puntos</strong>, arriba a la derecha.</li>
+            <li>Toque <strong>«Instalar aplicación»</strong> o «Añadir a pantalla de inicio».</li>
+          </ol>
+          <p>Queda en la pantalla de inicio, junto a las demás aplicaciones.</p>
+        </div>
+
+        <div class="carta equipo" data-equipo="ios">
+          <span class="cod">iPhone · iPad</span>
+          <h3>Teléfono o tableta de Apple</h3>
+          <ol class="pasos">
+            <li>Abra este sitio en <strong>Safari</strong>.</li>
+            <li>Toque el botón de <strong>compartir</strong> (el cuadrado con la flecha).</li>
+            <li>Baje y toque <strong>«Añadir a pantalla de inicio»</strong>.</li>
+          </ol>
+          <p>
+            En iPhone hay que hacerlo a mano: Apple no permite que una página lo ofrezca
+            sola. Son dos toques.
+          </p>
+        </div>
+
+        <div class="carta equipo" data-equipo="escritorio">
+          <span class="cod">Windows · Mac</span>
+          <h3>Computadora o laptop</h3>
+          <ol class="pasos">
+            <li>Abra este sitio en <strong>Chrome</strong> o <strong>Edge</strong>.</li>
+            <li>Busque el <strong>icono de instalar</strong> a la derecha de la barra de direcciones.</li>
+            <li>Pulse <strong>«Instalar»</strong>.</li>
+          </ol>
+          <p>Queda con su icono en el escritorio y se abre en su propia ventana, sin barra de navegador.</p>
+        </div>
+      </div>
+
+      <div class="encabeza" style="margin-top:3.5rem">
+        <span class="rotulo">Qué es y qué no es</span>
+        <h2>Para que nadie se lleve una sorpresa</h2>
+      </div>
+
+      <div class="rejilla col-2">
+        <div class="carta">
+          <h3>Lo que sí</h3>
+          <ul class="ticks">
+            <li>Icono propio en el teléfono, la tableta y la computadora</li>
+            <li>Su propia ventana, sin barra de navegador</li>
+            <li>Se actualiza sola: no hay versiones viejas que perseguir</li>
+            <li>Ocupa menos de 1 MB, no los cientos de una aplicación normal</li>
+            <li>Se quita como cualquier otra, sin dejar rastro</li>
+          </ul>
+        </div>
+        <div class="carta">
+          <h3>Lo que no</h3>
+          <ul class="ticks">
+            <li><strong>Necesita internet.</strong> El SRI está en internet, y sin conexión no hay facturación posible</li>
+            <li>No se descarga de la Play Store ni de la App Store: se instala desde el propio navegador</li>
+            <li>No pide permisos de su teléfono: ni contactos, ni cámara, ni ubicación</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="nota">
+        <strong>Sobre las tiendas de aplicaciones.</strong> Kontia puede publicarse en la
+        Play Store más adelante, pero no antes de que el nombre esté verificado en la
+        Superintendencia de Compañías y en el SENADI: una tienda exige el nombre y la
+        marca en firme, y rectificar después es peor que esperar.
+      </div>
+    </div>
+  </section>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════ 5 · planes -->
 <div class="pantalla" id="pag-planes" hidden>
 
   <div class="tapa franja">
@@ -1125,7 +1278,7 @@
   </section>
 </div>
 
-<!-- ══════════════════════════════════════════════════════════ 5 · estado -->
+<!-- ══════════════════════════════════════════════════════════ 6 · estado -->
 <div class="pantalla" id="pag-estado" hidden>
 
   <div class="tapa franja">
@@ -1208,7 +1361,7 @@
   </section>
 </div>
 
-<!-- ══════════════════════════════════════════════════════════ 6 · contacto -->
+<!-- ══════════════════════════════════════════════════════════ 7 · contacto -->
 <div class="pantalla" id="pag-contacto" hidden>
 
   <div class="tapa franja">
@@ -1271,7 +1424,7 @@
   </section>
 </div>
 
-<!-- ══════════════════════════════════════════════════════════ 7 · ingresar -->
+<!-- ══════════════════════════════════════════════════════════ 8 · ingresar -->
 <div class="pantalla" id="pag-ingresar" hidden>
   <div class="entrada">
 
@@ -1396,6 +1549,7 @@
         <a href="#inicio">Inicio</a>
         <a href="#funciones">Qué hace</a>
         <a href="#privacidad">Privacidad</a>
+        <a href="#descargar">Descargar</a>
         <a href="#planes">Planes</a>
         <a href="#estado">Estado</a>
         <a href="#contacto">Contacto</a>
@@ -1425,8 +1579,8 @@
   (function () {
     'use strict';
 
-    var PANTALLAS = ['inicio', 'funciones', 'privacidad', 'planes', 'estado',
-                     'contacto', 'ingresar'];
+    var PANTALLAS = ['inicio', 'funciones', 'privacidad', 'descargar', 'planes',
+                     'estado', 'contacto', 'ingresar'];
     var portada = document.getElementById('portada');
     if (!portada) return;
 
@@ -1528,8 +1682,27 @@
    */
   (function () {
     var invitacion = null;
-    var botones = [document.getElementById('boton-instalar'),
-                   document.getElementById('boton-instalar-2')].filter(Boolean);
+    // Cualquier boton marcado con data-instalar. Asi anadir otro en otra
+    // pantalla no obliga a volver aqui.
+    var botones = [].slice.call(document.querySelectorAll('[data-instalar]'));
+    var nota = document.getElementById('nota-instalar');
+
+    /*
+     * Marca el equipo que tiene delante quien lee, para que no repase las tres
+     * columnas buscando la suya. Se mira el navegador porque es lo unico que
+     * hay; si se equivoca, las otras dos siguen ahi al lado.
+     */
+    (function marcarEquipo() {
+      var ua = navigator.userAgent;
+      var cual = /iPhone|iPad|iPod/.test(ua) ? 'ios'
+               : /Android/.test(ua) ? 'android'
+               : 'escritorio';
+      var carta = document.querySelector('[data-equipo="' + cual + '"]');
+      if (!carta) return;
+      carta.classList.add('suyo');
+      // Y se pone primera: el orden de lectura importa mas que el de escritura.
+      if (carta.parentNode) carta.parentNode.insertBefore(carta, carta.parentNode.firstChild);
+    })();
 
     var AMANO = {
       ios: 'En iPhone o iPad: toque Compartir y luego «Añadir a pantalla de inicio».',
@@ -1540,6 +1713,19 @@
     window.addEventListener('beforeinstallprompt', function (ev) {
       ev.preventDefault();
       invitacion = ev;
+      // Ahora si se puede instalar de un toque, y conviene decirlo.
+      if (nota) {
+        nota.textContent = 'Su navegador puede instalarla ahora mismo: pulse el botón.';
+      }
+    });
+
+    window.addEventListener('appinstalled', function () {
+      invitacion = null;
+      if (nota) nota.textContent = 'Ya está instalada en este equipo.';
+      botones.forEach(function (b) {
+        b.textContent = 'Ya está instalada';
+        b.setAttribute('aria-disabled', 'true');
+      });
     });
 
     function comoSeHace() {
