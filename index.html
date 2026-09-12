@@ -8994,6 +8994,15 @@ function leerXml(texto) {
   const sinImpuestos = numero(t(raiz, 'totalSinImpuestos'));
   const total = numero(t(raiz, 'importeTotal')) || (sinImpuestos + iva);
 
+  // Las formas de pago, que en el XML van con el codigo de la tabla 24 de la
+  // ficha tecnica. El 01 es «sin utilizacion del sistema financiero», que en
+  // castellano es efectivo, y es el que importa para la bancarizacion.
+  const pagos = [];
+  for (const nodo of raiz.getElementsByTagName('pago')) {
+    const forma = t(nodo, 'formaPago');
+    if (forma) pagos.push({ forma, total: numero(t(nodo, 'total')) });
+  }
+
   return {
     codigo,
     tipoNombre: tipo.nombre,
@@ -9010,6 +9019,7 @@ function leerXml(texto) {
     sinImpuestos,
     iva,
     retenido,
+    pagos,
     total: retenido || total,
   };
 }
@@ -9062,6 +9072,120 @@ function proponerCuenta(nombreProveedor) {
 }
 
 // ===========================================================================
+//  El semáforo de deducibilidad
+// ===========================================================================
+
+/**
+ * El umbral de bancarización, y por qué está aquí y no escondido.
+ *
+ * La ley exige que los pagos por encima de cierta cantidad se hagan por el
+ * sistema financiero para que el gasto sea deducible y para tener derecho al
+ * crédito tributario. La cifra la fija la norma y cambia, así que vive en una
+ * sola línea, a la vista, con su fuente al lado — y no repartida por el código.
+ *
+ * PENDIENTE DE CONFIRMAR CON LA NORMA VIGENTE (art. 103 de la Ley de Régimen
+ * Tributario Interno y su reglamento). Mientras no esté confirmada, el sistema
+ * avisa pero no afirma: dice «revise si corresponde bancarizar», no «este gasto
+ * no es deducible».
+ */
+const UMBRAL_BANCARIZACION = 1000;
+
+const SEMANAS = 7 * 24 * 60 * 60 * 1000;
+
+/**
+ * Mira un comprobante recién leído y devuelve lo que merece atención.
+ *
+ * Cada aviso trae tres cosas: qué se vio, por qué importa, y qué hacer. Un
+ * aviso que solo dice «cuidado» no sirve de nada a quien está registrando
+ * cincuenta facturas.
+ */
+function revisar(c, hoy = new Date()) {
+  const avisos = [];
+
+  // ── 1. Sin autorización no hay nada que descontar ──
+  if (c.autorizacion && c.autorizacion.estado
+      && c.autorizacion.estado.toUpperCase() !== 'AUTORIZADO') {
+    avisos.push({
+      tono: 'rojo', ico: 'gpp_bad',
+      que: `El SRI no lo autorizó (${c.autorizacion.estado})`,
+      porque: 'Un comprobante sin autorización no sustenta gasto ni crédito tributario.',
+      haga: 'Pida al proveedor que lo reemita. No lo registre como respaldo.',
+    });
+  }
+
+  // ── 2. Efectivo por encima del umbral ──
+  const enEfectivo = (c.pagos ?? [])
+    .filter((p) => p.forma === '01')
+    .reduce((s, p) => s + p.total, 0);
+  if (enEfectivo > UMBRAL_BANCARIZACION) {
+    avisos.push({
+      tono: 'ambar', ico: 'payments',
+      que: `Pago en efectivo por ${enEfectivo.toFixed(2)}`,
+      porque: 'Por encima del umbral, la ley exige pagar por el sistema financiero para '
+        + 'que el gasto sea deducible y para tener derecho al crédito tributario.',
+      haga: 'Compruebe si hay transferencia o cheque que lo respalde, y consérvelo.',
+    });
+  }
+
+  // ── 3. De otro ejercicio ──
+  if (c.fecha instanceof Date && !Number.isNaN(+c.fecha)) {
+    if (c.fecha.getFullYear() < hoy.getFullYear()) {
+      avisos.push({
+        tono: 'ambar', ico: 'event_busy',
+        que: `Es del ejercicio ${c.fecha.getFullYear()}`,
+        porque: 'Un gasto pertenece al ejercicio en que se devengó, y el crédito tributario '
+          + 'tiene plazo para usarse.',
+        haga: 'Consulte antes de registrarlo en este ejercicio.',
+      });
+    } else if (c.fecha.getMonth() !== hoy.getMonth()) {
+      avisos.push({
+        tono: 'gris', ico: 'calendar_month',
+        que: 'Es de otro mes',
+        porque: 'El crédito tributario del IVA se declara en el mes del comprobante.',
+        haga: 'Si ya declaró ese mes, corresponde una declaración sustitutiva.',
+      });
+    }
+  }
+
+  // ── 4. Los números no cuadran entre sí ──
+  const esperado = Math.round((c.sinImpuestos + c.iva) * 100);
+  const declarado = Math.round((c.total ?? 0) * 100);
+  if (!c.retenido && Math.abs(esperado - declarado) > 1) {
+    avisos.push({
+      tono: 'rojo', ico: 'calculate',
+      que: 'El total no coincide con la base más el IVA',
+      porque: `Base ${c.sinImpuestos.toFixed(2)} + IVA ${c.iva.toFixed(2)} no da `
+        + `${(c.total ?? 0).toFixed(2)}. O trae otros conceptos, o está mal emitido.`,
+      haga: 'Revíselo antes de registrarlo: el descuadre viajará a su declaración.',
+    });
+  }
+
+  // ── 5. Liquidación de compra ──
+  if (c.codigo === '03') {
+    avisos.push({
+      tono: 'ambar', ico: 'gavel',
+      que: 'Es una liquidación de compra',
+      porque: 'Solo procede cuando el proveedor no puede emitir comprobante, y obliga a '
+        + 'retener el IVA y la renta en su totalidad.',
+      haga: 'Compruebe que se emitieron las retenciones que corresponden.',
+    });
+  }
+
+  // ── 6. Una compra grande sin IVA ──
+  if (c.iva === 0 && c.sinImpuestos > UMBRAL_BANCARIZACION && c.codigo === '01') {
+    avisos.push({
+      tono: 'gris', ico: 'help',
+      que: 'Factura sin IVA por un monto alto',
+      porque: 'Puede ser correcto —bien con tarifa cero, exento o no objeto— o puede ser '
+        + 'un error del proveedor.',
+      haga: 'Si el bien o servicio grava, pida la corrección: sin IVA no hay crédito.',
+    });
+  }
+
+  return avisos;
+}
+
+// ===========================================================================
 //  Tres comprobantes de ejemplo
 // ===========================================================================
 
@@ -9087,6 +9211,15 @@ const EJEMPLOS = [
   { archivo: 'factura-de-otra-empresa.xml', emisor: 'DISTRIBUIDORA DEL GUAYAS S.A.',
     ruc: '0993333333001', sec: '000000999', fecha: '09/09/2026',
     base: '500.00', iva: '75.00', total: '575.00', mio: false },
+  // Los dos siguientes existen para que se vea el semáforo. Uno se pagó en
+  // efectivo por encima del umbral; el otro es de un ejercicio cerrado. Los dos
+  // se registran igual —no son inválidos— pero avisan.
+  { archivo: 'factura-efectivo.xml', emisor: 'CONSTRUCCIONES DEL LITORAL S.A.',
+    ruc: '0994444444001', sec: '000001250', fecha: '06/09/2026',
+    base: '1500.00', iva: '225.00', total: '1725.00', mio: true, efectivo: true },
+  { archivo: 'factura-del-ano-pasado.xml', emisor: 'SUMINISTROS AGRICOLAS DAULE CIA. LTDA.',
+    ruc: '0995555555001', sec: '000000088', fecha: '18/11/2025',
+    base: '320.00', iva: '38.40', total: '358.40', mio: true },
 ];
 
 /** Arma el XML de un ejemplo, con su clave de acceso de 49 dígitos. */
@@ -9111,6 +9244,10 @@ function xmlDeEjemplo(e, rucPropio) {
     + `</infoTributaria><infoFactura><fechaEmision>${e.fecha}</fechaEmision>`
     + `<identificacionComprador>${receptor}</identificacionComprador>`
     + `<totalSinImpuestos>${e.base}</totalSinImpuestos>`
+    // La forma de pago 01 es «sin utilización del sistema financiero».
+    + (e.efectivo
+      ? `<pagos><pago><formaPago>01</formaPago><total>${e.total}</total></pago></pagos>`
+      : `<pagos><pago><formaPago>20</formaPago><total>${e.total}</total></pago></pagos>`)
     + '<totalConImpuestos><totalImpuesto><codigo>2</codigo>'
     + `<codigoPorcentaje>4</codigoPorcentaje><baseImponible>${e.base}</baseImponible>`
     + `<valor>${e.iva}</valor></totalImpuesto></totalConImpuestos>`
@@ -9196,7 +9333,8 @@ async function analizar(archivos) {
 
     enEsteLote.add(leido.clave);
     nuevos.push({ ...leido, ...fila, estado: 'NUEVO',
-      cuenta: proponerCuenta(leido.emisorNombre) });
+      cuenta: proponerCuenta(leido.emisorNombre),
+      avisos: revisar(leido) });
   }
 
   lote = nuevos;
@@ -9227,6 +9365,9 @@ async function registrarLote() {
     total: f.total,
     bases: f.bases,
     cuenta: f.cuenta,
+    // Los avisos se guardan con la compra, no solo se ensenan: dentro de un ano
+    // lo que importa es poder contestar por que se registro asi.
+    avisos: f.avisos ?? [],
     autorizacion: f.autorizacion?.numero ?? null,
     origen: f.archivo,
   })));
@@ -9238,6 +9379,13 @@ async function registrarLote() {
 // ===========================================================================
 //  La pantalla
 // ===========================================================================
+
+/** Los tres tonos del semáforo. Gris no es una alarma: es «mírelo». */
+const TONOS_AVISO = {
+  rojo: 'text-rojo-texto',
+  ambar: 'text-ambar-texto',
+  gris: 'text-tinta-suave',
+};
 
 const SELLOS = {
   NUEVO: ['bg-verde-claro text-verde', 'check_circle', 'Listo para registrar'],
@@ -9291,6 +9439,7 @@ async function buzon() {
   const registradas = await cargar.compras();
   const hayLote = lote.length > 0;
   const listos = lote.filter((f) => f.estado === 'NUEVO');
+  const cuantosAvisos = lote.filter((f) => (f.avisos ?? []).length).length;
 
   const filas = lote.map((f) => html`
     <tr>
@@ -9311,6 +9460,15 @@ async function buzon() {
       <td class="px-5 py-3">
         ${sello(f.estado)}
         ${f.porque ? html`<p class="mt-1.5 text-[11px] text-tinta-suave max-w-xs leading-relaxed">${f.porque}</p>` : ''}
+        ${(f.avisos ?? []).map((a) => html`
+          <div class="mt-2 flex items-start gap-1.5 max-w-xs">
+            ${icono(a.ico, `text-[15px] shrink-0 mt-px ${TONOS_AVISO[a.tono]}`)}
+            <div>
+              <p class="text-[11px] font-bold ${crudo(TONOS_AVISO[a.tono])}">${a.que}</p>
+              <p class="text-[11px] text-tinta-suave leading-relaxed">${a.porque}</p>
+              <p class="text-[11px] font-semibold">${a.haga}</p>
+            </div>
+          </div>`)}
       </td>
       <td class="px-5 py-3">
         ${f.estado === 'NUEVO' ? html`
@@ -9341,7 +9499,7 @@ async function buzon() {
             <p class="text-sm font-bold">${String(lote.length)} archivo${lote.length === 1 ? '' : 's'} leído${lote.length === 1 ? '' : 's'}</p>
             <p class="text-xs text-tinta-suave">
               ${String(listos.length)} listo${listos.length === 1 ? '' : 's'} para registrar en
-              ${empresa.razonSocial}
+              ${empresa.razonSocial}${cuantosAvisos ? html` · <strong class="text-ambar-texto">${String(cuantosAvisos)} con algo que revisar</strong>` : ''}
             </p>
           </div>
           <div class="flex items-center gap-2">
@@ -9377,6 +9535,10 @@ async function buzon() {
           ['rule', 'Qué comprueba antes de registrar',
            'Que el comprobante sea de esta empresa, que la clave de acceso de 49 dígitos esté ' +
            'completa, y que no esté ya registrado. Un gasto duplicado es una glosa esperando.'],
+          ['balance', 'Y avisa lo que puede costarle',
+           'Comprobante sin autorización, pago en efectivo sobre el umbral de bancarización, ' +
+           'gasto de otro ejercicio, totales que no cuadran. Eso normalmente se descubre un ' +
+           'año después, cuando ya no se puede corregir.'],
         ].map(([ico, titulo, texto]) => html`
           <div class="bg-white border border-papel-linea rounded-2xl p-5 relieve">
             <div class="w-10 h-10 rounded-xl bg-verde-claro flex items-center justify-center">
@@ -9478,7 +9640,7 @@ function conectarBuzon() {
 }
 
 
-  return { leerXml, CUENTAS_DE_COMPRA, proponerCuenta, archivosDeEjemplo, vaciarLote, analizar, cambiarCuenta, registrarLote, buzon, conectarBuzon };
+  return { leerXml, CUENTAS_DE_COMPRA, proponerCuenta, UMBRAL_BANCARIZACION, revisar, archivosDeEjemplo, vaciarLote, analizar, cambiarCuenta, registrarLote, buzon, conectarBuzon };
 })();
 
 // ---- src/vistas/compras.js ---------------------------------------
