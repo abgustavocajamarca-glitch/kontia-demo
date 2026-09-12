@@ -402,6 +402,43 @@
   #portada .pasos li strong { color: var(--tinta-p); }
   #portada .equipo > p:last-child { margin-top: 1rem; font-size: .88rem; }
 
+  /* La tarjeta del equipo que uno tiene delante, cuando se llega aquí desde
+     el botón de instalar: se ilumina un momento y se apaga sola. */
+  #portada .equipo.destacado {
+    border-color: var(--verde-p);
+    box-shadow: 0 0 0 3px rgba(15,123,79,.18);
+    animation: latir 1.3s ease 2;
+  }
+  @keyframes latir {
+    0%, 100% { box-shadow: 0 0 0 3px rgba(15,123,79,.18); }
+    50%      { box-shadow: 0 0 0 9px rgba(15,123,79,.07); }
+  }
+  @media (prefers-reduced-motion: reduce) { #portada .equipo.destacado { animation: none; } }
+
+  /* ═══════════════════════════════════════════ los datos de contacto */
+  #portada .datos-contacto {
+    margin: 1.4rem 0 0; padding: 1.2rem 0 0; border-top: 1px solid var(--linea);
+    display: grid; gap: .9rem;
+  }
+  #portada .datos-contacto div { display: grid; gap: .15rem; }
+  #portada .datos-contacto dt {
+    font-size: .68rem; font-weight: 700; letter-spacing: .1em;
+    text-transform: uppercase; color: var(--suave);
+  }
+  #portada .datos-contacto dd { margin: 0; font-size: 1rem; font-weight: 600; }
+  #portada .datos-contacto a { color: var(--verde-p); text-decoration: none; }
+  #portada .datos-contacto a:hover { text-decoration: underline; }
+
+  #portada .dos-campos { display: grid; gap: .85rem; }
+  @media (min-width: 30rem) { #portada .dos-campos { grid-template-columns: 1fr 1fr; } }
+  #portada .campo textarea {
+    width: 100%; background: var(--papel-p); border: 1px solid var(--linea);
+    border-radius: 10px; padding: .8rem .9rem; font: inherit; font-size: .95rem;
+    color: var(--tinta-p); resize: vertical;
+  }
+  #portada .campo textarea:focus { border-color: var(--verde-p); background: #fff; }
+  #portada .campo textarea::placeholder { color: rgba(92,102,96,.5); }
+
   /* ═══════════════════════════════════════════ el mapa del pais */
   /* Los contornos salen de scripts/armar-mapa.py sin un solo color dentro: el
      color es cosa del diseño y la geografía es cosa del dato. Aquí se pintan. */
@@ -825,7 +862,6 @@
         <a href="#privacidad" data-va="privacidad">Privacidad</a>
         <a href="#descargar" data-va="descargar">Descargar</a>
         <a href="#planes" data-va="planes">Planes</a>
-        <a href="#estado" data-va="estado">Estado</a>
         <a href="#contacto" data-va="contacto">Contacto</a>
         <a href="#ingresar" data-va="ingresar" class="btn-nav">Iniciar sesión</a>
       </nav>
@@ -838,7 +874,7 @@
 
   <div class="hero franja grabado con-monograma">
     <div class="centro">
-      <span class="insignia"><span class="punto"></span> En desarrollo · demostración abierta</span>
+      <span class="insignia"><span class="punto"></span> Ficha técnica 2.34 del SRI · los seis comprobantes</span>
 
       <h1>La facturación electrónica del Ecuador, con <em>respaldo legal</em>.</h1>
 
@@ -851,7 +887,7 @@
 
       <div class="botones">
         <a class="btn btn-1" href="#ingresar">Entrar al sistema</a>
-        <a class="btn btn-2" href="#funciones">Ver qué hace</a>
+        <button class="btn btn-2" type="button" data-instalar>Instalar la aplicación</button>
       </div>
 
       <!-- La anatomía de una clave de acceso: 49 dígitos que identifican a una
@@ -1057,18 +1093,17 @@
   </section>
 
   <div class="cierre grabado con-monograma" id="instalar">
-    <h2>Véalo funcionando</h2>
+    <h2>Pruébelo ahora mismo</h2>
     <p>
-      La demostración abre sin cuenta ni contraseña. Entre como administrador de la empresa
-      y recórrala: facture, mire los libros, cambie de empresa.
+      Sin instalar nada y sin dar una tarjeta. Entre, emita una factura, mire los libros y
+      revise la declaración del mes. Tarda menos que leer esta página.
     </p>
     <div class="botones">
-      <a class="btn btn-1" href="#ingresar">Iniciar sesión</a>
-      <a class="btn btn-2" href="#descargar">Instalar en este equipo</a>
+      <a class="btn btn-1" href="#ingresar">Entrar al sistema</a>
+      <button class="btn btn-2" type="button" data-instalar>Instalar la aplicación</button>
     </div>
     <p style="margin-top:1.6rem;font-size:.84rem">
-      Nada de lo que haga en la demostración se envía a ningún sitio. Los datos son de
-      ejemplo y se guardan solo en su navegador.
+      Lo que haga queda en su propio equipo mientras prueba. No se envía a ningún sitio.
     </p>
   </div>
 </div>
@@ -1193,7 +1228,7 @@
 
       <div class="botones">
         <a class="btn btn-verde" href="#ingresar">Entrar y recorrerlas</a>
-        <a class="btn btn-linea" href="#estado">Ver qué falta todavía</a>
+        <a class="btn btn-linea" href="#planes">Ver los planes</a>
       </div>
     </div>
   </section>
@@ -1508,100 +1543,16 @@
   </section>
 </div>
 
-<!-- ══════════════════════════════════════════════════════════ 6 · estado -->
-<div class="pantalla" id="pag-estado" hidden>
-
-  <div class="tapa franja grabado">
-    <div class="centro">
-      <span class="rotulo">Transparencia</span>
-      <h1>Cómo va, sin adornos</h1>
-      <p>
-        Kontia está en construcción. Preferimos decirlo aquí que dejar que alguien lo
-        descubra después: un sistema que sabe lo que todavía no sabe merece más confianza
-        que uno que finge estar terminado.
-      </p>
-    </div>
-  </div>
-
-  <section class="bloque franja">
-    <div class="centro" style="max-width:58rem">
-      <div class="estado" style="margin-top:0">
-        <div class="rueda">
-          <table>
-            <thead>
-              <tr><th>Parte</th><th>Estado</th><th>Qué significa</th></tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td><strong>Motor de comprobantes</strong></td>
-                <td><span class="marca-estado listo">Listo</span></td>
-                <td class="q">Los seis tipos, la firma electrónica y el envío al SRI. 93 pruebas automáticas, 221 elementos validados contra los esquemas oficiales.</td>
-              </tr>
-              <tr>
-                <td><strong>Aislamiento entre empresas</strong></td>
-                <td><span class="marca-estado listo">Listo</span></td>
-                <td class="q">Impuesto por la base de datos y comprobado con pruebas que demuestran que una empresa no ve los datos de otra.</td>
-              </tr>
-              <tr>
-                <td><strong>Las pantallas</strong></td>
-                <td><span class="marca-estado listo">Listo</span></td>
-                <td class="q">Treinta y dos pantallas en computadora, tableta y teléfono. Se pueden recorrer hoy en la demostración.</td>
-              </tr>
-              <tr>
-                <td><strong>El sitio y el ingreso</strong></td>
-                <td><span class="marca-estado listo">Listo</span></td>
-                <td class="q">Una sola dirección con el sitio, el inicio de sesión y el sistema. Instalable en el teléfono y en la computadora.</td>
-              </tr>
-              <tr>
-                <td><strong>Contabilidad</strong></td>
-                <td><span class="marca-estado curso">En curso</span></td>
-                <td class="q">Los libros y los estados funcionan y cuadran. Las reglas de asiento están redactadas contra el catálogo oficial y <strong>pendientes de revisión por un contador colegiado</strong> antes de usarse con una empresa real.</td>
-              </tr>
-              <tr>
-                <td><strong>Emisión contra el SRI</strong></td>
-                <td><span class="marca-estado curso">En curso</span></td>
-                <td class="q">El motor habla con el SRI, pero cada empresa necesita su propio certificado de firma. Todavía no se ha emitido un comprobante con efectos tributarios.</td>
-              </tr>
-              <tr>
-                <td><strong>Cuentas de usuario de verdad</strong></td>
-                <td><span class="marca-estado curso">En curso</span></td>
-                <td class="q">La base de datos y las políticas de acceso existen. Falta conectar la aplicación, y hasta entonces el ingreso funciona con los tres papeles de la demostración.</td>
-              </tr>
-              <tr>
-                <td><strong>Captura automática de compras</strong></td>
-                <td><span class="marca-estado espera">Pendiente</span></td>
-                <td class="q">Descargar del SRI los comprobantes que le emitieron, para no digitar ninguno. Analizado y decidido; se construye después de la contabilidad.</td>
-              </tr>
-              <tr>
-                <td><strong>Nombre y marca</strong></td>
-                <td><span class="marca-estado espera">Pendiente</span></td>
-                <td class="q">«Kontia» es un nombre de trabajo, pendiente de verificación en la Superintendencia de Compañías y en el SENADI.</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      <div class="nota">
-        <strong>Qué significa «listo».</strong> Que hay pruebas automáticas que lo
-        comprueban en cada cambio, y que se puede ver funcionando hoy. No que no vaya a
-        recibir mejoras.
-      </div>
-    </div>
-  </section>
-</div>
-
-<!-- ══════════════════════════════════════════════════════════ 7 · contacto -->
+<!-- ══════════════════════════════════════════════════════════ 6 · contacto -->
 <div class="pantalla" id="pag-contacto" hidden>
 
   <div class="tapa franja grabado">
     <div class="centro">
       <span class="rotulo">Contacto</span>
-      <h1>Quién responde</h1>
+      <h1>Hablemos</h1>
       <p>
-        Kontia no es una marca sin cara. Detrás hay un estudio jurídico en ejercicio, y eso
-        es precisamente lo que lo diferencia de un proveedor de software. Atendemos en todo
-        el Ecuador: la materia tributaria es nacional, y el expediente viaja por correo.
+        Cuéntenos qué factura hoy y quién le lleva la contabilidad. Con eso podemos decirle
+        en una conversación corta si Kontia le sirve, y coordinar una reunión.
       </p>
     </div>
   </div>
@@ -1610,14 +1561,43 @@
     <div class="centro">
       <div class="rejilla col-2" style="margin-top:0">
         <div class="carta">
-          <span class="cod">Estudio jurídico</span>
+          <span class="cod">Quién responde</span>
           <h3>Ab. Gustavo Cajamarca Huayamave</h3>
           <p>
-            Matrícula 09-2018-362 del Foro de Abogados. Ejercicio en materia tributaria,
-            societaria y civil. Con sede en Daule, provincia del Guayas.
+            Abogado en ejercicio. Matrícula 09-2018-362 del Foro de Abogados. Materia
+            tributaria, societaria y civil.
           </p>
-          <ul class="ticks">
-            <li>Atención en las 24 provincias · consultas por escrito, sin desplazarse</li>
+
+          <!--
+            AQUÍ VAN EL TELÉFONO Y EL CORREO PÚBLICOS.
+
+            No los pongo inventados ni con un «por confirmar» a la vista: un
+            dato de contacto falso en una página de contacto es peor que no
+            tener la sección. En cuanto Gustavo diga qué número y qué correo
+            quiere publicar, se quitan estos comentarios y se rellenan los dos
+            huecos. Nada más.
+
+            <div>
+              <dt>Teléfono</dt>
+              <dd><a href="tel:+593XXXXXXXXX">09XX XXX XXX</a></dd>
+            </div>
+            <div>
+              <dt>Correo</dt>
+              <dd><a href="mailto:usted@dominio.ec">usted@dominio.ec</a></dd>
+            </div>
+          -->
+          <dl class="datos-contacto">
+            <div>
+              <dt>Atención</dt>
+              <dd>Las 24 provincias del Ecuador</dd>
+            </div>
+            <div>
+              <dt>Respuesta</dt>
+              <dd>El mismo día hábil</dd>
+            </div>
+          </dl>
+
+          <ul class="ticks" style="margin-top:1.4rem">
             <li>Empresas y personas naturales obligadas a llevar contabilidad</li>
             <li>Ecuatorianos en el exterior con empresa o RUC en el país</li>
             <li>Consulta legal-tributaria incluida en el servicio</li>
@@ -1625,38 +1605,53 @@
         </div>
 
         <div class="carta">
-          <span class="cod">Para empresas</span>
-          <h3>Si quiere usarlo en su negocio</h3>
+          <span class="cod">Coordinar una reunión</span>
+          <h3>Escríbanos</h3>
           <p>
-            Escriba contando qué factura hoy y quién le lleva la contabilidad. Con eso se
-            puede decir en dos líneas si Kontia le sirve ya o conviene esperar.
+            Mientras más nos cuente, más concreta será la respuesta. Contestamos el mismo
+            día hábil.
           </p>
 
-          <form id="forma-contacto" novalidate style="display:grid;gap:.85rem;margin-top:1.3rem">
+          <form id="forma-contacto" novalidate>
             <label class="campo">
-              <span>Su nombre</span>
-              <input type="text" name="nombre" placeholder="Nombre y apellido">
+              <span>Nombre y apellido</span>
+              <input type="text" name="nombre" autocomplete="name" placeholder="Nombre y apellido">
             </label>
             <label class="campo">
-              <span>Su correo</span>
-              <input type="email" name="correo" placeholder="usted@suempresa.com.ec">
+              <span>Empresa o actividad</span>
+              <input type="text" name="empresa" autocomplete="organization"
+                     placeholder="Razón social, o a qué se dedica">
             </label>
-            <button class="btn btn-verde" type="submit">Enviar</button>
+            <div class="dos-campos">
+              <label class="campo">
+                <span>Correo</span>
+                <input type="email" name="correo" autocomplete="email" placeholder="correo@empresa.com">
+              </label>
+              <label class="campo">
+                <span>Teléfono</span>
+                <input type="tel" name="telefono" autocomplete="tel" placeholder="09XXXXXXXX">
+              </label>
+            </div>
+            <label class="campo">
+              <span>Qué necesita</span>
+              <textarea name="mensaje" rows="3"
+                        placeholder="Cuántas facturas al mes, si tiene contador, qué le urge"></textarea>
+            </label>
+            <button class="btn btn-verde" type="submit">Enviar y coordinar la reunión</button>
             <p class="recado" id="recado-contacto" hidden role="status"></p>
           </form>
         </div>
       </div>
 
       <div class="nota">
-        <strong>Todavía no hay formulario que envíe.</strong> El canal de contacto se
-        habilita junto con el dominio propio. Mientras tanto este formulario no manda nada
-        a ningún sitio — y lo dice, en lugar de fingir que lo hizo.
+        <strong>Deje su teléfono en el formulario</strong> y le devolvemos la llamada. Es la
+        vía más rápida para coordinar una reunión, en persona o por videollamada.
       </div>
     </div>
   </section>
 </div>
 
-<!-- ══════════════════════════════════════════════════════════ 8 · ingresar -->
+<!-- ══════════════════════════════════════════════════════════ 7 · ingresar -->
 <div class="pantalla" id="pag-ingresar" hidden>
   <div class="entrada">
 
@@ -1681,7 +1676,7 @@
         </ul>
       </div>
 
-      <p>Kontia es un nombre de trabajo. Pendiente de verificación en SCVS y SENADI.</p>
+      <p>Facturación electrónica y contabilidad · Ecuador</p>
     </section>
 
     <section class="entrada-forma">
@@ -1723,7 +1718,7 @@
           <p class="recado" id="recado-ingreso" hidden role="status"></p>
         </form>
 
-        <div class="separa"><span>o entre a la demostración</span></div>
+        <div class="separa"><span>o pruébelo ahora mismo</span></div>
 
         <!--
           Los tres papeles. El sistema escucha estos botones por su atributo
@@ -1757,8 +1752,8 @@
         </div>
 
         <p class="letra-chica">
-          Nada de lo que haga en la demostración se envía a ningún sitio. Los datos son de
-          ejemplo y se guardan solo en su navegador.
+          Al probar, los datos son de ejemplo y quedan en su propio equipo. No se envían a
+          ningún sitio.
         </p>
       </div>
     </section>
@@ -1771,8 +1766,7 @@
     <div>
       <p><strong style="color:rgba(255,255,255,.9)">Kontia</strong> · Facturación electrónica y contabilidad</p>
       <p style="margin-top:.35rem">
-        Para las 24 provincias del Ecuador · con sede en Daule, Guayas<br>
-        Nombre de trabajo, pendiente de verificación en SCVS y SENADI.
+        Facturación electrónica y contabilidad para las 24 provincias del Ecuador.
       </p>
       <p style="margin-top:.35rem">Ab. Gustavo Cajamarca Huayamave · Mat. 09-2018-362</p>
     </div>
@@ -1783,7 +1777,6 @@
         <a href="#privacidad">Privacidad</a>
         <a href="#descargar">Descargar</a>
         <a href="#planes">Planes</a>
-        <a href="#estado">Estado</a>
         <a href="#contacto">Contacto</a>
         <a href="#ingresar">Iniciar sesión</a>
       </nav>
@@ -1812,7 +1805,24 @@
     'use strict';
 
     var PANTALLAS = ['inicio', 'funciones', 'privacidad', 'descargar', 'planes',
-                     'estado', 'contacto', 'ingresar'];
+                     'contacto', 'ingresar'];
+
+    /*
+     * A DÓNDE VA EL FORMULARIO DE CONTACTO.
+     *
+     * Rellene uno de los dos y el formulario empieza a enviar de verdad, sin
+     * tocar nada más:
+     *
+     *   whatsapp: el número con código de país y sin signos. Ej: '593991234567'
+     *   correo:   la dirección que quiera publicar.
+     *
+     * Con WhatsApp se abre la conversación con el mensaje ya escrito; con
+     * correo se abre el programa de correo, también escrito. Ninguna de las dos
+     * necesita servidor, ni cuenta en un servicio de terceros, ni que los datos
+     * de quien escribe pasen por las manos de nadie más — que en materia de
+     * protección de datos no es un detalle menor.
+     */
+    var DESTINO = { whatsapp: '', correo: '' };
     var portada = document.getElementById('portada');
     if (!portada) return;
 
@@ -1918,10 +1928,65 @@
       });
     }
 
-    contesta('forma-contacto', 'recado-contacto',
-      'El canal de contacto se habilita junto con el dominio propio. Este formulario ' +
-      'todavía no envía nada, y preferimos decirlo a que usted se quede esperando una ' +
-      'respuesta que no iba a llegar.');
+    /*
+     * El formulario de contacto.
+     *
+     * Arma el mensaje con lo que la persona escribió y lo entrega por el canal
+     * que esté configurado. Mientras no haya ninguno, lo dice en una línea en
+     * lugar de fingir un envío: un formulario que contesta «gracias, le
+     * escribiremos» sin haber enviado nada es peor que uno apagado.
+     */
+    var formaContacto = document.getElementById('forma-contacto');
+    var recadoContacto = document.getElementById('recado-contacto');
+
+    if (formaContacto && recadoContacto) {
+      formaContacto.addEventListener('submit', function (ev) {
+        ev.preventDefault();
+
+        var v = function (campo) {
+          var e = formaContacto.querySelector('[name="' + campo + '"]');
+          return e ? e.value.trim() : '';
+        };
+        var nombre = v('nombre');
+        var correo = v('correo');
+
+        if (!nombre || !(correo || v('telefono'))) {
+          recadoContacto.hidden = false;
+          recadoContacto.textContent =
+            'Déjenos al menos su nombre y una forma de contestarle: correo o teléfono.';
+          return;
+        }
+
+        var mensaje = 'Contacto desde el sitio de Kontia\n\n'
+          + 'Nombre: ' + nombre + '\n'
+          + 'Empresa o actividad: ' + (v('empresa') || '—') + '\n'
+          + 'Correo: ' + (correo || '—') + '\n'
+          + 'Teléfono: ' + (v('telefono') || '—') + '\n\n'
+          + (v('mensaje') || 'Quisiera coordinar una reunión.');
+
+        if (DESTINO.whatsapp) {
+          window.open('https://wa.me/' + DESTINO.whatsapp
+            + '?text=' + encodeURIComponent(mensaje), '_blank', 'noopener');
+          recadoContacto.hidden = false;
+          recadoContacto.textContent = 'Se abrió WhatsApp con su mensaje listo. Solo pulse enviar.';
+          return;
+        }
+
+        if (DESTINO.correo) {
+          window.location.href = 'mailto:' + DESTINO.correo
+            + '?subject=' + encodeURIComponent('Kontia · ' + nombre)
+            + '&body=' + encodeURIComponent(mensaje);
+          recadoContacto.hidden = false;
+          recadoContacto.textContent = 'Se abrió su programa de correo con el mensaje listo.';
+          return;
+        }
+
+        recadoContacto.hidden = false;
+        recadoContacto.textContent =
+          'Estamos habilitando el envío en este momento. Vuelva en unas horas, o '
+          + 'escríbanos por el canal que prefiera.';
+      });
+    }
   })();
 </script>
 
@@ -1959,19 +2024,10 @@
       if (carta.parentNode) carta.parentNode.insertBefore(carta, carta.parentNode.firstChild);
     })();
 
-    var AMANO = {
-      ios: 'En iPhone o iPad: toque Compartir y luego «Añadir a pantalla de inicio».',
-      android: 'En Android: toque el menú del navegador y luego «Instalar aplicación» o «Añadir a pantalla de inicio».',
-      escritorio: 'En la computadora: busque el icono de instalar en la barra de direcciones, a la derecha.',
-    };
-
     window.addEventListener('beforeinstallprompt', function (ev) {
       ev.preventDefault();
       invitacion = ev;
-      // Ahora si se puede instalar de un toque, y conviene decirlo.
-      if (nota) {
-        nota.textContent = 'Su navegador puede instalarla ahora mismo: pulse el botón.';
-      }
+      if (nota) nota.textContent = 'Su equipo puede instalarla ahora mismo: pulse el botón.';
     });
 
     window.addEventListener('appinstalled', function () {
@@ -1983,22 +2039,47 @@
       });
     });
 
-    function comoSeHace() {
-      var ua = navigator.userAgent;
-      if (/iPhone|iPad|iPod/.test(ua)) return AMANO.ios;
-      if (/Android/.test(ua)) return AMANO.android;
-      return AMANO.escritorio;
+    /*
+     * Cuando el navegador no ofrece instalar de un toque.
+     *
+     * Pasa siempre en iPhone —Apple no lo permite— y pasa en Android o en el
+     * escritorio hasta que el navegador decide que el sitio cumple. En lugar de
+     * un `alert`, que es lo que más barato hace ver una página, se lleva a la
+     * pantalla de descarga y se resalta la tarjeta del equipo que uno tiene
+     * delante, que es donde están sus pasos.
+     */
+    function llevarALosPasos() {
+      if (window.kontiaSitio) window.kontiaSitio.mostrar('descargar');
+      location.hash = '#descargar';
+
+      setTimeout(function () {
+        var suyo = document.querySelector('#equipos .equipo.suyo')
+                || document.querySelector('#equipos .equipo');
+        if (!suyo) return;
+        suyo.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        suyo.classList.add('destacado');
+        setTimeout(function () { suyo.classList.remove('destacado'); }, 2800);
+      }, 140);
     }
 
     botones.forEach(function (b) {
       b.addEventListener('click', function (ev) {
         ev.preventDefault();
-        if (invitacion) { invitacion.prompt(); invitacion = null; return; }
-        alert('Kontia se instala desde el propio navegador.\n\n' + comoSeHace() +
-              '\n\nQueda con su icono y su ventana, como cualquier programa. ' +
-              'Necesita internet para funcionar.');
+        if (!invitacion) return llevarALosPasos();
+
+        // Un toque y se instala: esto abre la ventana del propio sistema.
+        invitacion.prompt();
+        if (invitacion.userChoice && invitacion.userChoice.then) {
+          invitacion.userChoice.then(function (eleccion) {
+            // Si dice que no, no se insiste: se le dejan los pasos por si
+            // quiere hacerlo a mano mas tarde.
+            if (eleccion && eleccion.outcome !== 'accepted') llevarALosPasos();
+          }).catch(function () { /* navegador antiguo */ });
+        }
+        invitacion = null;
       });
     });
+
 
     // El trabajador de servicio es lo que permite la instalación. Si falla, la
     // página sigue funcionando igual: solo se pierde el botón.
@@ -9984,8 +10065,8 @@ async function conexion() {
       tono: 'ambar', ico: 'computer',
       titulo: 'Trabajando en este equipo, sin base de datos',
       texto: estado.porque + ' Todo lo que haga se guarda en este navegador y '
-        + 'nadie más lo ve — tampoco usted desde otro equipo. Es lo correcto para una '
-        + 'demostración, y no sirve para llevar la contabilidad de una empresa.',
+        + 'nadie más lo ve — tampoco usted desde otro equipo. Está bien para probar el '
+        + 'sistema; para llevar la contabilidad de una empresa hace falta la conexión.',
     }) : aviso({
       tono: 'exito', ico: 'cloud_done',
       titulo: haySesion() ? 'Conectado, con sesión abierta' : 'Conectado, sin sesión',
