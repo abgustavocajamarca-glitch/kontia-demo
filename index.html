@@ -1,0 +1,3777 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kontia · demostracion</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200">
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    theme: { extend: {
+      colors: {
+        verde:  { DEFAULT: '#0F7B4F', oscuro: '#0B5C3B', claro: '#E8F5EE', medio: '#C7E9D6' },
+        tinta:  { DEFAULT: '#1A1D1F', suave: '#5C6660' },
+        papel:  { DEFAULT: '#F7F9F8', linea: '#E6EBE8' },
+        ambar:  { DEFAULT: '#F59E0B', fondo: '#FFF8E6', borde: '#FDE68A', texto: '#B45309' },
+        rojo:   { DEFAULT: '#C4331D', fondo: '#FDF2F0', borde: '#F6D5CE', texto: '#912415' },
+      },
+      fontFamily: { sans: ['Plus Jakarta Sans', 'system-ui', 'sans-serif'] },
+    } },
+  };
+</script>
+<style>
+  /* El fondo y la tipografía se pintan desde aquí, y no con clases en la
+     etiqueta del cuerpo, para que la página se vea igual publicada como
+     artefacto: allí esa etiqueta la pone el anfitrión y las clases que lleve
+     este archivo se pierden. */
+  body { font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+         background: #F7F9F8; color: #1A1D1F; margin: 0;
+         -webkit-font-smoothing: antialiased; }
+  .ms { font-family: 'Material Symbols Outlined'; font-weight: normal; font-style: normal;
+        line-height: 1; letter-spacing: normal; text-transform: none; display: inline-block;
+        white-space: nowrap; direction: ltr; -webkit-font-feature-settings: 'liga';
+        -webkit-font-smoothing: antialiased; font-variation-settings: 'opsz' 24; }
+  .tabular { font-variant-numeric: tabular-nums; }
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-thumb { background: #CFD8D2; border-radius: 6px; border: 3px solid transparent;
+                              background-clip: padding-box; }
+</style>
+</head>
+<body>
+<div id="raiz"></div>
+<script>
+/* KONTIA · demostracion en un solo archivo.
+   GENERADO por scripts/construir-archivo-unico.py — no editar a mano.
+   Los datos se guardan en el navegador de quien lo abre: lo que haga
+   una persona no lo ve ninguna otra. */
+'use strict';
+(function () {
+// ---- src/datos.js ------------------------------------------------
+const __src_datos_js = (function () {
+
+
+/**
+ * La semilla: con qué datos arranca la aplicación, y los catálogos del SRI.
+ *
+ * Los datos de ejemplo son los de `docs/diseno/datos-ejemplo.md`, que es la
+ * única fuente permitida: cuando cada pantalla inventa sus propias cifras, la
+ * misma factura acaba apareciendo con dos totales distintos según dónde se
+ * mire, y quien programe después copia el ejemplo que tenga delante.
+ *
+ * Quien decide de dónde salen los datos en cada momento es `almacen.js`. Este
+ * archivo solo dice cómo empieza todo.
+ *
+ * REGLA DE ORO, la de siempre: todo total es una suma comprobable. Los totales
+ * de aquí abajo no están escritos a mano, se calculan de las líneas.
+ */
+
+// ===========================================================================
+//  Catálogos del SRI
+//
+//  No son listas de conveniencia: son las tablas de la ficha técnica 2.34. El
+//  código que viaja en el XML es el número, no el porcentaje, y equivocarlo
+//  hace que el SRI rechace TODOS los comprobantes, no algunos.
+// ===========================================================================
+
+/** Tabla 18 · tarifas de IVA vigentes. */
+const TARIFAS_IVA = [
+  { codigo: '4', tarifa: 15, texto: 'IVA 15%' },
+  { codigo: '0', tarifa: 0, texto: 'IVA 0%' },
+  { codigo: '7', tarifa: 0, texto: 'Exento de IVA' },
+  { codigo: '6', tarifa: 0, texto: 'No objeto de impuesto' },
+];
+
+/** Tabla 6 · cómo se identifica el comprador. */
+const TIPOS_IDENTIFICACION = {
+  RUC: { codigo: '04', texto: 'RUC', ayuda: 'Trece dígitos, terminados en 001 la matriz' },
+  CEDULA: { codigo: '05', texto: 'Cédula', ayuda: 'Diez dígitos' },
+  PASAPORTE: { codigo: '06', texto: 'Pasaporte', ayuda: 'Para extranjeros sin cédula' },
+  CONSUMIDOR_FINAL: { codigo: '07', texto: 'Consumidor final', ayuda: 'Trece nueves' },
+  EXTERIOR: { codigo: '08', texto: 'Identificación del exterior', ayuda: 'Ventas al extranjero' },
+};
+
+/** Tabla 24 · formas de pago. Es obligatoria y viaja dentro del XML. */
+const FORMAS_PAGO = [
+  { codigo: '20', texto: 'Otros con utilización del sistema financiero' },
+  { codigo: '01', texto: 'Sin utilización del sistema financiero' },
+  { codigo: '19', texto: 'Tarjeta de crédito' },
+  { codigo: '16', texto: 'Tarjeta de débito' },
+  { codigo: '15', texto: 'Compensación de deudas' },
+];
+
+// ===========================================================================
+//  La empresa emisora y su estructura
+// ===========================================================================
+
+const EMPRESA = {
+  id: 'agroquimicos-perez',
+  razonSocial: 'Agroquímicos Pérez S.A.',
+  nombreComercial: 'Agroquímicos Pérez',
+  ruc: '0912345678001',
+  dirMatriz: 'Km 14.5 Vía Daule, Daule, Guayas',
+  regimen: 'General',
+  obligadoContabilidad: true,
+  contribuyenteEspecial: false,
+  agenteRetencion: false,
+  ambiente: 'PRUEBAS',
+  plan: 'Profesional',
+  correo: 'facturacion@agroperez.com.ec',
+  telefono: '(04) 279 4410',
+};
+
+const PUNTOS_EMISION = [
+  { codigo: '001-001', nombre: 'Caja principal', lugar: 'Matriz, Daule', ultimo: 148, activo: true },
+  { codigo: '001-002', nombre: 'Mostrador', lugar: 'Matriz, Daule', ultimo: 34, activo: true },
+  { codigo: '002-001', nombre: 'Bodega Nobol', lugar: 'Nobol', ultimo: 5, activo: false },
+];
+
+/**
+ * El certificado de firma.
+ *
+ * Los días que faltan se calculan contra la fecha de hoy, no se escriben a
+ * mano: un aviso de caducidad que no se mueve deja de avisar justo el día que
+ * importaba. Sin certificado vigente la empresa no puede facturar.
+ */
+const CERTIFICADO = {
+  titular: 'Juan Carlos Pérez Andrade',
+  cedula: '0912345678',
+  emisor: 'Security Data S.A.',
+  desde: new Date(2024, 9, 21),
+  hasta: new Date(2026, 9, 21),
+  get diasRestantes() {
+    const dia = 24 * 60 * 60 * 1000;
+    return Math.ceil((this.hasta - new Date()) / dia);
+  },
+};
+
+// ===========================================================================
+//  Clientes y catálogo
+// ===========================================================================
+
+const CLIENTES = [
+  { id: 'c1', razonSocial: 'Bananera del Litoral Cía. Ltda.', identificacion: '0992384756001',
+    tipo: 'RUC', ciudad: 'Samborondón', correo: 'compras@bananeralitoral.com.ec',
+    telefono: '(04) 208 1120', comprobantes: 38, facturado: 52940.80 },
+  { id: 'c2', razonSocial: 'Consorcio Agrícola Daule S.A.', identificacion: '0991204859001',
+    tipo: 'RUC', ciudad: 'Daule', correo: 'pagos@agricoladaule.ec',
+    telefono: '(04) 279 5533', comprobantes: 24, facturado: 31150.00 },
+  { id: 'c3', razonSocial: 'Hacienda San José Cía. Ltda.', identificacion: '0991827364001',
+    tipo: 'RUC', ciudad: 'Daule', correo: 'administracion@haciendasanjose.ec',
+    telefono: '(04) 279 8890', comprobantes: 19, facturado: 22480.15 },
+  { id: 'c4', razonSocial: 'Ferretería Nobol Cía. Ltda.', identificacion: '0987654321001',
+    tipo: 'RUC', ciudad: 'Nobol', correo: 'ventas@ferreterianobol.ec',
+    telefono: '(04) 270 1145', comprobantes: 11, facturado: 8320.40 },
+];
+
+const PRODUCTOS = [
+  { codigo: 'FERT-UREA-01', descripcion: 'Urea fertilizante granulada 50kg', unidad: 'SACO', precio: 28.50, iva: 15, tipo: 'Bien' },
+  { codigo: 'INSECT-GLI-05', descripcion: 'Glifosato concentrado 480 SL 20L', unidad: 'BIDÓN', precio: 45.00, iva: 15, tipo: 'Bien' },
+  { codigo: 'SEM-ARR-02', descripcion: 'Semilla certificada arroz INIAP 14', unidad: 'SACO', precio: 31.25, iva: 0, tipo: 'Bien' },
+  { codigo: 'AGR-001', descripcion: 'Fertilizante foliar', unidad: 'LITRO', precio: 45.00, iva: 15, tipo: 'Bien' },
+  { codigo: 'AGR-014', descripcion: 'Herbicida selectivo', unidad: 'LITRO', precio: 85.00, iva: 15, tipo: 'Bien' },
+  { codigo: 'FERT-88', descripcion: 'Asistencia técnica agronómica', unidad: 'HORA', precio: 60.00, iva: 0, tipo: 'Servicio' },
+  { codigo: 'SERV-FLETE', descripcion: 'Flete hasta finca del cliente', unidad: 'SERVICIO', precio: 45.00, iva: 15, tipo: 'Servicio' },
+];
+
+const USUARIOS = [
+  { nombre: 'Juan Carlos Pérez', correo: 'jperez@agroperez.com.ec', rol: 'Administrador',
+    puntos: 'Todos', ultimoAcceso: 'Hoy, 08:14', activo: true },
+  { nombre: 'María Elena Vaca', correo: 'mvaca@agroperez.com.ec', rol: 'Facturador',
+    puntos: '001-001', ultimoAcceso: 'Hoy, 07:52', activo: true },
+  { nombre: 'Diego Sánchez', correo: 'dsanchez@agroperez.com.ec', rol: 'Facturador',
+    puntos: '001-002', ultimoAcceso: 'Ayer, 17:30', activo: true },
+  { nombre: 'Rosa Chávez', correo: 'rchavez@agroperez.com.ec', rol: 'Solo lectura',
+    puntos: '—', ultimoAcceso: 'Hace 12 días', activo: false },
+];
+
+// ===========================================================================
+//  Comprobantes
+// ===========================================================================
+
+/**
+ * Calcula los totales de una lista de líneas.
+ *
+ * Se trabaja en centavos enteros y no en decimales: 0,1 + 0,2 no da 0,3 en
+ * ningún lenguaje que use coma flotante, y un centavo de diferencia entre el
+ * total que muestra la pantalla y el que lleva el XML basta para que el SRI
+ * rechace el comprobante.
+ */
+function totalizar(lineas) {
+  const centavos = (n) => Math.round(Number(n || 0) * 100);
+  let base15 = 0, base0 = 0, descuento = 0;
+  for (const l of lineas) {
+    const bruto = centavos(l.cantidad * l.precio);
+    const desc = centavos(l.descuento);
+    const neto = bruto - desc;
+    descuento += desc;
+    if (Number(l.iva) === 15) base15 += neto; else base0 += neto;
+  }
+  const iva = Math.round(base15 * 0.15);
+  return {
+    base15: base15 / 100,
+    base0: base0 / 100,
+    sinImpuestos: (base15 + base0) / 100,
+    descuento: descuento / 100,
+    iva: iva / 100,
+    total: (base15 + base0 + iva) / 100,
+  };
+}
+
+const lineas148 = [
+  { codigo: 'FERT-UREA-01', descripcion: 'Urea fertilizante granulada 50kg', cantidad: 20, precio: 28.50, descuento: 0, iva: 15 },
+  { codigo: 'INSECT-GLI-05', descripcion: 'Glifosato concentrado 480 SL 20L', cantidad: 10, precio: 45.00, descuento: 25.00, iva: 15 },
+  { codigo: 'SEM-ARR-02', descripcion: 'Semilla certificada arroz INIAP 14', cantidad: 8, precio: 31.25, descuento: 0, iva: 0 },
+];
+
+const lineas149 = [
+  { codigo: 'AGR-001', descripcion: 'Fertilizante foliar', cantidad: 10, precio: 45.00, descuento: 0, iva: 15 },
+  { codigo: 'AGR-014', descripcion: 'Herbicida selectivo', cantidad: 4, precio: 85.00, descuento: 15.00, iva: 15 },
+  { codigo: 'FERT-88', descripcion: 'Asistencia técnica agronómica', cantidad: 2, precio: 60.00, descuento: 0, iva: 0 },
+];
+
+const lineas145 = [
+  { codigo: 'FERT-UREA-01', descripcion: 'Urea fertilizante granulada 50kg', cantidad: 12, precio: 28.50, descuento: 0, iva: 15 },
+];
+
+const lineas147 = [
+  { codigo: 'AGR-014', descripcion: 'Herbicida selectivo', cantidad: 6, precio: 85.00, descuento: 0, iva: 15 },
+  { codigo: 'FERT-88', descripcion: 'Asistencia técnica agronómica', cantidad: 3, precio: 60.00, descuento: 0, iva: 0 },
+];
+
+const conTotales = (d) => ({ ...d, totales: totalizar(d.lineas) });
+
+const COMPROBANTES = [
+  conTotales({
+    numero: '001-001-000000148', tipo: 'Factura', estado: 'AUTORIZADO',
+    cliente: CLIENTES[0], fecha: new Date(2026, 8, 24, 14, 2),
+    fechaAutorizacion: new Date(2026, 8, 24, 14, 3, 2),
+    claveAcceso: '2409202601091234567800100100100000014812345678141',
+    autorizacion: '2409202601091234567800100100100000014812345678141',
+    formaPago: '20 · Otros con utilización del sistema financiero',
+    lineas: lineas148,
+  }),
+  conTotales({
+    numero: '001-001-000000147', tipo: 'Factura', estado: 'DEVUELTO',
+    cliente: CLIENTES[3], fecha: new Date(2026, 8, 23, 11, 40),
+    claveAcceso: '2309202601091234567800100100100000014712345678120',
+    formaPago: '01 · Sin utilización del sistema financiero',
+    motivoRechazo: {
+      codigo: '45',
+      mensaje: 'IDENTIFICACIÓN DEL COMPRADOR NO CUMPLE',
+      detalle: 'La identificación no cumple con el patrón del tipo de identificación seleccionado.',
+      queHacer: 'La identificación tiene diez dígitos pero está marcada como RUC. ' +
+                'Corrija el tipo a CÉDULA, o complete el RUC con los tres dígitos del ' +
+                'establecimiento. Después vuelva a enviarla: el número de factura se ' +
+                'conserva, no se pierde el secuencial.',
+    },
+    lineas: lineas147,
+  }),
+  conTotales({
+    numero: '001-001-000000146', tipo: 'Factura', estado: 'ENVIADO',
+    cliente: CLIENTES[1], fecha: new Date(2026, 8, 23, 9, 15),
+    claveAcceso: '2309202601091234567800100100100000014612345678113',
+    formaPago: '20 · Otros con utilización del sistema financiero',
+    lineas: lineas145,
+  }),
+  conTotales({
+    numero: '001-001-000000145', tipo: 'Factura', estado: 'AUTORIZADO',
+    cliente: CLIENTES[2], fecha: new Date(2026, 8, 22, 16, 28),
+    fechaAutorizacion: new Date(2026, 8, 22, 16, 28, 44),
+    claveAcceso: '2209202601091234567800100100100000014512345678106',
+    autorizacion: '2209202601091234567800100100100000014512345678106',
+    formaPago: '01 · Sin utilización del sistema financiero',
+    lineas: lineas145,
+  }),
+  conTotales({
+    numero: '001-001-000000149', tipo: 'Factura', estado: 'BORRADOR',
+    cliente: CLIENTES[2], fecha: new Date(2026, 8, 25, 10, 5),
+    claveAcceso: null, formaPago: '20 · Otros con utilización del sistema financiero',
+    lineas: lineas149,
+  }),
+];
+
+/**
+ * Las cifras del tablero.
+ *
+ * El reparto por estado tiene que sumar el total, y las ventas tienen que salir
+ * de sus bases: si el tablero dice "148 comprobantes" y luego "3 pendientes"
+ * sin que uno salga del otro, cualquiera que cuadre las cifras encuentra la
+ * contradicción. Por eso son propiedades calculadas y no números sueltos.
+ */
+const RESUMEN = {
+  autorizados: 142, pendientes: 3, devueltos: 3,
+  get comprobantesDelMes() { return this.autorizados + this.pendientes + this.devueltos; },
+  base15: 38200.00, base0: 4118.50,
+  get ventasDelMes() { return this.base15 + this.base0; },
+  get ivaGenerado() { return Math.round(this.base15 * 15) / 100; },
+  ingresosAnio: 342323.44, mesesTranscurridos: 9,
+  get promedioMensual() {
+    return Math.round((this.ingresosAnio / this.mesesTranscurridos) * 100) / 100;
+  },
+  meses: [
+    { mes: 'Ene', valor: 31420.10 }, { mes: 'Feb', valor: 28950.75 },
+    { mes: 'Mar', valor: 35110.40 }, { mes: 'Abr', valor: 39880.20 },
+    { mes: 'May', valor: 42010.55 }, { mes: 'Jun', valor: 36740.90 },
+    { mes: 'Jul', valor: 40215.30 }, { mes: 'Ago', valor: 45676.74 },
+    { mes: 'Sep', valor: 42318.50 },
+  ],
+};
+
+// ===========================================================================
+//  Lo que ve el super administrador. Y, sobre todo, lo que NO ve.
+// ===========================================================================
+
+/**
+ * El directorio de empresas.
+ *
+ * Fíjese en lo que hay y en lo que falta: plan, estado, fecha de alta, CUÁNTOS
+ * comprobantes emitió. En ningún sitio a quién le facturó ni por cuánto. Eso no
+ * es una pantalla a medio hacer, es la regla del producto: el super
+ * administrador administra el servicio, no mira el negocio de sus clientes.
+ *
+ * La base de datos lo impone por su cuenta con políticas de acceso (migración
+ * 0004), así que aunque alguien añadiera aquí una columna con las ventas,
+ * vendría vacía el día que esto lea de Supabase.
+ */
+const EMPRESAS_ADMIN = [
+  { id: 'agroquimicos-perez', razonSocial: 'Agroquímicos Pérez S.A.', ruc: '0912345678001',
+    ciudad: 'Daule', plan: 'Profesional', estado: 'ACTIVA', alta: new Date(2026, 1, 12),
+    usuarios: 4, comprobantesMes: 148, ambiente: 'PRUEBAS', certificadoVence: new Date(2026, 9, 21) },
+  { id: 'comercial-nobol', razonSocial: 'Comercial Nobol Cía. Ltda.', ruc: '0991456789001',
+    ciudad: 'Nobol', plan: 'Básico', estado: 'ACTIVA', alta: new Date(2026, 3, 4),
+    usuarios: 2, comprobantesMes: 61, ambiente: 'PRODUCCIÓN', certificadoVence: new Date(2027, 2, 9) },
+  { id: 'transportes-samborondon', razonSocial: 'Transportes Samborondón S.A.', ruc: '0992871045001',
+    ciudad: 'Samborondón', plan: 'Profesional', estado: 'ACTIVA', alta: new Date(2026, 5, 20),
+    usuarios: 7, comprobantesMes: 402, ambiente: 'PRODUCCIÓN', certificadoVence: new Date(2026, 10, 30) },
+  { id: 'panaderia-la-espiga', razonSocial: 'Panadería La Espiga', ruc: '0918273645001',
+    ciudad: 'Daule', plan: 'Básico', estado: 'PRUEBA', alta: new Date(2026, 7, 30),
+    usuarios: 1, comprobantesMes: 12, ambiente: 'PRUEBAS', certificadoVence: null },
+  { id: 'ferreteria-central', razonSocial: 'Ferretería Central del Guayas S.A.', ruc: '0993048172001',
+    ciudad: 'Daule', plan: 'Profesional', estado: 'SUSPENDIDA', alta: new Date(2025, 10, 8),
+    usuarios: 3, comprobantesMes: 0, ambiente: 'PRODUCCIÓN', certificadoVence: new Date(2026, 8, 2) },
+];
+
+/**
+ * La auditoría.
+ *
+ * Es de solo añadir en la base de datos (migración 0005): ni el super
+ * administrador puede borrar una línea de aquí. Un registro que quien manda
+ * puede editar no sirve como prueba de nada.
+ */
+const AUDITORIA = [
+  { cuando: new Date(2026, 8, 11, 9, 42), quien: 'gustavo@kontia.ec', rol: 'Super admin',
+    accion: 'ACCESO_SOPORTE_ABIERTO', empresa: 'Ferretería Central del Guayas S.A.',
+    detalle: 'Motivo: revisar comprobante devuelto 001-001-000000203 · caduca en 2 horas' },
+  { cuando: new Date(2026, 8, 10, 16, 8), quien: 'gustavo@kontia.ec', rol: 'Super admin',
+    accion: 'EMPRESA_SUSPENDIDA', empresa: 'Ferretería Central del Guayas S.A.',
+    detalle: 'Falta de pago · tercer mes' },
+  { cuando: new Date(2026, 8, 10, 11, 20), quien: 'jperez@agroperez.com.ec', rol: 'Administrador',
+    accion: 'USUARIO_CREADO', empresa: 'Agroquímicos Pérez S.A.',
+    detalle: 'dsanchez@agroperez.com.ec · rol Facturador · punto 001-002' },
+  { cuando: new Date(2026, 8, 9, 8, 3), quien: 'gustavo@kontia.ec', rol: 'Super admin',
+    accion: 'EMPRESA_CREADA', empresa: 'Panadería La Espiga',
+    detalle: 'Plan Básico · periodo de prueba de 30 días' },
+];
+
+// ===========================================================================
+//  Todo junto, para que el almacén lo copie al arrancar
+// ===========================================================================
+
+const SEMILLA = {
+  empresa: EMPRESA,
+  puntos: PUNTOS_EMISION,
+  certificado: CERTIFICADO,
+  clientes: CLIENTES,
+  productos: PRODUCTOS,
+  usuarios: USUARIOS,
+  comprobantes: COMPROBANTES,
+  resumen: RESUMEN,
+  empresasAdmin: EMPRESAS_ADMIN,
+  auditoria: AUDITORIA,
+};
+
+
+  return { TARIFAS_IVA, TIPOS_IDENTIFICACION, FORMAS_PAGO, EMPRESA, PUNTOS_EMISION, CERTIFICADO, CLIENTES, PRODUCTOS, USUARIOS, totalizar, COMPROBANTES, RESUMEN, EMPRESAS_ADMIN, AUDITORIA, SEMILLA };
+})();
+
+// ---- src/ui.js ---------------------------------------------------
+const __src_ui_js = (function () {
+
+
+/**
+ * Las piezas que repiten todas las pantallas.
+ *
+ * No hay framework y no hay nada que compilar: son archivos que el navegador
+ * lee tal cual. Eso significa que dentro de dos años seguirán abriéndose aunque
+ * nadie haya actualizado una dependencia, y que cualquiera puede leer lo que se
+ * ejecuta sin pasar por una herramienta de por medio. Cuando haga falta más se
+ * cambia; empezar con más es pagar complejidad por adelantado.
+ *
+ * Lo único que sí hace falta es servirlos por HTTP —los módulos de JavaScript
+ * no funcionan abriendo el archivo con doble clic, el navegador lo prohíbe—:
+ *
+ *     python -m http.server 4173 --directory apps/web
+ */
+
+// ===========================================================================
+//  Escapar. Esto no es opcional.
+// ===========================================================================
+
+/**
+ * Convierte cualquier valor en texto seguro para meter dentro del HTML.
+ *
+ * Todo lo que escribe una persona —el nombre de un cliente, la descripción de
+ * un producto— pasa por aquí antes de llegar a la pantalla. Sin esto, un
+ * cliente llamado `<script>` deja de ser un nombre y pasa a ser código que se
+ * ejecuta en el navegador de quien mire la factura.
+ */
+function esc(v) {
+  return String(v ?? '')
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+/**
+ * Un trozo de HTML ya construido.
+ *
+ * Hace falta una clase y no basta con texto porque el texto no se distingue:
+ * cuando una plantilla recibe un valor no hay forma de saber si es el nombre de
+ * un cliente —que hay que escapar— o el resultado de otra plantilla —que ya
+ * viene escapado y volver a escaparlo lo destroza—. La primera versión usaba
+ * texto y las listas salían en pantalla como código fuente.
+ */
+class Html {
+  constructor(valor) { this.valor = String(valor); }
+  toString() { return this.valor; }
+}
+
+/** Marca HTML ya construido para que `html` no lo vuelva a escapar. */
+const crudo = (valor) =>
+  (valor instanceof Html ? valor : new Html(valor ?? ''));
+
+const insertar = (v) => {
+  if (v instanceof Html) return v.valor;
+  if (Array.isArray(v)) return v.map(insertar).join('');
+  return esc(v);
+};
+
+/**
+ * Plantilla que escapa sola.
+ *
+ * `html`Hola ${nombre}`` escapa `nombre` sin que haya que acordarse; otra
+ * plantilla o una lista de plantillas se insertan tal cual. Para meter texto
+ * como HTML sin pasar por el escapado hay que decirlo con `crudo()`, que es
+ * incómodo a propósito: si saltarse el escapado fuera cómodo, se haría por
+ * costumbre.
+ */
+function html(partes, ...valores) {
+  return new Html(partes.reduce(
+    (acc, parte, i) => (i === 0 ? parte : acc + insertar(valores[i - 1]) + parte), ''));
+}
+
+// ===========================================================================
+//  Formato ecuatoriano
+// ===========================================================================
+
+/** 1394.25 -> "1.394,25". El país escribe el punto y la coma al revés que el código. */
+function dinero(n) {
+  const negativo = Number(n) < 0;
+  const texto = Math.abs(Number(n) || 0).toFixed(2)
+    .replace('.', ',').replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+  return (negativo ? '-' : '') + texto;
+}
+
+const usd = (n) => '$' + dinero(n);
+
+const MESES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun',
+               'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+
+function fecha(d) {
+  if (!d) return '—';
+  const f = new Date(d);
+  return `${String(f.getDate()).padStart(2, '0')}/` +
+         `${String(f.getMonth() + 1).padStart(2, '0')}/${f.getFullYear()}`;
+}
+
+function fechaLarga(d) {
+  if (!d) return '—';
+  const f = new Date(d);
+  return `${f.getDate()} ${MESES[f.getMonth()]} ${f.getFullYear()}`;
+}
+
+function fechaHora(d) {
+  if (!d) return '—';
+  const f = new Date(d);
+  return `${fecha(f)} · ${String(f.getHours()).padStart(2, '0')}:` +
+         `${String(f.getMinutes()).padStart(2, '0')}`;
+}
+
+/** La clave de acceso, en grupos, para que una persona pueda leerla en voz alta. */
+const claveLegible = (c) => String(c ?? '').replace(/(.{7})/g, '$1 ').trim();
+
+// ===========================================================================
+//  Piezas visuales
+// ===========================================================================
+
+const icono = (nombre, clases = 'text-[20px]') =>
+  crudo(`<span class="ms ${esc(clases)}" aria-hidden="true">${esc(nombre)}</span>`);
+
+/**
+ * El estado de un comprobante, con su color.
+ *
+ * Los estados no son decoración: son los de la máquina de estados que impone la
+ * base de datos (migración 0007). RECIBIDO no es AUTORIZADO, y confundirlos es
+ * decirle al cliente que su factura salió bien cuando el SRI todavía no ha
+ * dicho nada.
+ */
+const ESTADOS = {
+  BORRADOR:      { texto: 'Borrador',     clase: 'bg-papel-linea text-tinta-suave', punto: 'bg-tinta-suave' },
+  FIRMADO:       { texto: 'Firmado',      clase: 'bg-papel-linea text-tinta-suave', punto: 'bg-tinta-suave' },
+  ENVIADO:       { texto: 'Enviado',      clase: 'bg-ambar-fondo text-ambar-texto border border-ambar-borde', punto: 'bg-ambar' },
+  RECIBIDO:      { texto: 'Recibido',     clase: 'bg-ambar-fondo text-ambar-texto border border-ambar-borde', punto: 'bg-ambar' },
+  AUTORIZADO:    { texto: 'Autorizado',   clase: 'bg-verde-claro text-verde', punto: 'bg-verde' },
+  DEVUELTO:      { texto: 'Devuelto',     clase: 'bg-rojo-fondo text-rojo-texto border border-rojo-borde', punto: 'bg-rojo' },
+  NO_AUTORIZADO: { texto: 'No autorizado', clase: 'bg-rojo-fondo text-rojo-texto border border-rojo-borde', punto: 'bg-rojo' },
+  ANULADO:       { texto: 'Anulado',      clase: 'bg-papel-linea text-tinta-suave line-through', punto: 'bg-tinta-suave' },
+  ACTIVA:        { texto: 'Activa',       clase: 'bg-verde-claro text-verde', punto: 'bg-verde' },
+  PRUEBA:        { texto: 'En prueba',    clase: 'bg-ambar-fondo text-ambar-texto border border-ambar-borde', punto: 'bg-ambar' },
+  SUSPENDIDA:    { texto: 'Suspendida',   clase: 'bg-rojo-fondo text-rojo-texto border border-rojo-borde', punto: 'bg-rojo' },
+};
+
+function chipEstado(estado) {
+  const e = ESTADOS[estado] ?? { texto: estado, clase: 'bg-papel-linea text-tinta-suave', punto: 'bg-tinta-suave' };
+  return crudo(
+    `<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold ${e.clase}">` +
+    `<span class="w-1.5 h-1.5 rounded-full ${e.punto}"></span>${esc(e.texto)}</span>`);
+}
+
+/** Cabecera de una pantalla: el título, de qué va, y los botones de la derecha. */
+function cabecera({ titulo, descripcion = '', acciones = [] }) {
+  return html`
+    <header class="flex flex-wrap items-end justify-between gap-4 mb-6">
+      <div>
+        <h1 class="text-2xl font-bold tracking-tight">${titulo}</h1>
+        ${descripcion ? crudo(`<p class="mt-1 text-sm text-tinta-suave max-w-2xl">${esc(descripcion)}</p>`) : ''}
+      </div>
+      <div class="flex items-center gap-2">${acciones}</div>
+    </header>`;
+}
+
+const boton = (texto, { ruta = '#', tipo = 'principal', ico = null, id = null } = {}) => {
+  const estilos = {
+    principal: 'bg-verde text-white hover:bg-verde-oscuro shadow-sm',
+    secundario: 'bg-white text-tinta border border-papel-linea hover:border-verde hover:text-verde',
+    peligro: 'bg-white text-rojo-texto border border-rojo-borde hover:bg-rojo-fondo',
+  };
+  return crudo(
+    `<a href="${esc(ruta)}"${id ? ` id="${esc(id)}"` : ''} class="inline-flex items-center gap-2 px-4 py-2.5 ` +
+    `rounded-xl text-sm font-semibold transition ${estilos[tipo]}">` +
+    (ico ? `<span class="ms text-[18px]">${esc(ico)}</span>` : '') + esc(texto) + '</a>');
+};
+
+/**
+ * El estado vacío.
+ *
+ * Una tabla sin filas no explica nada. Esta pieza dice qué va a haber ahí, por
+ * qué todavía no hay nada y cuál es el siguiente paso, que es lo que necesita
+ * alguien que abre el sistema por primera vez.
+ */
+const vacio = ({ ico, titulo, texto, accion = '' }) => html`
+  <div class="flex flex-col items-center justify-center text-center py-20 px-6">
+    <div class="w-16 h-16 rounded-2xl bg-verde-claro flex items-center justify-center mb-5">
+      ${icono(ico, 'text-[30px] text-verde')}
+    </div>
+    <h3 class="text-lg font-bold">${titulo}</h3>
+    <p class="mt-2 text-sm text-tinta-suave max-w-md leading-relaxed">${texto}</p>
+    <div class="mt-6">${accion}</div>
+  </div>`;
+
+/** Una fila de dato: etiqueta arriba en pequeño, valor debajo. */
+const dato = (etiqueta, valor, clases = '') => html`
+  <div class="${clases}">
+    <dt class="text-[11px] font-semibold uppercase tracking-wide text-tinta-suave">${etiqueta}</dt>
+    <dd class="mt-1 text-sm font-medium">${valor}</dd>
+  </div>`;
+
+/**
+ * Un aviso. `tono` decide el color y, con él, la urgencia que transmite.
+ * Se usa poco a propósito: si todo está resaltado, nada lo está.
+ */
+const aviso = ({ tono = 'info', ico = 'info', titulo, texto, accion = '' }) => {
+  const tonos = {
+    info: 'bg-verde-claro border-verde-medio text-verde',
+    ambar: 'bg-ambar-fondo border-ambar-borde text-ambar-texto',
+    rojo: 'bg-rojo-fondo border-rojo-borde text-rojo-texto',
+  };
+  return html`
+    <div class="flex items-start gap-3 p-4 rounded-xl border ${crudo(tonos[tono])} mb-6">
+      ${icono(ico, 'text-[20px] shrink-0 mt-0.5')}
+      <div class="min-w-0 flex-1">
+        <p class="text-sm font-bold">${titulo}</p>
+        <p class="mt-1 text-sm leading-relaxed opacity-90">${texto}</p>
+        ${accion}
+      </div>
+    </div>`;
+};
+
+/**
+ * Un recado para la pantalla siguiente.
+ *
+ * Hace falta porque los avisos que importan nacen en una pantalla y se leen en
+ * otra: se guarda un cliente en el formulario y quien tiene que decir "guardado"
+ * es el listado al que se vuelve. Se recoge una sola vez, para que no reaparezca
+ * cada vez que se pasa por ahí.
+ */
+let recadoPendiente = null;
+const dejarRecado = (recado) => { recadoPendiente = recado; };
+const recogerRecado = () => {
+  const r = recadoPendiente;
+  recadoPendiente = null;
+  return r;
+};
+
+/** Tabla con cabecera fija de estilo. `columnas` lleva {texto, der} por columna. */
+const tabla = (columnas, filas) => html`
+  <div class="overflow-x-auto">
+    <table class="w-full text-sm">
+      <thead>
+        <tr class="border-b border-papel-linea">
+          ${columnas.map((c) => crudo(
+            `<th class="px-5 py-3 text-[11px] font-bold uppercase tracking-wide text-tinta-suave ` +
+            `${c.der ? 'text-right' : 'text-left'} ${c.clases ?? ''}">${esc(c.texto)}</th>`))}
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-papel-linea">${filas}</tbody>
+    </table>
+  </div>`;
+
+/** Barra de progreso simple, para las gráficas de barras del resumen. */
+const barra = (proporcion, clase = 'bg-verde') => crudo(
+  `<div class="w-full h-full rounded-t-md ${esc(clase)}" style="height:${
+    Math.max(2, Math.round(proporcion * 100))}%"></div>`);
+
+
+  return { esc, crudo, html, dinero, usd, fecha, fechaLarga, fechaHora, claveLegible, icono, ESTADOS, chipEstado, cabecera, boton, vacio, dato, aviso, dejarRecado, recogerRecado, tabla, barra };
+})();
+
+// ---- src/sesion.js -----------------------------------------------
+const __src_sesion_js = (function () {
+
+
+/**
+ * Quién está usando la aplicación ahora mismo.
+ *
+ * HOY esto es una demostración: se elige el papel desde la pantalla de entrada
+ * y se guarda en el navegador. No hay contraseña que valga ni comprobación de
+ * ninguna clase, y no debe haberla en este archivo nunca.
+ *
+ * MAÑANA quien conteste estas preguntas será Supabase. Y aquí está la parte que
+ * importa entender: **el papel del usuario no lo decide la pantalla**. La
+ * pantalla solo dibuja lo que corresponde; quien de verdad impide que un
+ * facturador vea la configuración, o que el super administrador lea los
+ * comprobantes de una empresa, son las políticas de la base de datos
+ * (migración 0004). Esconder un botón no es seguridad: es cortesía. Si la
+ * única defensa fuera este archivo, bastaría con abrir la consola del
+ * navegador para saltársela.
+ */
+
+const CLAVE = 'kontia.sesion';
+
+const PAPELES = {
+  administrador: {
+    nombre: 'Juan Carlos Pérez', iniciales: 'JP', rol: 'Administrador',
+    correo: 'jperez@agroperez.com.ec', admin: false,
+    empresa: 'Agroquímicos Pérez S.A.', ruc: '0912345678001', ambiente: 'PRUEBAS',
+  },
+  facturador: {
+    nombre: 'María Elena Vaca', iniciales: 'MV', rol: 'Facturador',
+    correo: 'mvaca@agroperez.com.ec', admin: false,
+    empresa: 'Agroquímicos Pérez S.A.', ruc: '0912345678001', ambiente: 'PRUEBAS',
+  },
+  super: {
+    nombre: 'Gustavo Cajamarca', iniciales: 'GC', rol: 'Super administrador',
+    correo: 'gustavo@kontia.ec', admin: true,
+    empresa: 'Plataforma Kontia', ruc: '—', ambiente: '—',
+  },
+};
+
+/**
+ * La sesión se recuerda en dos sitios, y el segundo no es un lujo.
+ *
+ * El almacenamiento del navegador no siempre está disponible: un archivo
+ * abierto con doble clic, una ventana de incógnito o un navegador con la
+ * privacidad apretada lo bloquean y lanzan un error. Cuando eso pasaba, entrar
+ * dejaba de funcionar: se pulsaba el papel y no ocurría nada, sin ningún aviso.
+ *
+ * Así que el papel se guarda SIEMPRE en memoria —eso funciona en todas
+ * partes— y además en el navegador cuando se puede, que es lo único que añade
+ * el sobrevivir a una recarga.
+ */
+let enMemoria = null;
+
+function leer() {
+  if (enMemoria) return enMemoria;
+  try {
+    const guardado = localStorage.getItem(CLAVE);
+    if (guardado && PAPELES[guardado]) {
+      enMemoria = guardado;
+      return guardado;
+    }
+  } catch { /* sin almacenamiento: queda la memoria, que basta para trabajar */ }
+  return null;
+}
+
+const sesion = {
+  papeles: PAPELES,
+  activa: () => leer() !== null,
+  esSuperAdmin: () => leer() === 'super',
+  usuario: () => PAPELES[leer() ?? 'administrador'],
+  entrar(papel) {
+    if (!PAPELES[papel]) throw new Error(`Papel desconocido: ${papel}`);
+    enMemoria = papel;
+    try { localStorage.setItem(CLAVE, papel); } catch { /* se perderá al recargar, nada más */ }
+  },
+  salir() {
+    enMemoria = null;
+    try { localStorage.removeItem(CLAVE); } catch { /* nada que limpiar */ }
+  },
+};
+
+
+  return { sesion };
+})();
+
+// ---- src/almacen.js ----------------------------------------------
+const __src_almacen_js = (function () {
+  const { SEMILLA, totalizar, TARIFAS_IVA, TIPOS_IDENTIFICACION } = __src_datos_js;
+
+/**
+ * El almacén: lo único que sabe dónde están los datos y cómo se guardan.
+ *
+ * Las pantallas le piden cosas y nunca hablan con el origen directamente. Hoy
+ * ese origen es el navegador —los datos de ejemplo, más lo que usted cree,
+ * guardado en su propio equipo—. Mañana será Supabase, y el cambio será este
+ * archivo y ninguno más.
+ *
+ * TRES REGLAS QUE NO SON DE ESTILO:
+ *
+ * 1. Todo devuelve promesas aunque hoy la respuesta sea inmediata. Si las
+ *    pantallas supusieran que el dato ya está, habría que reescribirlas todas
+ *    el día que haya que esperar a la red.
+ *
+ * 2. Lo que se guarda se comprueba ANTES de guardarlo, y el error dice qué
+ *    hacer. Un RUC de doce dígitos tiene que fallar aquí, no tres pasos después
+ *    cuando el SRI devuelva el comprobante sin explicar por qué.
+ *
+ * 3. Un comprobante que ya salió de BORRADOR no se modifica. Lo impone la base
+ *    de datos (migración 0007) y se repite aquí para que la pantalla no ofrezca
+ *    algo que el servidor va a rechazar.
+ */
+
+
+
+const CLAVE = 'kontia.datos.v1';
+const esperar = (valor) => Promise.resolve(valor);
+
+// Campos que llevan fecha. Hacen falta enumerados porque JSON no distingue una
+// fecha de un texto: sin esta lista, al recargar la página las fechas vuelven
+// como cadenas y cualquier resta entre ellas da NaN.
+const FECHAS = new Set([
+  'fecha', 'fechaAutorizacion', 'alta', 'cuando', 'desde', 'hasta', 'certificadoVence',
+]);
+
+function reviir(clave, valor) {
+  if (FECHAS.has(clave) && typeof valor === 'string') return new Date(valor);
+  return valor;
+}
+
+// ===========================================================================
+//  Carga y persistencia
+// ===========================================================================
+
+const copiaDeLaSemilla = () => ({
+  clientes: SEMILLA.clientes.map((c) => ({ ...c, semilla: true })),
+  productos: SEMILLA.productos.map((p) => ({ ...p, semilla: true })),
+  comprobantes: SEMILLA.comprobantes.map((c) => ({ ...c, semilla: true })),
+  puntos: SEMILLA.puntos.map((p) => ({ ...p })),
+});
+
+function leer() {
+  try {
+    const guardado = localStorage.getItem(CLAVE);
+    if (guardado) return JSON.parse(guardado, reviir);
+  } catch {
+    // Navegador sin almacenamiento, o datos de una versión anterior que ya no
+    // encajan. En los dos casos se empieza de cero: perder unos datos de
+    // ejemplo no es grave, quedarse con la pantalla en blanco sí.
+  }
+  return copiaDeLaSemilla();
+}
+
+let datos = leer();
+
+function persistir() {
+  try {
+    localStorage.setItem(CLAVE, JSON.stringify(datos));
+  } catch {
+    // Sin almacenamiento se sigue trabajando en memoria: lo que haga se verá
+    // hasta que recargue. Es mejor que negarle el uso de la aplicación.
+  }
+  window.dispatchEvent(new CustomEvent('kontia:datos-cambiaron'));
+}
+
+/** Vuelve a los datos de ejemplo. Para poder enseñar la aplicación limpia. */
+function reiniciar() {
+  datos = copiaDeLaSemilla();
+  persistir();
+}
+
+// ===========================================================================
+//  Comprobaciones
+// ===========================================================================
+
+/**
+ * El dígito verificador de una cédula o un RUC ecuatoriano.
+ *
+ * No es una formalidad: el SRI lo comprueba y devuelve el comprobante si no
+ * cuadra. Vale la pena hacerlo aquí, mientras la persona todavía tiene el
+ * documento delante y puede mirarlo otra vez.
+ */
+function cedulaValida(id) {
+  if (!/^[0-9]{10}$/.test(id)) return false;
+  const provincia = Number(id.slice(0, 2));
+  if (provincia < 1 || (provincia > 24 && provincia !== 30)) return false;
+  let suma = 0;
+  for (let i = 0; i < 9; i++) {
+    let n = Number(id[i]) * (i % 2 === 0 ? 2 : 1);
+    if (n > 9) n -= 9;
+    suma += n;
+  }
+  const verificador = (10 - (suma % 10)) % 10;
+  return verificador === Number(id[9]);
+}
+
+function rucValido(ruc) {
+  if (!/^[0-9]{13}$/.test(ruc)) return false;
+  if (!ruc.endsWith('001')) return false;
+  const tercero = Number(ruc[2]);
+  // Persona natural: los diez primeros dígitos son una cédula válida.
+  if (tercero < 6) return cedulaValida(ruc.slice(0, 10));
+  // Sociedad privada (9) o pública (6): el dígito verificador va en otra
+  // posición y con otros coeficientes. Aquí se comprueba la estructura, que es
+  // lo que evita los errores de tecleo; del resto se encarga el SRI.
+  return tercero === 6 || tercero === 9;
+}
+
+const fallo = (mensaje) => { throw new Error(mensaje); };
+
+function comprobarCliente(c) {
+  const identificacion = String(c.identificacion ?? '').trim();
+  const razonSocial = String(c.razonSocial ?? '').trim();
+
+  if (razonSocial.length < 3) {
+    fallo('La razón social tiene que tener al menos tres letras.');
+  }
+  if (!TIPOS_IDENTIFICACION[c.tipo]) {
+    fallo(`"${c.tipo}" no es un tipo de identificación válido.`);
+  }
+  if (c.tipo === 'RUC' && !rucValido(identificacion)) {
+    fallo('Ese RUC no es válido. Son trece dígitos y terminan en 001 para la ' +
+          'matriz. Revise que no se haya saltado ninguno.');
+  }
+  if (c.tipo === 'CEDULA' && !cedulaValida(identificacion)) {
+    fallo('Esa cédula no es válida: el último dígito no cuadra con los otros ' +
+          'nueve. Suele ser un número cambiado de sitio.');
+  }
+  if (c.tipo === 'CONSUMIDOR_FINAL' && identificacion !== '9999999999999') {
+    fallo('El consumidor final se identifica siempre con trece nueves.');
+  }
+  if (c.correo && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(c.correo)) {
+    fallo('Ese correo no tiene forma de correo. Es a donde llegará la factura.');
+  }
+
+  const repetido = datos.clientes.find(
+    (x) => x.identificacion === identificacion && x.id !== c.id);
+  if (repetido) {
+    fallo(`Ya existe un cliente con esa identificación: ${repetido.razonSocial}. ` +
+          'Dos fichas del mismo cliente acaban con dos correos distintos.');
+  }
+  return { identificacion, razonSocial };
+}
+
+function comprobarProducto(p) {
+  const codigo = String(p.codigo ?? '').trim();
+  const descripcion = String(p.descripcion ?? '').trim();
+
+  if (!codigo) fallo('El producto necesita un código. Es lo que viaja en el XML.');
+  if (descripcion.length < 2) fallo('La descripción no puede quedar vacía.');
+  if (!(Number(p.precio) >= 0)) fallo('El precio tiene que ser un número de cero para arriba.');
+  if (!TARIFAS_IVA.some((t) => t.tarifa === Number(p.iva))) {
+    fallo(`${p.iva}% no es una tarifa de IVA vigente.`);
+  }
+
+  const repetido = datos.productos.find(
+    (x) => x.codigo === codigo && x.codigoOriginal !== p.codigoOriginal);
+  if (repetido && codigo !== p.codigoOriginal) {
+    fallo(`Ya hay un producto con el código ${codigo}: ${repetido.descripcion}.`);
+  }
+  return { codigo, descripcion };
+}
+
+// ===========================================================================
+//  Lectura
+// ===========================================================================
+
+const activos = (lista) => lista.filter((x) => x.activo !== false);
+
+const cargar = {
+  empresa: () => esperar(SEMILLA.empresa),
+  certificado: () => esperar(SEMILLA.certificado),
+  usuarios: () => esperar(SEMILLA.usuarios),
+  puntos: () => esperar(datos.puntos),
+
+  clientes: () => esperar(activos(datos.clientes)),
+  cliente: (id) => esperar(datos.clientes.find((c) => c.id === id) ?? null),
+
+  productos: () => esperar(activos(datos.productos)),
+  producto: (codigo) => esperar(datos.productos.find((p) => p.codigo === codigo) ?? null),
+
+  comprobantes: (filtro = {}) => esperar(
+    datos.comprobantes
+      .filter((c) => !filtro.estado || c.estado === filtro.estado)
+      .slice()
+      .sort((a, b) => new Date(b.fecha) - new Date(a.fecha))),
+  comprobante: (numero) => esperar(datos.comprobantes.find((c) => c.numero === numero) ?? null),
+
+  /**
+   * Las cifras del tablero.
+   *
+   * Las de la semilla son el mes en curso completo —ciento cuarenta y ocho
+   * comprobantes—, del que la lista solo enseña los últimos. Lo que usted emita
+   * se suma encima, para que el tablero reaccione a lo que hace en lugar de
+   * quedarse en una foto.
+   */
+  resumen: () => {
+    const base = SEMILLA.resumen;
+    const nuevos = datos.comprobantes.filter((c) => !c.semilla);
+    const cuenta = (estado) => nuevos.filter((c) => c.estado === estado).length;
+    // Las bases se suman por separado y de ellas sale todo lo demás. Si el
+    // titular dijera una cosa y el pie otra —ventas del mes que no salen de la
+    // suma de sus bases— el tablero se contradiría a sí mismo, y a partir de
+    // ahí ninguna cifra merece crédito.
+    const emitidos = nuevos.filter((c) => c.estado === 'AUTORIZADO');
+    const base15 = base.base15 + emitidos.reduce((a, c) => a + c.totales.base15, 0);
+    const base0 = base.base0 + emitidos.reduce((a, c) => a + c.totales.base0, 0);
+    const centavos = (n) => Math.round(n * 100);
+
+    return esperar({
+      ...base,
+      autorizados: base.autorizados + cuenta('AUTORIZADO'),
+      pendientes: base.pendientes + cuenta('ENVIADO') + cuenta('RECIBIDO'),
+      devueltos: base.devueltos + cuenta('DEVUELTO'),
+      borradores: cuenta('BORRADOR'),
+      emitidosAqui: nuevos.length,
+      comprobantesDelMes: base.comprobantesDelMes + nuevos.filter((c) => c.estado !== 'BORRADOR').length,
+      base15, base0,
+      ventasDelMes: (centavos(base15) + centavos(base0)) / 100,
+      ivaGenerado: Math.round(centavos(base15) * 0.15) / 100,
+      promedioMensual: base.promedioMensual,
+    });
+  },
+
+  empresasAdmin: () => esperar(SEMILLA.empresasAdmin),
+  empresaAdmin: (id) => esperar(SEMILLA.empresasAdmin.find((e) => e.id === id) ?? null),
+  auditoria: () => esperar(SEMILLA.auditoria),
+};
+
+// ===========================================================================
+//  Escritura
+// ===========================================================================
+
+const nuevoId = () => 'x' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+
+/**
+ * El siguiente número libre de un punto de emisión.
+ *
+ * No basta con sumar uno al contador del punto: el contador dice cuál fue el
+ * último EMITIDO, y puede haber borradores con número reservado por encima. Si
+ * solo se mirara el contador, la siguiente factura nacería con un número que ya
+ * estaba usado — que es justo lo que pasaba con la 001-001-000000149 de los
+ * datos de ejemplo, donde el contador decía 148 y el borrador ya era el 149.
+ *
+ * Así que se mira lo que hay de verdad, que es lo que hace también la base de
+ * datos con su restricción de unicidad.
+ */
+function siguienteSecuencial(punto) {
+  const usados = datos.comprobantes
+    .filter((c) => c.numero?.startsWith(punto.codigo + '-'))
+    .map((c) => Number(c.numero.split('-')[2]))
+    .filter(Number.isFinite);
+  return Math.max(punto.ultimo, ...usados, 0) + 1;
+}
+
+const guardar = {
+  /** Crea o actualiza un cliente. Devuelve el cliente tal como quedó. */
+  cliente(entrada) {
+    const { identificacion, razonSocial } = comprobarCliente(entrada);
+    const existente = datos.clientes.find((c) => c.id === entrada.id);
+
+    const cliente = {
+      ...(existente ?? {}),
+      id: existente?.id ?? nuevoId(),
+      tipo: entrada.tipo,
+      identificacion,
+      razonSocial,
+      ciudad: String(entrada.ciudad ?? '').trim(),
+      correo: String(entrada.correo ?? '').trim(),
+      telefono: String(entrada.telefono ?? '').trim(),
+      direccion: String(entrada.direccion ?? '').trim(),
+      activo: true,
+      comprobantes: existente?.comprobantes ?? 0,
+      facturado: existente?.facturado ?? 0,
+    };
+
+    if (existente) datos.clientes[datos.clientes.indexOf(existente)] = cliente;
+    else datos.clientes.unshift(cliente);
+
+    persistir();
+    return esperar(cliente);
+  },
+
+  /** Crea o actualiza un producto. `codigoOriginal` identifica al que se edita. */
+  producto(entrada) {
+    const { codigo, descripcion } = comprobarProducto(entrada);
+    const existente = datos.productos.find((p) => p.codigo === entrada.codigoOriginal);
+
+    const producto = {
+      ...(existente ?? {}),
+      codigo,
+      descripcion,
+      unidad: String(entrada.unidad ?? '').trim() || 'UNIDAD',
+      tipo: entrada.tipo === 'Servicio' ? 'Servicio' : 'Bien',
+      precio: Number(entrada.precio),
+      iva: Number(entrada.iva),
+      activo: true,
+    };
+
+    if (existente) datos.productos[datos.productos.indexOf(existente)] = producto;
+    else datos.productos.unshift(producto);
+
+    persistir();
+    return esperar(producto);
+  },
+
+  /**
+   * Guarda una factura como borrador y le asigna su número.
+   *
+   * El número se reserva aquí, al crearla, y no al emitirla. Podría parecer que
+   * es mejor esperar —así no se gastan números en borradores que se tiran—,
+   * pero dos cajas facturando a la vez pedirían el mismo número. Se entrega de
+   * uno en uno y no se reutiliza: un hueco en la numeración se explica, un
+   * número repetido lo rechaza el SRI.
+   */
+  borrador(entrada) {
+    const cliente = datos.clientes.find((c) => c.id === entrada.clienteId);
+    if (!cliente) fallo('Hay que elegir a quién se le factura.');
+    if (!entrada.lineas?.length) fallo('Una factura sin líneas no se puede emitir.');
+
+    const punto = datos.puntos.find((p) => p.codigo === entrada.punto && p.activo)
+      ?? datos.puntos.find((p) => p.activo);
+    if (!punto) fallo('No hay ningún punto de emisión activo.');
+
+    const secuencial = siguienteSecuencial(punto);
+    punto.ultimo = secuencial;
+    const numeroNuevo = `${punto.codigo}-${String(secuencial).padStart(9, '0')}`;
+
+    // Cinturón y tirantes. La base de datos tiene una restricción de unicidad
+    // sobre (punto, tipo, secuencial) que rechazaría esto, y el SRI rechaza dos
+    // comprobantes con el mismo número. Vale más fallar aquí, con un mensaje
+    // que se entiende, que descubrirlo cuando el documento ya salió.
+    if (datos.comprobantes.some((c) => c.numero === numeroNuevo)) {
+      fallo(`Ya existe un comprobante ${numeroNuevo}. La numeración de un punto de ` +
+            'emisión no puede repetirse: el SRI lo rechaza.');
+    }
+
+    const comprobante = {
+      id: nuevoId(),
+      numero: numeroNuevo,
+      tipo: 'Factura',
+      estado: 'BORRADOR',
+      cliente,
+      fecha: new Date(),
+      fechaAutorizacion: null,
+      // La clave de acceso se asigna al firmar, porque va dentro de lo firmado.
+      // Un borrador todavía no tiene ninguna, y fabricar una aquí sería
+      // enseñar un número que después no coincidiría con el de verdad.
+      claveAcceso: null,
+      autorizacion: null,
+      formaPago: entrada.formaPago,
+      lineas: entrada.lineas.map((l) => ({ ...l })),
+      totales: totalizar(entrada.lineas),
+      simulado: false,
+    };
+
+    datos.comprobantes.unshift(comprobante);
+    persistir();
+    return esperar(comprobante);
+  },
+
+  /**
+   * La emisión simulada.
+   *
+   * Recorre los estados igual que el sistema de verdad, pero **sin firmar y sin
+   * hablar con el SRI**, porque ni el certificado ni la conexión están
+   * enchufados todavía. Por eso el comprobante queda marcado como simulado y lo
+   * dice en todas las pantallas donde aparece: un documento que parece
+   * autorizado sin estarlo es peor que no tener ninguno.
+   */
+  emitirSimulado(numero) {
+    const c = datos.comprobantes.find((x) => x.numero === numero);
+    if (!c) fallo(`No existe el comprobante ${numero}.`);
+    if (c.estado !== 'BORRADOR') {
+      fallo(`El comprobante ${numero} ya salió de borrador y no se puede volver a emitir. ` +
+            'Un comprobante emitido se corrige con una nota de crédito, no editándolo.');
+    }
+    c.estado = 'AUTORIZADO';
+    c.fechaAutorizacion = new Date();
+    c.simulado = true;
+    persistir();
+    return esperar(c);
+  },
+};
+
+
+  return { reiniciar, cargar, guardar };
+})();
+
+// ---- src/disposicion.js ------------------------------------------
+const __src_disposicion_js = (function () {
+  const { html, crudo, esc, icono } = __src_ui_js;
+  const { sesion } = __src_sesion_js;
+
+/**
+ * El armazón: barra lateral, cabecera y el hueco donde va cada pantalla.
+ *
+ * Hay DOS armazones distintos y no es un capricho de diseño:
+ *
+ *   - El de la empresa, verde, con facturación y catálogo.
+ *   - El del super administrador, oscuro, con empresas y suscripciones.
+ *
+ * Que se vean distintos es una salvaguarda. Quien administra la plataforma
+ * nunca debe dudar de en cuál de los dos mundos está mirando, porque las reglas
+ * de lo que puede ver no son las mismas. Un solo armazón con menús que cambian
+ * invita justo a esa confusión.
+ */
+
+
+
+
+const MENU_EMPRESA = [
+  { grupo: 'Menú principal', enlaces: [
+    { ico: 'dashboard', texto: 'Resumen', ruta: '#/resumen' },
+    { ico: 'receipt_long', texto: 'Facturación electrónica', ruta: '#/comprobantes' },
+    { ico: 'content_cut', texto: 'Retenciones', ruta: '#/retenciones' },
+    { ico: 'local_shipping', texto: 'Guías de remisión', ruta: '#/guias' },
+    { ico: 'assignment_return', texto: 'Notas de crédito', ruta: '#/notas-credito' },
+    { ico: 'storefront', texto: 'Puntos de emisión', ruta: '#/puntos-emision' },
+  ] },
+  { grupo: 'Gestión y catálogo', enlaces: [
+    { ico: 'group', texto: 'Clientes', ruta: '#/clientes' },
+    { ico: 'inventory_2', texto: 'Productos y servicios', ruta: '#/productos' },
+    { ico: 'bar_chart', texto: 'Reportes contables', ruta: '#/reportes' },
+  ] },
+  { grupo: 'Sistema', enlaces: [
+    { ico: 'settings', texto: 'Configuración', ruta: '#/configuracion' },
+    { ico: 'verified', texto: 'Certificado de firma', ruta: '#/certificado' },
+    { ico: 'manage_accounts', texto: 'Usuarios', ruta: '#/usuarios' },
+  ] },
+];
+
+const MENU_ADMIN = [
+  { grupo: 'Plataforma', enlaces: [
+    { ico: 'domain', texto: 'Empresas', ruta: '#/admin/empresas' },
+    { ico: 'receipt_long', texto: 'Suscripciones', ruta: '#/admin/suscripciones' },
+    { ico: 'speed', texto: 'Uso', ruta: '#/admin/uso' },
+  ] },
+  { grupo: 'Control', enlaces: [
+    { ico: 'support_agent', texto: 'Soporte', ruta: '#/admin/soporte' },
+    { ico: 'verified_user', texto: 'Auditoría', ruta: '#/admin/auditoria' },
+  ] },
+];
+
+const LOGO = `<svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+  stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 4v16M6 13.5l10-8.5M10 10.5l8 9.5"/></svg>`;
+
+function enlaces(menu, rutaActual, tema) {
+  return menu.map((seccion) => html`
+    <div class="mb-6">
+      <p class="px-3 mb-2 text-[10px] font-bold uppercase tracking-widest ${crudo(tema.grupo)}">
+        ${seccion.grupo}
+      </p>
+      <nav class="space-y-0.5">
+        ${seccion.enlaces.map((e) => {
+          const activo = rutaActual.startsWith(e.ruta);
+          return crudo(
+            `<a href="${esc(e.ruta)}" class="flex items-center gap-3 px-3 py-2.5 rounded-xl ` +
+            `text-sm font-medium transition ${activo ? tema.activo : tema.inactivo}">` +
+            `<span class="ms text-[20px]">${esc(e.ico)}</span>` +
+            `<span class="truncate">${esc(e.texto)}</span></a>`);
+        })}
+      </nav>
+    </div>`);
+}
+
+const TEMA_EMPRESA = {
+  aside: 'bg-white border-r border-papel-linea',
+  marca: 'bg-verde text-white',
+  grupo: 'text-tinta-suave/70',
+  activo: 'bg-verde-claro text-verde font-semibold',
+  inactivo: 'text-tinta-suave hover:bg-papel hover:text-tinta',
+};
+
+const TEMA_ADMIN = {
+  aside: 'bg-[#12211A] border-r border-white/10',
+  marca: 'bg-white/10 text-white border border-white/20',
+  grupo: 'text-white/40',
+  activo: 'bg-white/10 text-white font-semibold',
+  inactivo: 'text-white/60 hover:bg-white/5 hover:text-white',
+};
+
+/**
+ * Dibuja la pantalla completa.
+ *
+ * @param {string} contenido  el HTML de la vista, ya construido
+ * @param {object} opciones   ruta actual y si es el mundo del super admin
+ */
+function marco(contenido, { ruta = '', admin = false } = {}) {
+  const tema = admin ? TEMA_ADMIN : TEMA_EMPRESA;
+  const menu = admin ? MENU_ADMIN : MENU_EMPRESA;
+  const u = sesion.usuario();
+
+  const pie = admin ? html`
+    <div class="mx-3 p-3 rounded-xl bg-white/5 border border-white/10">
+      <p class="text-[11px] font-bold text-white/90">Usted no ve los datos de las empresas</p>
+      <p class="mt-1 text-[11px] leading-relaxed text-white/50">
+        Administra el servicio: planes, estados y consumo. Para entrar a los datos de
+        una empresa hace falta que ella lo autorice.
+      </p>
+    </div>` : html`
+    <div class="mx-3 p-3 rounded-xl bg-verde-claro border border-verde-medio">
+      <div class="flex items-center gap-2 text-verde">
+        ${icono('gavel', 'text-[18px]')}
+        <p class="text-[11px] font-bold">Consulta legal-tributaria</p>
+      </div>
+      <p class="mt-1.5 text-[11px] leading-relaxed text-verde/80">
+        ¿Dudas sobre una glosa o un trámite? Hable con un abogado.
+      </p>
+      <a href="#/consulta" class="mt-2.5 inline-flex items-center gap-1 text-[11px] font-bold text-verde hover:underline">
+        Consultar ${icono('arrow_forward', 'text-[14px]')}
+      </a>
+    </div>`;
+
+  return html`
+    <div class="flex min-h-screen">
+      <aside class="hidden lg:flex w-[268px] shrink-0 flex-col ${crudo(tema.aside)}">
+        <div class="p-5 flex items-center gap-3">
+          <div class="w-10 h-10 rounded-xl flex items-center justify-center ${crudo(tema.marca)}">
+            ${crudo(LOGO)}
+          </div>
+          <div class="min-w-0">
+            <p class="text-lg font-extrabold tracking-tight ${crudo(admin ? 'text-white' : 'text-tinta')}">Kontia</p>
+            <p class="text-[10px] font-bold uppercase tracking-widest ${crudo(admin ? 'text-white/40' : 'text-tinta-suave/70')}">
+              ${admin ? 'Super admin' : 'SRI Ecuador'}
+            </p>
+          </div>
+        </div>
+        <div class="flex-1 overflow-y-auto px-2 pt-3">${enlaces(menu, ruta, tema)}</div>
+        <div class="py-4">${pie}</div>
+      </aside>
+
+      <div class="flex-1 min-w-0 flex flex-col">
+        <header class="sticky top-0 z-20 bg-papel/85 backdrop-blur border-b border-papel-linea">
+          <div class="px-5 sm:px-8 h-16 flex items-center justify-between gap-4">
+            <div class="flex items-center gap-3 min-w-0">
+              <a href="#/menu" class="lg:hidden w-9 h-9 rounded-lg border border-papel-linea bg-white flex items-center justify-center">
+                ${icono('menu', 'text-[20px]')}
+              </a>
+              <div class="min-w-0">
+                <p class="text-sm font-bold truncate">${admin ? 'Plataforma Kontia' : u.empresa}</p>
+                <p class="text-[11px] text-tinta-suave truncate">
+                  ${admin ? 'Administración del servicio' : crudo(`RUC ${esc(u.ruc)} · Ambiente ${esc(u.ambiente)}`)}
+                </p>
+              </div>
+            </div>
+            <div class="flex items-center gap-3">
+              ${!admin && u.ambiente === 'PRUEBAS' ? crudo(
+                '<span class="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full ' +
+                'text-[11px] font-bold bg-ambar-fondo text-ambar-texto border border-ambar-borde">' +
+                '<span class="ms text-[14px]">science</span>Ambiente de pruebas</span>') : ''}
+              <div class="flex items-center gap-2.5">
+                <div class="w-9 h-9 rounded-full bg-verde-claro text-verde flex items-center justify-center text-xs font-bold">
+                  ${u.iniciales}
+                </div>
+                <div class="hidden sm:block leading-tight">
+                  <p class="text-xs font-bold">${u.nombre}</p>
+                  <p class="text-[11px] text-tinta-suave">${u.rol}</p>
+                </div>
+              </div>
+              <a href="#/salir" title="Cerrar sesión"
+                 class="w-9 h-9 rounded-lg border border-papel-linea bg-white flex items-center justify-center text-tinta-suave hover:text-rojo hover:border-rojo-borde transition">
+                ${icono('logout', 'text-[18px]')}
+              </a>
+            </div>
+          </div>
+        </header>
+        <main class="flex-1 px-5 sm:px-8 py-7 max-w-[1400px] w-full">${crudo(contenido)}</main>
+      </div>
+    </div>`;
+}
+
+/** Pantalla suelta, sin armazón: el inicio de sesión y la selección de empresa. */
+const suelta = (contenido) => html`<div class="min-h-screen">${crudo(contenido)}</div>`;
+
+
+  return { MENU_EMPRESA, MENU_ADMIN, marco, suelta };
+})();
+
+// ---- src/vistas/pendiente.js -------------------------------------
+const __src_vistas_pendiente_js = (function () {
+  const { html, icono, boton } = __src_ui_js;
+
+/**
+ * La pantalla de lo que todavía no está hecho.
+ *
+ * Existe porque la alternativa es peor. Un menú con enlaces que no llevan a
+ * ninguna parte hace dudar de si la aplicación está rota; una pantalla de
+ * mentira, con datos de adorno y botones que no hacen nada, hace creer que algo
+ * está terminado cuando no lo está, y eso se paga más tarde y más caro.
+ *
+ * Así que dice lo que va a haber ahí y por qué todavía no está.
+ */
+
+
+
+function pendiente({ titulo, ico, texto }) {
+  return html`
+    <div class="flex items-center justify-center min-h-[60vh]">
+      <div class="max-w-lg text-center">
+        <div class="w-16 h-16 mx-auto rounded-2xl bg-white border border-papel-linea flex items-center justify-center mb-5">
+          ${icono(ico, 'text-[30px] text-tinta-suave')}
+        </div>
+        <span class="inline-block text-[10px] font-bold uppercase tracking-widest px-2.5 py-1 rounded-full bg-papel-linea text-tinta-suave mb-3">
+          Todavía no está hecha
+        </span>
+        <h1 class="text-xl font-bold tracking-tight">${titulo}</h1>
+        <p class="mt-3 text-sm text-tinta-suave leading-relaxed">${texto}</p>
+        <div class="mt-6 flex justify-center gap-2">
+          ${boton('Volver al resumen', { ruta: '#/resumen', tipo: 'secundario' })}
+        </div>
+      </div>
+    </div>`;
+}
+
+
+  return { pendiente };
+})();
+
+// ---- src/vistas/acceso.js ----------------------------------------
+const __src_vistas_acceso_js = (function () {
+  const { html, crudo, icono } = __src_ui_js;
+  const { sesion } = __src_sesion_js;
+  const { EMPRESAS_ADMIN } = __src_datos_js;
+
+/**
+ * Entrar en Kontia, y elegir con qué empresa se trabaja.
+ *
+ * La pantalla de entrada de esta demostración no pide contraseña: ofrece los
+ * tres papeles para poder verlos. La de verdad la resuelve Supabase, y ni el
+ * correo ni la clave pasan nunca por este archivo.
+ */
+
+
+
+
+
+const LOGO_BLANCO = `<svg class="w-6 h-6 text-white" viewBox="0 0 24 24" fill="none"
+  stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
+  <path d="M6 4v16M6 13.5l10-8.5M10 10.5l8 9.5"/></svg>`;
+
+const PAPELES_DEMO = [
+  { id: 'administrador', ico: 'admin_panel_settings', nombre: 'Juan Carlos Pérez',
+    rol: 'Administrador de la empresa',
+    que: 'Ve todo lo de Agroquímicos Pérez: factura, configura y crea usuarios.' },
+  { id: 'facturador', ico: 'point_of_sale', nombre: 'María Elena Vaca',
+    rol: 'Facturadora',
+    que: 'Emite facturas desde su punto de emisión. No toca la configuración.' },
+  { id: 'super', ico: 'shield_person', nombre: 'Gustavo Cajamarca',
+    rol: 'Super administrador de la plataforma',
+    que: 'Administra el servicio de todas las empresas y no ve los datos de ninguna.' },
+];
+
+async function entrar() {
+  return html`
+  <main class="min-h-screen flex flex-col lg:flex-row">
+
+    <section class="relative lg:w-1/2 bg-verde text-white flex flex-col justify-between p-8 sm:p-12 lg:p-16 overflow-hidden">
+      <div class="pointer-events-none absolute -top-48 -left-48 w-96 h-96 rounded-full bg-white/5 blur-3xl"></div>
+      <div class="pointer-events-none absolute -bottom-32 -right-32 w-80 h-80 rounded-full bg-emerald-400/10 blur-3xl"></div>
+
+      <header class="relative z-10 flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-white/15 border border-white/20 flex items-center justify-center">
+          ${crudo(LOGO_BLANCO)}
+        </div>
+        <span class="text-2xl font-extrabold tracking-tight">Kontia</span>
+        <span class="ml-1 text-[10px] font-bold tracking-widest uppercase px-2 py-0.5 rounded-full bg-white/15 border border-white/20">
+          SRI Ecuador
+        </span>
+      </header>
+
+      <div class="relative z-10 my-12 lg:my-auto max-w-lg">
+        <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 border border-white/10 text-emerald-100 text-xs font-medium mb-6">
+          <span class="w-2 h-2 rounded-full bg-emerald-300"></span>
+          Facturación electrónica · ficha técnica 2.34
+        </div>
+        <h1 class="text-3xl sm:text-4xl lg:text-[42px] font-semibold leading-[1.15] tracking-tight">
+          Tu facturación electrónica, en orden
+        </h1>
+        <p class="mt-5 text-base sm:text-lg text-emerald-100/90 leading-relaxed">
+          Software contable con respaldo legal para empresas de Daule, Nobol y Samborondón.
+        </p>
+        <div class="mt-8 pt-8 border-t border-white/15 grid grid-cols-2 gap-4 text-xs text-emerald-100/80">
+          ${['Firma electrónica .p12', 'IVA 15% y retenciones', 'Los seis comprobantes', 'Asesoría legal incluida']
+            .map((t) => html`
+              <div class="flex items-center gap-2">
+                ${icono('check_circle', 'text-[16px] text-emerald-300')}
+                <span>${t}</span>
+              </div>`)}
+        </div>
+      </div>
+
+      <footer class="relative z-10 text-[11px] text-emerald-100/60">
+        Kontia es un nombre de trabajo. Pendiente de verificación en SCVS y SENADI.
+      </footer>
+    </section>
+
+    <section class="lg:w-1/2 flex items-center justify-center p-6 sm:p-10 lg:p-16 bg-white">
+      <div class="w-full max-w-md">
+        <h2 class="text-2xl font-bold tracking-tight">Iniciar sesión</h2>
+        <p class="mt-2 text-sm text-tinta-suave">
+          Entre con el correo con el que le dieron de alta.
+        </p>
+
+        <form class="mt-8 space-y-4" onsubmit="return false">
+          <label class="block">
+            <span class="text-xs font-bold uppercase tracking-wide text-tinta-suave">Correo</span>
+            <input type="email" placeholder="usted@suempresa.com.ec" disabled
+                   class="mt-1.5 w-full px-4 py-3 rounded-xl border border-papel-linea bg-papel text-sm
+                          placeholder:text-tinta-suave/50 disabled:cursor-not-allowed">
+          </label>
+          <label class="block">
+            <span class="text-xs font-bold uppercase tracking-wide text-tinta-suave">Contraseña</span>
+            <input type="password" placeholder="••••••••" disabled
+                   class="mt-1.5 w-full px-4 py-3 rounded-xl border border-papel-linea bg-papel text-sm
+                          placeholder:text-tinta-suave/50 disabled:cursor-not-allowed">
+          </label>
+          <button disabled class="w-full py-3 rounded-xl bg-papel-linea text-tinta-suave text-sm font-bold cursor-not-allowed">
+            Entrar
+          </button>
+        </form>
+
+        <div class="mt-8 flex items-center gap-3">
+          <span class="h-px flex-1 bg-papel-linea"></span>
+          <span class="text-[11px] font-bold uppercase tracking-widest text-tinta-suave">Demostración</span>
+          <span class="h-px flex-1 bg-papel-linea"></span>
+        </div>
+
+        <p class="mt-4 text-sm text-tinta-suave leading-relaxed">
+          Todavía no hay usuarios de verdad: la base de datos existe pero la aplicación no
+          está conectada. Elija un papel para ver el sistema desde sus ojos.
+        </p>
+
+        <div class="mt-4 space-y-2.5">
+          ${PAPELES_DEMO.map((p) => html`
+            <button data-papel="${p.id}"
+                    class="w-full text-left flex items-start gap-3 p-4 rounded-xl border border-papel-linea
+                           hover:border-verde hover:bg-verde-claro/40 transition">
+              <span class="w-10 h-10 shrink-0 rounded-xl bg-verde-claro text-verde flex items-center justify-center">
+                ${icono(p.ico, 'text-[20px]')}
+              </span>
+              <span class="min-w-0">
+                <span class="block text-sm font-bold">${p.nombre}</span>
+                <span class="block text-[11px] font-semibold text-verde">${p.rol}</span>
+                <span class="block mt-1 text-[11px] text-tinta-suave leading-relaxed">${p.que}</span>
+              </span>
+            </button>`)}
+        </div>
+      </div>
+    </section>
+  </main>`;
+}
+
+/**
+ * Elegir empresa.
+ *
+ * Un usuario puede trabajar para más de una —una contadora que lleva tres
+ * negocios— y lo que se elija aquí decide qué datos se ven después. Por eso es
+ * una pantalla propia y no un desplegable escondido en una esquina: cambiar de
+ * empresa sin darse cuenta es emitir una factura desde el RUC equivocado.
+ */
+async function seleccionEmpresa() {
+  const mias = EMPRESAS_ADMIN.slice(0, 2);
+  return html`
+  <div class="min-h-screen flex items-center justify-center p-6 bg-papel">
+    <div class="w-full max-w-2xl">
+      <div class="flex items-center gap-3 mb-8">
+        <div class="w-10 h-10 rounded-xl bg-verde flex items-center justify-center">${crudo(LOGO_BLANCO)}</div>
+        <span class="text-2xl font-extrabold tracking-tight">Kontia</span>
+      </div>
+
+      <h1 class="text-2xl font-bold tracking-tight">¿Con qué empresa va a trabajar?</h1>
+      <p class="mt-2 text-sm text-tinta-suave max-w-lg">
+        Todo lo que haga a partir de aquí —facturas, clientes, configuración— pertenece a
+        la empresa que elija. Puede cambiarla cuando quiera.
+      </p>
+
+      <div class="mt-7 space-y-3">
+        ${mias.map((e) => html`
+          <a href="#/resumen" class="flex items-center gap-4 p-5 bg-white border border-papel-linea rounded-2xl
+                                     hover:border-verde hover:shadow-sm transition">
+            <span class="w-12 h-12 shrink-0 rounded-xl bg-verde-claro text-verde flex items-center justify-center text-sm font-extrabold">
+              ${e.razonSocial.slice(0, 2).toUpperCase()}
+            </span>
+            <span class="min-w-0 flex-1">
+              <span class="block text-sm font-bold truncate">${e.razonSocial}</span>
+              <span class="block text-xs text-tinta-suave">RUC ${e.ruc} · ${e.ciudad}</span>
+            </span>
+            <span class="hidden sm:block text-[11px] font-bold px-2.5 py-1 rounded-full bg-papel text-tinta-suave">
+              ${e.plan}
+            </span>
+            ${icono('arrow_forward', 'text-[20px] text-tinta-suave')}
+          </a>`)}
+      </div>
+
+      <p class="mt-6 text-xs text-tinta-suave">
+        Trabajando como ${sesion.usuario().nombre} · ${sesion.usuario().correo}
+      </p>
+    </div>
+  </div>`;
+}
+
+/**
+ * Entrar al pulsar uno de los papeles.
+ *
+ * Se escucha en el documento y no en cada botón porque las pantallas se
+ * redibujan enteras: un escuchador puesto sobre un botón concreto se pierde en
+ * el primer redibujado, y el botón deja de responder sin dar ninguna señal.
+ */
+document.addEventListener('click', (ev) => {
+  const boton = ev.target.closest('[data-papel]');
+  if (!boton) return;
+  sesion.entrar(boton.dataset.papel);
+  location.hash = sesion.esSuperAdmin() ? '#/admin/empresas' : '#/empresas';
+});
+
+
+  return { entrar, seleccionEmpresa };
+})();
+
+// ---- src/vistas/resumen.js ---------------------------------------
+const __src_vistas_resumen_js = (function () {
+  const { html, crudo, usd, dinero, icono, chipEstado, fechaHora, aviso } = __src_ui_js;
+  const { cargar } = __src_almacen_js;
+
+/**
+ * El tablero de la empresa: lo primero que se ve al entrar.
+ *
+ * Un tablero contable no está para lucir. Está para contestar en cinco segundos
+ * tres preguntas: ¿se está facturando?, ¿hay algo atascado?, ¿va a dejar de
+ * funcionar algo pronto? Todo lo que no conteste una de las tres sobra.
+ */
+
+
+
+
+const tarjetaCifra = ({ ico, etiqueta, valor, pie, tono = 'verde' }) => {
+  const tonos = {
+    verde: 'bg-verde-claro text-verde',
+    ambar: 'bg-ambar-fondo text-ambar-texto',
+    rojo: 'bg-rojo-fondo text-rojo-texto',
+  };
+  return html`
+    <div class="bg-white border border-papel-linea rounded-2xl p-5">
+      <div class="flex items-start justify-between">
+        <p class="text-[11px] font-bold uppercase tracking-wide text-tinta-suave">${etiqueta}</p>
+        <span class="w-9 h-9 rounded-xl flex items-center justify-center ${crudo(tonos[tono])}">
+          ${icono(ico, 'text-[18px]')}
+        </span>
+      </div>
+      <p class="mt-3 text-[30px] font-extrabold tracking-tight tabular">${valor}</p>
+      <p class="mt-1 text-xs text-tinta-suave">${pie}</p>
+    </div>`;
+};
+
+async function resumen() {
+  const [r, cert, ultimos] = await Promise.all([
+    cargar.resumen(), cargar.certificado(), cargar.comprobantes(),
+  ]);
+
+  const tope = Math.max(...r.meses.map((m) => m.valor));
+  const dias = cert.diasRestantes;
+
+  // El aviso del certificado solo aparece cuando de verdad hay algo que hacer.
+  // Un panel lleno de avisos permanentes se deja de leer en una semana, y
+  // entonces tampoco se lee el que importaba.
+  const avisoCertificado = dias <= 60 ? aviso({
+    tono: dias <= 15 ? 'rojo' : 'ambar',
+    ico: dias <= 15 ? 'error' : 'schedule',
+    titulo: `Su certificado de firma caduca en ${dias} días`,
+    texto: 'Sin certificado vigente no se puede firmar ni emitir: el SRI rechaza todo. ' +
+           'La renovación la tramita usted con su entidad certificadora y tarda unos días, ' +
+           'así que conviene no dejarlo para el final.',
+    accion: html`<a href="#/certificado" class="inline-block mt-2 text-sm font-bold underline">
+                   Ver el certificado</a>`,
+  }) : '';
+
+  const pendientes = r.pendientes > 0 ? aviso({
+    tono: 'ambar', ico: 'hourglass_top',
+    titulo: `${r.pendientes} comprobantes esperando respuesta del SRI`,
+    texto: 'Fueron recibidos pero el SRI todavía no los autoriza. No hay que reenviarlos: ' +
+           'reenviar el mismo comprobante lo duplica. El sistema vuelve a consultarlos solo.',
+    accion: html`<a href="#/comprobantes" class="inline-block mt-2 text-sm font-bold underline">
+                   Ver cuáles son</a>`,
+  }) : '';
+
+  return html`
+    <header class="mb-6">
+      <h1 class="text-2xl font-bold tracking-tight">Resumen</h1>
+      <p class="mt-1 text-sm text-tinta-suave">Septiembre de 2026 · Agroquímicos Pérez S.A.</p>
+    </header>
+
+    ${crudo(avisoCertificado)}
+    ${crudo(pendientes)}
+
+    <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      ${tarjetaCifra({ ico: 'receipt_long', etiqueta: 'Comprobantes del mes',
+        valor: r.comprobantesDelMes,
+        pie: `${r.autorizados} autorizados · ${r.pendientes} pendientes · ${r.devueltos} devueltos` })}
+      ${tarjetaCifra({ ico: 'payments', etiqueta: 'Ventas del mes',
+        valor: usd(r.ventasDelMes),
+        pie: `Base 15% ${usd(r.base15)} · Base 0% ${usd(r.base0)}` })}
+      ${tarjetaCifra({ ico: 'account_balance', etiqueta: 'IVA generado',
+        valor: usd(r.ivaGenerado),
+        pie: `${usd(r.base15)} × 15%`, tono: 'ambar' })}
+      ${tarjetaCifra({ ico: 'trending_up', etiqueta: 'Promedio mensual',
+        valor: usd(r.promedioMensual),
+        pie: `${usd(r.ingresosAnio)} en ${r.mesesTranscurridos} meses` })}
+    </div>
+
+    <div class="mt-5 grid gap-5 lg:grid-cols-3">
+
+      <section class="lg:col-span-2 bg-white border border-papel-linea rounded-2xl p-5">
+        <div class="flex items-end justify-between mb-6">
+          <div>
+            <h2 class="text-sm font-bold">Ingresos de 2026</h2>
+            <p class="text-xs text-tinta-suave mt-0.5">
+              Enero a septiembre · ${usd(r.ingresosAnio)} en total
+            </p>
+          </div>
+        </div>
+        <div class="flex items-stretch gap-2 sm:gap-3 h-44">
+          ${r.meses.map((m) => html`
+            <div class="flex-1 flex flex-col items-center justify-end gap-2 group">
+              <span class="text-[10px] font-bold text-tinta-suave opacity-0 group-hover:opacity-100 transition tabular">
+                ${dinero(m.valor)}
+              </span>
+              <div class="w-full flex-1 flex items-end">
+                ${crudo(`<div class="w-full rounded-t-md bg-verde/85 group-hover:bg-verde transition"
+                              style="height:${Math.round((m.valor / tope) * 100)}%"></div>`)}
+              </div>
+              <span class="text-[10px] font-semibold text-tinta-suave">${m.mes}</span>
+            </div>`)}
+        </div>
+      </section>
+
+      <section class="bg-white border border-papel-linea rounded-2xl p-5">
+        <h2 class="text-sm font-bold">Estado de la firma</h2>
+        <div class="mt-4 flex items-center gap-3">
+          <span class="w-11 h-11 rounded-xl flex items-center justify-center
+                       ${crudo(dias <= 15 ? 'bg-rojo-fondo text-rojo-texto' : 'bg-verde-claro text-verde')}">
+            ${icono('verified_user', 'text-[22px]')}
+          </span>
+          <div>
+            <p class="text-sm font-bold">${dias > 0 ? 'Vigente' : 'Caducado'}</p>
+            <p class="text-xs text-tinta-suave">${cert.titular}</p>
+          </div>
+        </div>
+        <dl class="mt-5 space-y-3 text-xs">
+          <div class="flex justify-between gap-3">
+            <dt class="text-tinta-suave">Emitido por</dt><dd class="font-semibold text-right">${cert.emisor}</dd>
+          </div>
+          <div class="flex justify-between gap-3">
+            <dt class="text-tinta-suave">Caduca</dt>
+            <dd class="font-semibold text-right">21/10/2026</dd>
+          </div>
+          <div class="flex justify-between gap-3">
+            <dt class="text-tinta-suave">Días restantes</dt>
+            <dd class="font-extrabold text-right ${crudo(dias <= 15 ? 'text-rojo-texto' : '')}">${dias}</dd>
+          </div>
+        </dl>
+        <a href="#/certificado" class="mt-5 flex items-center justify-center gap-2 w-full py-2.5 rounded-xl
+                  border border-papel-linea text-sm font-semibold hover:border-verde hover:text-verde transition">
+          Administrar ${icono('arrow_forward', 'text-[16px]')}
+        </a>
+      </section>
+    </div>
+
+    <section class="mt-5 bg-white border border-papel-linea rounded-2xl">
+      <div class="flex items-center justify-between p-5 border-b border-papel-linea">
+        <h2 class="text-sm font-bold">Últimos comprobantes</h2>
+        <a href="#/comprobantes" class="text-xs font-bold text-verde hover:underline">Ver todos</a>
+      </div>
+      <ul class="divide-y divide-papel-linea">
+        ${ultimos.slice(0, 4).map((c) => html`
+          <li>
+            <a href="#/comprobantes/${c.numero}" class="flex items-center gap-4 px-5 py-3.5 hover:bg-papel transition">
+              <span class="w-9 h-9 shrink-0 rounded-xl bg-papel flex items-center justify-center text-tinta-suave">
+                ${icono('description', 'text-[18px]')}
+              </span>
+              <span class="min-w-0 flex-1">
+                <span class="block text-sm font-semibold tabular">${c.numero}</span>
+                <span class="block text-xs text-tinta-suave truncate">${c.cliente.razonSocial}</span>
+              </span>
+              <span class="hidden sm:block text-xs text-tinta-suave whitespace-nowrap">${fechaHora(c.fecha)}</span>
+              <span class="text-sm font-bold tabular whitespace-nowrap">${usd(c.totales.total)}</span>
+              ${chipEstado(c.estado)}
+            </a>
+          </li>`)}
+      </ul>
+    </section>`;
+}
+
+
+  return { resumen };
+})();
+
+// ---- src/vistas/comprobantes.js ----------------------------------
+const __src_vistas_comprobantes_js = (function () {
+  const { html, crudo, esc, usd, dinero, icono, chipEstado, fechaHora, claveLegible, tabla, vacio, boton, cabecera, aviso, dato, dejarRecado } = __src_ui_js;
+  const { cargar, guardar } = __src_almacen_js;
+
+/**
+ * Los comprobantes emitidos: la lista y la ficha de cada uno.
+ *
+ * La ficha de un comprobante es la pantalla que más se mira cuando algo sale
+ * mal, así que está construida alrededor de esa pregunta: **qué pasó con esta
+ * factura y qué hago ahora**. El rechazo del SRI no se muestra como un código
+ * de error, se traduce.
+ */
+
+
+
+
+/**
+ * La marca de simulado.
+ *
+ * Aparece en la lista y en la ficha, y no es decoración: un comprobante que
+ * pone AUTORIZADO sin que el SRI lo haya visto es exactamente lo que no puede
+ * confundirse con uno de verdad. Mientras la firma y el envío no estén
+ * conectados, todo lo que se emita desde aquí lleva esta marca.
+ */
+const marcaSimulado = crudo(
+  '<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] ' +
+  'font-bold uppercase tracking-wide bg-ambar-fondo text-ambar-texto border border-ambar-borde">' +
+  '<span class="ms text-[12px]">science</span>Simulado</span>');
+
+const FILTROS = [
+  { id: '', texto: 'Todos' },
+  { id: 'AUTORIZADO', texto: 'Autorizados' },
+  { id: 'ENVIADO', texto: 'Pendientes' },
+  { id: 'DEVUELTO', texto: 'Devueltos' },
+  { id: 'BORRADOR', texto: 'Borradores' },
+];
+
+async function comprobantes() {
+  const lista = await cargar.comprobantes();
+
+  const cuerpo = lista.map((c) => html`
+    <tr class="hover:bg-papel transition cursor-pointer" onclick="location.hash='#/comprobantes/${c.numero}'">
+      <td class="px-5 py-3.5">
+        <a href="#/comprobantes/${c.numero}" class="text-sm font-semibold tabular hover:text-verde">${c.numero}</a>
+        <span class="block text-[11px] text-tinta-suave">${c.tipo}</span>
+      </td>
+      <td class="px-5 py-3.5">
+        <span class="block text-sm truncate max-w-[260px]">${c.cliente.razonSocial}</span>
+        <span class="block text-[11px] text-tinta-suave tabular">${c.cliente.identificacion}</span>
+      </td>
+      <td class="px-5 py-3.5 text-sm text-tinta-suave whitespace-nowrap">${fechaHora(c.fecha)}</td>
+      <td class="px-5 py-3.5 text-right text-sm font-bold tabular whitespace-nowrap">${usd(c.totales.total)}</td>
+      <td class="px-5 py-3.5 text-right">
+        <span class="inline-flex items-center gap-1.5">
+          ${c.simulado ? marcaSimulado : ''}${chipEstado(c.estado)}
+        </span>
+      </td>
+    </tr>`);
+
+  const contenido = lista.length ? tabla([
+    { texto: 'Número' }, { texto: 'Cliente' }, { texto: 'Fecha' },
+    { texto: 'Total', der: true }, { texto: 'Estado', der: true },
+  ], cuerpo) : vacio({
+    ico: 'receipt_long',
+    titulo: 'Todavía no ha emitido ningún comprobante',
+    texto: 'Aquí van a aparecer sus facturas, notas de crédito y retenciones, con el ' +
+           'estado en que las dejó el SRI. La primera factura se emite desde el botón de arriba.',
+    accion: boton('Emitir la primera factura', { ruta: '#/comprobantes/nuevo', ico: 'add' }),
+  });
+
+  return html`
+    ${crudo(cabecera({
+      titulo: 'Facturación electrónica',
+      descripcion: 'Todo lo emitido desde esta empresa, con lo que el SRI contestó de cada uno.',
+      acciones: boton('Nueva factura', { ruta: '#/comprobantes/nuevo', ico: 'add' }),
+    }))}
+
+    <div class="flex flex-wrap items-center gap-2 mb-5">
+      ${FILTROS.map((f, i) => crudo(
+        `<button class="px-3.5 py-2 rounded-xl text-xs font-bold transition ${
+          i === 0 ? 'bg-tinta text-white' : 'bg-white border border-papel-linea text-tinta-suave hover:border-verde hover:text-verde'
+        }">${esc(f.texto)}</button>`))}
+      <div class="flex-1"></div>
+      <div class="relative">
+        <span class="ms absolute left-3 top-1/2 -translate-y-1/2 text-[18px] text-tinta-suave">search</span>
+        <input placeholder="Buscar por número o cliente"
+               class="w-64 pl-10 pr-4 py-2 rounded-xl border border-papel-linea bg-white text-sm
+                      placeholder:text-tinta-suave/60 focus:outline-none focus:border-verde">
+      </div>
+    </div>
+
+    <section class="bg-white border border-papel-linea rounded-2xl overflow-hidden">${crudo(contenido)}</section>`;
+}
+
+// ===========================================================================
+//  La ficha de un comprobante
+// ===========================================================================
+
+/** La línea de tiempo con el SRI. Recibido no es autorizado, y aquí se ve. */
+function recorrido(c) {
+  const pasos = [
+    { texto: 'Creada', cuando: fechaHora(c.fecha), hecho: true },
+    { texto: 'Firmada con el certificado', cuando: c.claveAcceso ? fechaHora(c.fecha) : null,
+      hecho: c.estado !== 'BORRADOR' },
+    { texto: 'Entregada al SRI', cuando: c.claveAcceso ? fechaHora(c.fecha) : null,
+      hecho: ['ENVIADO', 'RECIBIDO', 'AUTORIZADO', 'DEVUELTO'].includes(c.estado) },
+    { texto: c.estado === 'DEVUELTO' ? 'Devuelta por el SRI' : 'Autorizada por el SRI',
+      cuando: c.fechaAutorizacion ? fechaHora(c.fechaAutorizacion) : null,
+      hecho: c.estado === 'AUTORIZADO', fallo: c.estado === 'DEVUELTO' },
+  ];
+
+  return html`
+    <ol class="space-y-4">
+      ${pasos.map((p, i) => html`
+        <li class="flex gap-3">
+          <div class="flex flex-col items-center">
+            <span class="w-6 h-6 rounded-full flex items-center justify-center text-[13px] ${crudo(
+              p.fallo ? 'bg-rojo text-white' : p.hecho ? 'bg-verde text-white' : 'bg-papel-linea text-tinta-suave')}">
+              ${icono(p.fallo ? 'close' : p.hecho ? 'check' : 'more_horiz', 'text-[14px]')}
+            </span>
+            ${i < pasos.length - 1 ? crudo('<span class="w-px flex-1 bg-papel-linea mt-1"></span>') : ''}
+          </div>
+          <div class="pb-1">
+            <p class="text-sm font-semibold ${crudo(p.hecho || p.fallo ? '' : 'text-tinta-suave')}">${p.texto}</p>
+            <p class="text-[11px] text-tinta-suave">${p.cuando ?? 'Pendiente'}</p>
+          </div>
+        </li>`)}
+    </ol>`;
+}
+
+async function comprobante(numero) {
+  const c = await cargar.comprobante(numero);
+  if (!c) {
+    return html`
+      <section class="bg-white border border-papel-linea rounded-2xl">
+        ${crudo(vacio({
+          ico: 'search_off', titulo: 'No encontramos ese comprobante',
+          texto: `No hay ningún comprobante con el número ${numero} en esta empresa.`,
+          accion: boton('Volver a la lista', { ruta: '#/comprobantes', tipo: 'secundario' }),
+        }))}
+      </section>`;
+  }
+
+  const t = c.totales;
+
+  const explicacionRechazo = c.motivoRechazo ? aviso({
+    tono: 'rojo', ico: 'error',
+    titulo: `El SRI devolvió esta factura · código ${c.motivoRechazo.codigo}`,
+    texto: c.motivoRechazo.detalle,
+    accion: html`
+      <div class="mt-3 p-3 rounded-lg bg-white/70 border border-rojo-borde">
+        <p class="text-[11px] font-bold uppercase tracking-wide">Qué hay que hacer</p>
+        <p class="mt-1 text-sm leading-relaxed">${c.motivoRechazo.queHacer}</p>
+      </div>`,
+  }) : '';
+
+  const esBorrador = c.estado === 'BORRADOR' ? aviso({
+    tono: 'ambar', ico: 'edit_note',
+    titulo: 'Esta factura todavía es un borrador',
+    texto: 'Tiene su número reservado pero no se ha firmado ni enviado. Mientras siga en ' +
+           'borrador se puede cambiar; en cuanto se firme, el contenido queda congelado y ' +
+           'solo se corrige con una nota de crédito.',
+  }) : '';
+
+  const avisoSimulado = c.simulado ? aviso({
+    tono: 'ambar', ico: 'science',
+    titulo: 'Esta factura NO existe para el SRI',
+    texto: 'Se emitió en modo simulado: recorrió los estados igual que el sistema de ' +
+           'verdad, pero no se firmó con ningún certificado ni se envió a ningún sitio. ' +
+           'No tiene validez tributaria y no sirve para entregársela a un cliente.',
+  }) : '';
+
+  const esperando = c.estado === 'ENVIADO' ? aviso({
+    tono: 'ambar', ico: 'hourglass_top',
+    titulo: 'El SRI recibió la factura pero todavía no la resuelve',
+    texto: 'Recibida no es autorizada. No hay que volver a enviarla —reenviar el mismo ' +
+           'comprobante lo duplicaría—: el sistema pregunta solo cada pocos segundos hasta ' +
+           'que el SRI conteste.',
+  }) : '';
+
+  return html`
+    <a href="#/comprobantes" class="inline-flex items-center gap-1.5 text-xs font-bold text-tinta-suave hover:text-verde mb-4">
+      ${icono('arrow_back', 'text-[16px]')} Facturación electrónica
+    </a>
+
+    <header class="flex flex-wrap items-start justify-between gap-4 mb-6">
+      <div>
+        <div class="flex items-center gap-3">
+          <h1 class="text-2xl font-bold tracking-tight tabular">${c.numero}</h1>
+          ${chipEstado(c.estado)}
+          ${c.simulado ? marcaSimulado : ''}
+        </div>
+        <p class="mt-1 text-sm text-tinta-suave">
+          ${c.tipo} · ${c.cliente.razonSocial} · ${fechaHora(c.fecha)}
+        </p>
+      </div>
+      <div class="flex flex-wrap items-center gap-2">
+        ${c.estado === 'AUTORIZADO' ? [
+          boton('Descargar RIDE', { ico: 'picture_as_pdf', tipo: 'secundario' }),
+          boton('Descargar XML', { ico: 'code', tipo: 'secundario' }),
+          boton('Enviar por WhatsApp', { ico: 'send' })] : ''}
+        ${c.estado === 'DEVUELTO' ? boton('Corregir y reenviar', { ico: 'edit' }) : ''}
+        ${c.estado === 'BORRADOR' ? crudo(
+          `<button id="emitir" data-numero="${esc(c.numero)}"
+                   class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-verde text-white
+                          text-sm font-semibold hover:bg-verde-oscuro transition shadow-sm">
+             <span class="ms text-[18px]">bolt</span>Firmar y emitir</button>`) : ''}
+      </div>
+    </header>
+
+    ${crudo(avisoSimulado)}
+    ${crudo(esBorrador)}
+    ${crudo(explicacionRechazo)}
+    ${crudo(esperando)}
+
+    <div class="grid gap-5 lg:grid-cols-3">
+      <div class="lg:col-span-2 space-y-5">
+
+        <section class="bg-white border border-papel-linea rounded-2xl p-5">
+          <h2 class="text-sm font-bold mb-4">Cliente</h2>
+          <dl class="grid gap-4 sm:grid-cols-2">
+            ${dato('Razón social', c.cliente.razonSocial)}
+            ${dato('RUC', c.cliente.identificacion)}
+            ${dato('Ciudad', c.cliente.ciudad)}
+            ${dato('Correo', c.cliente.correo)}
+          </dl>
+        </section>
+
+        <section class="bg-white border border-papel-linea rounded-2xl overflow-hidden">
+          <h2 class="text-sm font-bold p-5 pb-4">Detalle</h2>
+          ${crudo(tabla([
+            { texto: 'Código' }, { texto: 'Descripción' }, { texto: 'Cant.', der: true },
+            { texto: 'P. unit.', der: true }, { texto: 'Dscto.', der: true },
+            { texto: 'IVA', der: true }, { texto: 'Total', der: true },
+          ], c.lineas.map((l) => html`
+            <tr>
+              <td class="px-5 py-3 text-xs font-semibold tabular">${l.codigo}</td>
+              <td class="px-5 py-3 text-sm">${l.descripcion}</td>
+              <td class="px-5 py-3 text-right text-sm tabular">${l.cantidad.toFixed(2)}</td>
+              <td class="px-5 py-3 text-right text-sm tabular">${dinero(l.precio)}</td>
+              <td class="px-5 py-3 text-right text-sm tabular">${dinero(l.descuento)}</td>
+              <td class="px-5 py-3 text-right text-xs font-semibold">${l.iva}%</td>
+              <td class="px-5 py-3 text-right text-sm font-bold tabular">
+                ${dinero(l.cantidad * l.precio - l.descuento)}
+              </td>
+            </tr>`)))}
+
+          <div class="flex justify-end border-t border-papel-linea bg-papel/60 p-5">
+            <dl class="w-full max-w-xs space-y-2 text-sm">
+              ${[['Subtotal 15%', t.base15], ['Subtotal 0%', t.base0],
+                 ['Subtotal sin impuestos', t.sinImpuestos], ['Total descuento', t.descuento],
+                 ['IVA 15%', t.iva]].map(([k, v]) => html`
+                <div class="flex justify-between gap-4">
+                  <dt class="text-tinta-suave">${k}</dt>
+                  <dd class="font-semibold tabular">${dinero(v)}</dd>
+                </div>`)}
+              <div class="flex justify-between gap-4 pt-2 mt-2 border-t border-papel-linea">
+                <dt class="font-extrabold">VALOR TOTAL</dt>
+                <dd class="font-extrabold text-lg tabular">${usd(t.total)}</dd>
+              </div>
+            </dl>
+          </div>
+        </section>
+      </div>
+
+      <div class="space-y-5">
+        <section class="bg-white border border-papel-linea rounded-2xl p-5">
+          <h2 class="text-sm font-bold mb-4">Qué pasó con el SRI</h2>
+          ${recorrido(c)}
+        </section>
+
+        ${!c.claveAcceso ? html`
+          <section class="bg-white border border-papel-linea rounded-2xl p-5">
+            <h2 class="text-sm font-bold">Clave de acceso</h2>
+            <p class="mt-2 text-[12px] text-tinta-suave leading-relaxed">
+              Se asigna al firmar, porque va dentro de lo que se firma. Todavía no hay
+              ninguna para esta factura, y por eso no se muestra un número inventado.
+            </p>
+          </section>` : html`
+          <section class="bg-white border border-papel-linea rounded-2xl p-5">
+            <h2 class="text-sm font-bold">Clave de acceso</h2>
+            <p class="mt-2 text-[11px] text-tinta-suave leading-relaxed">
+              Identifica a esta factura y a ninguna otra en todo el Ecuador. Es lo que se
+              teclea en la página del SRI para comprobar que existe.
+            </p>
+            <p class="mt-3 font-mono text-[11px] leading-relaxed break-all bg-papel rounded-lg p-3">
+              ${claveLegible(c.claveAcceso)}
+            </p>
+          </section>`}
+
+        <section class="bg-white border border-papel-linea rounded-2xl p-5">
+          <h2 class="text-sm font-bold mb-4">Datos de emisión</h2>
+          <dl class="space-y-4">
+            ${dato('Forma de pago', c.formaPago)}
+            ${dato('Punto de emisión', c.numero.slice(0, 7))}
+            ${dato('Fecha de autorización', c.fechaAutorizacion ? fechaHora(c.fechaAutorizacion) : 'Pendiente')}
+            ${dato('Ambiente', 'Pruebas')}
+          </dl>
+        </section>
+      </div>
+    </div>`;
+}
+
+
+// ===========================================================================
+//  Emitir desde la ficha
+// ===========================================================================
+
+let conectado = false;
+
+/**
+ * Enchufa el botón de emitir.
+ *
+ * Emitir de verdad son tres pasos —firmar con el certificado, entregar al SRI y
+ * preguntar si autorizó— y ninguno de los tres está conectado todavía. Así que
+ * el botón avisa de eso antes de hacer nada, y solo sigue si la persona dice
+ * que sí. Lo que salga queda marcado como simulado para siempre.
+ */
+function conectarComprobante() {
+  const zona = document.getElementById('raiz');
+  if (!zona || conectado) return;
+  conectado = true;
+
+  zona.addEventListener('click', async (ev) => {
+    const boton = ev.target.closest('#emitir');
+    if (!boton) return;
+
+    const seguir = window.confirm([
+      'Todavía no está conectada ni la firma electrónica ni el envío al SRI.',
+      'Se puede simular el recorrido para verlo funcionando. La factura quedará marcada ' +
+      'como SIMULADA en todas las pantallas y no tendrá ninguna validez tributaria.',
+      '¿Simular la emisión?',
+    ].join('\n\n'));
+    if (!seguir) return;
+
+    try {
+      await guardar.emitirSimulado(boton.dataset.numero);
+      dejarRecado({
+        tono: 'ambar', ico: 'science',
+        titulo: 'Emisión simulada',
+        texto: 'La factura recorrió los estados como lo haría de verdad, pero no se firmó ' +
+               'ni se envió a ningún sitio. Queda marcada como simulada.',
+      });
+      window.dispatchEvent(new CustomEvent('kontia:redibujar'));
+    } catch (e) {
+      dejarRecado({ tono: 'rojo', ico: 'error', titulo: 'No se pudo emitir', texto: e.message });
+      window.dispatchEvent(new CustomEvent('kontia:redibujar'));
+    }
+  });
+}
+
+
+  return { comprobantes, comprobante, conectarComprobante };
+})();
+
+// ---- src/vistas/emision.js ---------------------------------------
+const __src_vistas_emision_js = (function () {
+  const { html, crudo, esc, usd, dinero, cabecera, aviso, boton, icono } = __src_ui_js;
+  const { totalizar, FORMAS_PAGO } = __src_datos_js;
+  const { cargar, guardar } = __src_almacen_js;
+
+/**
+ * Emitir una factura.
+ *
+ * Es la pantalla donde de verdad pasa algo: se eligen productos, se cambian
+ * cantidades, los totales se rehacen solos y al guardar la factura queda
+ * guardada, con su número reservado, y aparece en el listado.
+ *
+ * Los totales los calcula `totalizar()` —la misma función que usa el resto del
+ * sistema— y no una fórmula escrita aquí para que la pantalla quede bonita.
+ *
+ * LO QUE TODAVÍA NO HACE: firmar y enviar al SRI. Ni el certificado ni la
+ * conexión están enchufados. Se puede simular el recorrido completo para verlo,
+ * y lo que salga queda marcado como simulado en todas las pantallas donde
+ * aparezca. Un documento que parece autorizado sin estarlo es peor que no
+ * tener ninguno.
+ */
+
+
+
+
+
+/**
+ * Lo que lleva la factura ahora mismo.
+ *
+ * Vive fuera de la función de dibujo para que sobreviva a los redibujados: si
+ * el estado se creara dentro, cada cambio de una cantidad borraría el resto de
+ * las líneas.
+ */
+const borrador = {
+  clienteId: null,
+  formaPago: '20',
+  punto: '001-001',
+  lineas: [],
+};
+
+/** El catálogo tal como estaba al dibujar. Se refresca en cada visita. */
+let catalogo = { clientes: [], productos: [], puntos: [] };
+
+const numero = (n) => (Number.isFinite(Number(n)) ? Number(n) : 0);
+const totalLinea = (l) => numero(l.cantidad) * numero(l.precio) - numero(l.descuento);
+
+// ===========================================================================
+//  Las dos partes que se redibujan solas
+// ===========================================================================
+
+function filasDetalle() {
+  if (!borrador.lineas.length) {
+    return `<tr><td colspan="7" class="px-5 py-12 text-center text-sm text-tinta-suave">
+      Todavía no hay líneas. Elija un producto arriba y añádalo.</td></tr>`;
+  }
+  return borrador.lineas.map((l, i) => html`
+    <tr class="align-middle">
+      <td class="px-4 py-2.5">
+        <span class="block text-xs font-bold tabular">${l.codigo}</span>
+        <span class="block text-sm">${l.descripcion}</span>
+      </td>
+      <td class="px-2 py-2.5">
+        <input type="number" min="0" step="0.01" value="${l.cantidad}" data-campo="cantidad" data-linea="${i}"
+               aria-label="Cantidad de ${l.descripcion}"
+               class="w-20 px-2 py-1.5 text-right text-sm tabular rounded-lg border border-papel-linea
+                      focus:outline-none focus:border-verde">
+      </td>
+      <td class="px-2 py-2.5">
+        <input type="number" min="0" step="0.01" value="${l.precio}" data-campo="precio" data-linea="${i}"
+               aria-label="Precio unitario de ${l.descripcion}"
+               class="w-24 px-2 py-1.5 text-right text-sm tabular rounded-lg border border-papel-linea
+                      focus:outline-none focus:border-verde">
+      </td>
+      <td class="px-2 py-2.5">
+        <input type="number" min="0" step="0.01" value="${l.descuento}" data-campo="descuento" data-linea="${i}"
+               aria-label="Descuento de ${l.descripcion}"
+               class="w-24 px-2 py-1.5 text-right text-sm tabular rounded-lg border border-papel-linea
+                      focus:outline-none focus:border-verde">
+      </td>
+      <td class="px-2 py-2.5 text-right">
+        <span class="text-xs font-bold px-2 py-1 rounded-full ${crudo(
+          l.iva === 15 ? 'bg-verde-claro text-verde' : 'bg-papel text-tinta-suave')}">${l.iva}%</span>
+      </td>
+      <td class="px-4 py-2.5 text-right text-sm font-bold tabular whitespace-nowrap">
+        ${dinero(totalLinea(l))}
+      </td>
+      <td class="px-3 py-2.5 text-right">
+        <button data-quitar="${i}" title="Quitar esta línea" aria-label="Quitar ${l.descripcion}"
+                class="w-8 h-8 rounded-lg text-tinta-suave hover:text-rojo hover:bg-rojo-fondo transition">
+          <span class="ms text-[18px]">delete</span>
+        </button>
+      </td>
+    </tr>`).join('');
+}
+
+function panelTotales() {
+  const t = totalizar(borrador.lineas);
+  const filas = [
+    ['Subtotal 15%', t.base15], ['Subtotal 0%', t.base0],
+    ['Subtotal sin impuestos', t.sinImpuestos], ['Total descuento', t.descuento],
+    ['IVA 15%', t.iva],
+  ];
+  return String(html`
+    <dl class="space-y-2.5 text-sm">
+      ${filas.map(([k, v]) => html`
+        <div class="flex justify-between gap-4">
+          <dt class="text-tinta-suave">${k}</dt>
+          <dd class="font-semibold tabular">${dinero(v)}</dd>
+        </div>`)}
+      <div class="flex justify-between gap-4 pt-3 mt-3 border-t border-papel-linea">
+        <dt class="font-extrabold">VALOR TOTAL</dt>
+        <dd class="font-extrabold text-xl tabular">${usd(t.total)}</dd>
+      </div>
+    </dl>
+    <p class="mt-4 text-[11px] text-tinta-suave leading-relaxed">
+      El IVA sale de la base del 15%, no del total: ${dinero(t.base15)} × 15% = ${dinero(t.iva)}.
+      Si una pantalla muestra un total que no sale de sus propias líneas, está mal.
+    </p>`);
+}
+
+// ===========================================================================
+//  La pantalla
+// ===========================================================================
+
+async function emision() {
+  const [clientes, productos, puntos] = await Promise.all([
+    cargar.clientes(), cargar.productos(), cargar.puntos(),
+  ]);
+  catalogo = { clientes, productos, puntos };
+
+  if (!clientes.length) {
+    return html`
+      ${crudo(cabecera({ titulo: 'Nueva factura' }))}
+      <section class="bg-white border border-papel-linea rounded-2xl p-10 text-center">
+        <h2 class="text-lg font-bold">Antes hace falta un cliente</h2>
+        <p class="mt-2 text-sm text-tinta-suave max-w-md mx-auto leading-relaxed">
+          Una factura necesita a quién va dirigida. Registre primero al cliente con su
+          identificación: es el dato que el SRI comprueba y el que más se teclea mal.
+        </p>
+        <div class="mt-5 flex justify-center">
+          ${boton('Registrar un cliente', { ruta: '#/clientes/nuevo', ico: 'person_add' })}
+        </div>
+      </section>`;
+  }
+
+  if (!borrador.clienteId || !clientes.some((c) => c.id === borrador.clienteId)) {
+    borrador.clienteId = clientes[0].id;
+  }
+  const cliente = clientes.find((c) => c.id === borrador.clienteId);
+
+  const activos = puntos.filter((p) => p.activo);
+  const punto = activos.find((p) => p.codigo === borrador.punto) ?? activos[0];
+  borrador.punto = punto?.codigo ?? '';
+  const siguiente = punto ? String(punto.ultimo + 1).padStart(9, '0') : '—';
+
+  return html`
+    ${crudo(cabecera({
+      titulo: 'Nueva factura',
+      descripcion: punto
+        ? `Se guardará como ${punto.codigo}-${siguiente}, el siguiente número de ${punto.nombre}.`
+        : 'No hay ningún punto de emisión activo.',
+      acciones: boton('Cancelar', { ruta: '#/comprobantes', tipo: 'secundario' }),
+    }))}
+
+    <div id="recado"></div>
+
+    <div class="grid gap-5 lg:grid-cols-3">
+      <div class="lg:col-span-2 space-y-5">
+
+        <section class="bg-white border border-papel-linea rounded-2xl p-5">
+          <div class="flex items-center justify-between mb-4">
+            <h2 class="text-sm font-bold">Cliente</h2>
+            <a href="#/clientes/nuevo" class="text-xs font-bold text-verde hover:underline">
+              Registrar uno nuevo
+            </a>
+          </div>
+          <div class="grid gap-4 sm:grid-cols-2">
+            <label class="block sm:col-span-2">
+              <span class="text-[11px] font-bold uppercase tracking-wide text-tinta-suave">Razón social</span>
+              <select id="cliente" class="mt-1.5 w-full px-3 py-2.5 rounded-xl border border-papel-linea
+                                          bg-white text-sm focus:outline-none focus:border-verde">
+                ${clientes.map((c) => crudo(
+                  `<option value="${esc(c.id)}"${c.id === cliente.id ? ' selected' : ''}>${esc(c.razonSocial)}</option>`))}
+              </select>
+            </label>
+            <div>
+              <span class="text-[11px] font-bold uppercase tracking-wide text-tinta-suave">Identificación</span>
+              <p id="ruc-cliente" class="mt-1.5 px-3 py-2.5 rounded-xl bg-papel text-sm tabular">${cliente.identificacion}</p>
+            </div>
+            <div>
+              <span class="text-[11px] font-bold uppercase tracking-wide text-tinta-suave">Correo</span>
+              <p id="correo-cliente" class="mt-1.5 px-3 py-2.5 rounded-xl bg-papel text-sm truncate">
+                ${cliente.correo || '—'}
+              </p>
+            </div>
+          </div>
+        </section>
+
+        <section class="bg-white border border-papel-linea rounded-2xl">
+          <div class="p-5 pb-4">
+            <div class="flex items-center justify-between">
+              <h2 class="text-sm font-bold">Detalle</h2>
+              <a href="#/productos/nuevo" class="text-xs font-bold text-verde hover:underline">
+                Añadir un producto al catálogo
+              </a>
+            </div>
+            <div class="mt-3 flex flex-wrap items-end gap-2">
+              <label class="flex-1 min-w-[220px]">
+                <span class="text-[11px] font-bold uppercase tracking-wide text-tinta-suave">Producto o servicio</span>
+                <select id="producto" class="mt-1.5 w-full px-3 py-2.5 rounded-xl border border-papel-linea
+                                             bg-white text-sm focus:outline-none focus:border-verde">
+                  ${productos.map((p) => crudo(
+                    `<option value="${esc(p.codigo)}">${esc(p.descripcion)} · ${esc(dinero(p.precio))} · IVA ${p.iva}%</option>`))}
+                </select>
+              </label>
+              <label>
+                <span class="text-[11px] font-bold uppercase tracking-wide text-tinta-suave">Cantidad</span>
+                <input id="cantidad-nueva" type="number" min="0.01" step="0.01" value="1"
+                       class="mt-1.5 w-24 px-3 py-2.5 text-right rounded-xl border border-papel-linea
+                              text-sm tabular focus:outline-none focus:border-verde">
+              </label>
+              <button id="anadir" class="px-4 py-2.5 rounded-xl bg-verde text-white text-sm font-bold
+                                         hover:bg-verde-oscuro transition inline-flex items-center gap-2">
+                <span class="ms text-[18px]">add</span>Añadir
+              </button>
+            </div>
+          </div>
+
+          <div class="overflow-x-auto border-t border-papel-linea">
+            <table class="w-full text-sm">
+              <thead>
+                <tr class="border-b border-papel-linea">
+                  ${['Producto', 'Cant.', 'P. unit.', 'Dscto.', 'IVA', 'Total', ''].map((t, i) => crudo(
+                    `<th class="px-4 py-3 text-[11px] font-bold uppercase tracking-wide text-tinta-suave ${
+                      i >= 1 ? 'text-right' : 'text-left'}">${esc(t)}</th>`))}
+                </tr>
+              </thead>
+              <tbody id="lineas" class="divide-y divide-papel-linea">${crudo(filasDetalle())}</tbody>
+            </table>
+          </div>
+        </section>
+      </div>
+
+      <div class="space-y-5">
+        <section class="bg-white border border-papel-linea rounded-2xl p-5">
+          <h2 class="text-sm font-bold mb-4">Totales</h2>
+          <div id="totales">${crudo(panelTotales())}</div>
+        </section>
+
+        <section class="bg-white border border-papel-linea rounded-2xl p-5">
+          <h2 class="text-sm font-bold mb-4">Emisión</h2>
+          <label class="block mb-4">
+            <span class="text-[11px] font-bold uppercase tracking-wide text-tinta-suave">Punto de emisión</span>
+            <select id="punto" class="mt-1.5 w-full px-3 py-2.5 rounded-xl border border-papel-linea bg-white text-sm">
+              ${activos.map((p) => crudo(
+                `<option value="${esc(p.codigo)}"${p.codigo === borrador.punto ? ' selected' : ''}>` +
+                `${esc(p.codigo)} · ${esc(p.nombre)}</option>`))}
+            </select>
+          </label>
+          <label class="block">
+            <span class="text-[11px] font-bold uppercase tracking-wide text-tinta-suave">Forma de pago</span>
+            <select id="forma-pago" class="mt-1.5 w-full px-3 py-2.5 rounded-xl border border-papel-linea bg-white text-sm">
+              ${FORMAS_PAGO.map((f) => crudo(
+                `<option value="${esc(f.codigo)}"${f.codigo === borrador.formaPago ? ' selected' : ''}>` +
+                `${esc(f.codigo)} · ${esc(f.texto)}</option>`))}
+            </select>
+          </label>
+          <p class="mt-3 text-[11px] text-tinta-suave leading-relaxed">
+            La forma de pago es obligatoria y sale de la tabla 24 de la ficha técnica del
+            SRI. No es un dato interno: viaja dentro del XML.
+          </p>
+        </section>
+
+        <button id="guardar-borrador"
+                class="w-full py-3.5 rounded-xl bg-verde text-white text-sm font-bold
+                       hover:bg-verde-oscuro transition inline-flex items-center justify-center gap-2">
+          <span class="ms text-[18px]">save</span>Guardar la factura
+        </button>
+        <p class="text-center text-[11px] text-tinta-suave leading-relaxed">
+          Queda guardada como borrador, con su número reservado. Firmarla y enviarla al
+          SRI es el paso siguiente, y todavía no está conectado.
+        </p>
+      </div>
+    </div>`;
+}
+
+// ===========================================================================
+//  Lo que hace la pantalla cuando se la toca
+// ===========================================================================
+
+let conectado = false;
+
+/** Un aviso arriba de la pantalla, para los errores y los aciertos. */
+function recado(tono, titulo, texto) {
+  const sitio = document.getElementById('recado');
+  if (!sitio) return;
+  sitio.innerHTML = String(aviso({
+    tono, ico: tono === 'rojo' ? 'error' : 'check_circle', titulo, texto,
+  }));
+  sitio.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function conectarEmision() {
+  const zona = document.getElementById('raiz');
+  if (!zona || conectado) return;
+  // Los escuchadores se ponen una sola vez. `raiz` no se reemplaza nunca, solo
+  // se le cambia el contenido, así que volver a enchufarlos en cada visita
+  // acabaría añadiendo la misma línea tres veces por una sola pulsación.
+  conectado = true;
+
+  const repintar = () => {
+    const lineas = document.getElementById('lineas');
+    const totales = document.getElementById('totales');
+    if (lineas) lineas.innerHTML = filasDetalle();
+    if (totales) totales.innerHTML = panelTotales();
+  };
+
+  zona.addEventListener('input', (ev) => {
+    const campo = ev.target.dataset?.campo;
+    if (!campo) return;
+    const i = Number(ev.target.dataset.linea);
+    if (!borrador.lineas[i]) return;
+    borrador.lineas[i][campo] = numero(ev.target.value);
+
+    // Se repintan los totales y la celda de esa fila, pero no la tabla entera:
+    // redibujarla sacaría el cursor del campo que se está escribiendo.
+    const totales = document.getElementById('totales');
+    if (totales) totales.innerHTML = panelTotales();
+    const celda = ev.target.closest('tr')?.querySelector('td:nth-child(6)');
+    if (celda) celda.textContent = dinero(totalLinea(borrador.lineas[i]));
+  });
+
+  zona.addEventListener('change', (ev) => {
+    const id = ev.target.id;
+    if (id === 'cliente') {
+      borrador.clienteId = ev.target.value;
+      const c = catalogo.clientes.find((x) => x.id === borrador.clienteId);
+      if (!c) return;
+      document.getElementById('ruc-cliente').textContent = c.identificacion;
+      document.getElementById('correo-cliente').textContent = c.correo || '—';
+    }
+    if (id === 'punto') borrador.punto = ev.target.value;
+    if (id === 'forma-pago') borrador.formaPago = ev.target.value;
+  });
+
+  zona.addEventListener('click', async (ev) => {
+    const quitar = ev.target.closest('[data-quitar]');
+    if (quitar) {
+      borrador.lineas.splice(Number(quitar.dataset.quitar), 1);
+      repintar();
+      return;
+    }
+
+    if (ev.target.closest('#anadir')) {
+      const codigo = document.getElementById('producto')?.value;
+      const cantidad = numero(document.getElementById('cantidad-nueva')?.value) || 1;
+      const p = catalogo.productos.find((x) => x.codigo === codigo);
+      if (!p) return;
+      borrador.lineas.push({
+        codigo: p.codigo, descripcion: p.descripcion,
+        cantidad, precio: p.precio, descuento: 0, iva: p.iva,
+      });
+      repintar();
+      return;
+    }
+
+    if (ev.target.closest('#guardar-borrador')) {
+      const forma = FORMAS_PAGO.find((f) => f.codigo === borrador.formaPago);
+      try {
+        const c = await guardar.borrador({
+          clienteId: borrador.clienteId,
+          punto: borrador.punto,
+          formaPago: `${forma.codigo} · ${forma.texto}`,
+          lineas: borrador.lineas,
+        });
+        borrador.lineas = [];   // la siguiente factura empieza en blanco
+        location.hash = `#/comprobantes/${c.numero}`;
+      } catch (e) {
+        recado('rojo', 'No se pudo guardar la factura', e.message);
+      }
+    }
+  });
+}
+
+
+  return { emision, conectarEmision };
+})();
+
+// ---- src/vistas/catalogo.js --------------------------------------
+const __src_vistas_catalogo_js = (function () {
+  const { html, crudo, usd, dinero, tabla, vacio, boton, cabecera } = __src_ui_js;
+  const { cargar } = __src_almacen_js;
+
+/**
+ * Clientes y catálogo de productos.
+ *
+ * Dos listas sencillas, pero con una diferencia que importa: aquí se guarda el
+ * porcentaje de IVA de cada producto. Ese dato no es una preferencia de la
+ * empresa, es una clasificación tributaria — el arroz va al 0% y el fertilizante
+ * al 15% porque lo dice la ley, no porque alguien lo prefiera. Ponerlo en el
+ * catálogo y no en cada factura evita que el mismo producto salga con una tarifa
+ * distinta según quién lo facture ese día.
+ */
+
+
+
+
+async function clientes() {
+  const lista = await cargar.clientes();
+
+  const cuerpo = lista.map((c) => html`
+    <tr class="hover:bg-papel transition cursor-pointer" onclick="location.hash='#/clientes/${c.id}'">
+      <td class="px-5 py-3.5">
+        <div class="flex items-center gap-3">
+          <span class="w-9 h-9 shrink-0 rounded-xl bg-verde-claro text-verde flex items-center justify-center text-[11px] font-extrabold">
+            ${c.razonSocial.slice(0, 2).toUpperCase()}
+          </span>
+          <div class="min-w-0">
+            <span class="block text-sm font-semibold truncate max-w-[280px]">${c.razonSocial}</span>
+            <span class="block text-[11px] text-tinta-suave">${c.ciudad}</span>
+          </div>
+        </div>
+      </td>
+      <td class="px-5 py-3.5">
+        <span class="text-sm tabular">${c.identificacion}</span>
+        <span class="block text-[11px] text-tinta-suave">${c.tipo}</span>
+      </td>
+      <td class="px-5 py-3.5 text-sm text-tinta-suave truncate max-w-[220px]">${c.correo}</td>
+      <td class="px-5 py-3.5 text-right text-sm tabular">${c.comprobantes}</td>
+      <td class="px-5 py-3.5 text-right text-sm font-bold tabular whitespace-nowrap">${usd(c.facturado)}</td>
+      <td class="px-5 py-3.5 text-right">
+        <a href="#/clientes/${c.id}" class="text-xs font-bold text-verde hover:underline">Editar</a>
+      </td>
+    </tr>`);
+
+  const contenido = lista.length ? tabla([
+    { texto: 'Razón social' }, { texto: 'Identificación' }, { texto: 'Correo' },
+    { texto: 'Comprobantes', der: true }, { texto: 'Facturado', der: true },
+    { texto: '', der: true },
+  ], cuerpo) : vacio({
+    ico: 'group', titulo: 'Todavía no tiene clientes registrados',
+    texto: 'Un cliente se puede crear aquí o sobre la marcha, mientras se hace la primera ' +
+           'factura. Guardarlos evita volver a teclear el RUC cada vez, que es donde se ' +
+           'cometen los errores que el SRI rechaza.',
+    accion: boton('Registrar el primer cliente', { ruta: '#/clientes/nuevo', ico: 'person_add' }),
+  });
+
+  return html`
+    ${crudo(cabecera({
+      titulo: 'Clientes',
+      descripcion: 'A quién le factura esta empresa. El RUC guardado aquí es el que viaja en el XML.',
+      acciones: boton('Registrar cliente', { ruta: '#/clientes/nuevo', ico: 'person_add' }),
+    }))}
+    <section class="bg-white border border-papel-linea rounded-2xl overflow-hidden">${crudo(contenido)}</section>`;
+}
+
+async function productos() {
+  const lista = await cargar.productos();
+
+  const cuerpo = lista.map((p) => html`
+    <tr class="hover:bg-papel transition cursor-pointer"
+        onclick="location.hash='#/productos/' + encodeURIComponent('${p.codigo}')">
+      <td class="px-5 py-3.5 text-xs font-bold tabular">${p.codigo}</td>
+      <td class="px-5 py-3.5 text-sm">${p.descripcion}</td>
+      <td class="px-5 py-3.5">
+        <span class="text-[11px] font-bold px-2 py-1 rounded-full bg-papel text-tinta-suave">${p.tipo}</span>
+      </td>
+      <td class="px-5 py-3.5 text-sm text-tinta-suave">${p.unidad}</td>
+      <td class="px-5 py-3.5 text-right">
+        <span class="text-[11px] font-bold px-2 py-1 rounded-full ${crudo(
+          p.iva === 15 ? 'bg-verde-claro text-verde' : 'bg-papel text-tinta-suave')}">IVA ${p.iva}%</span>
+      </td>
+      <td class="px-5 py-3.5 text-right text-sm font-bold tabular whitespace-nowrap">${dinero(p.precio)}</td>
+      <td class="px-5 py-3.5 text-right">
+        <a href="#/productos/${encodeURIComponent(p.codigo)}"
+           class="text-xs font-bold text-verde hover:underline">Editar</a>
+      </td>
+    </tr>`);
+
+  const contenido = lista.length ? tabla([
+    { texto: 'Código' }, { texto: 'Descripción' }, { texto: 'Tipo' },
+    { texto: 'Unidad' }, { texto: 'IVA', der: true }, { texto: 'Precio', der: true },
+    { texto: '', der: true },
+  ], cuerpo) : vacio({
+    ico: 'inventory_2', titulo: 'El catálogo está vacío',
+    texto: 'Aquí van los productos y servicios que vende, cada uno con su tarifa de IVA. ' +
+           'Se pueden cargar de golpe desde una hoja de cálculo.',
+    accion: boton('Añadir el primer producto', { ruta: '#/productos/nuevo', ico: 'add' }),
+  });
+
+  return html`
+    ${crudo(cabecera({
+      titulo: 'Productos y servicios',
+      descripcion: 'Cada producto lleva su tarifa de IVA. Es una clasificación tributaria, no una preferencia.',
+      acciones: boton('Añadir producto', { ruta: '#/productos/nuevo', ico: 'add' }),
+    }))}
+    <section class="bg-white border border-papel-linea rounded-2xl overflow-hidden">${crudo(contenido)}</section>`;
+}
+
+
+  return { clientes, productos };
+})();
+
+// ---- src/vistas/formularios.js -----------------------------------
+const __src_vistas_formularios_js = (function () {
+  const { html, crudo, esc, icono, boton, cabecera, aviso, dejarRecado } = __src_ui_js;
+  const { TIPOS_IDENTIFICACION, TARIFAS_IVA } = __src_datos_js;
+  const { cargar, guardar } = __src_almacen_js;
+
+/**
+ * Los formularios: dar de alta y corregir clientes y productos.
+ *
+ * Están juntos porque son la misma idea dos veces, y porque la parte difícil no
+ * es dibujar campos sino **qué se comprueba y cuándo se dice**.
+ *
+ * La comprobación de verdad está en `almacen.js` y, el día que esto hable con
+ * Supabase, también en la base de datos (migración 0008). Aquí no se repite: el
+ * formulario recoge lo escrito, lo entrega, y si vuelve un error lo enseña tal
+ * cual. Duplicar las reglas en la pantalla garantiza que un día digan cosas
+ * distintas, y entonces hay dos verdades y ninguna sirve.
+ *
+ * Lo que sí hace la pantalla es explicar cada campo ANTES de que se equivoque:
+ * qué es un RUC, por qué la tarifa de IVA no es una preferencia. Un error que
+ * se evita vale más que un error bien explicado.
+ */
+
+
+
+
+
+// ===========================================================================
+//  Piezas comunes
+// ===========================================================================
+
+const campo = ({ id, etiqueta, valor = '', marcador = '', ayuda = '', tipo = 'text', extra = '' }) => html`
+  <label class="block">
+    <span class="text-[11px] font-bold uppercase tracking-wide text-tinta-suave">${etiqueta}</span>
+    <input id="${id}" type="${tipo}" value="${valor}" placeholder="${marcador}" ${crudo(extra)}
+           class="mt-1.5 w-full px-3.5 py-2.5 rounded-xl border border-papel-linea bg-white text-sm
+                  placeholder:text-tinta-suave/50 focus:outline-none focus:border-verde">
+    ${ayuda ? crudo(`<span class="mt-1.5 block text-[11px] text-tinta-suave leading-relaxed">${esc(ayuda)}</span>`) : ''}
+  </label>`;
+
+const seleccion = ({ id, etiqueta, opciones, valor, ayuda = '' }) => html`
+  <label class="block">
+    <span class="text-[11px] font-bold uppercase tracking-wide text-tinta-suave">${etiqueta}</span>
+    <select id="${id}" class="mt-1.5 w-full px-3.5 py-2.5 rounded-xl border border-papel-linea
+                              bg-white text-sm focus:outline-none focus:border-verde">
+      ${opciones.map(([v, t]) => crudo(
+        `<option value="${esc(v)}"${String(v) === String(valor) ? ' selected' : ''}>${esc(t)}</option>`))}
+    </select>
+    ${ayuda ? crudo(`<span class="mt-1.5 block text-[11px] text-tinta-suave leading-relaxed">${esc(ayuda)}</span>`) : ''}
+  </label>`;
+
+const volver = (ruta, texto) => html`
+  <a href="${ruta}" class="inline-flex items-center gap-1.5 text-xs font-bold text-tinta-suave hover:text-verde mb-4">
+    ${icono('arrow_back', 'text-[16px]')} ${texto}
+  </a>`;
+
+// ===========================================================================
+//  Cliente
+// ===========================================================================
+
+async function formularioCliente(id) {
+  const c = id && id !== 'nuevo' ? await cargar.cliente(id) : null;
+  const nuevo = !c;
+
+  return html`
+    ${volver('#/clientes', 'Clientes')}
+    ${crudo(cabecera({
+      titulo: nuevo ? 'Nuevo cliente' : c.razonSocial,
+      descripcion: 'La identificación que guarde aquí es la que viajará dentro de cada ' +
+                   'factura que le emita. Es el dato que el SRI comprueba.',
+    }))}
+
+    <div id="recado"></div>
+
+    <form id="forma-cliente" class="grid gap-5 lg:grid-cols-3" onsubmit="return false">
+      <section class="lg:col-span-2 bg-white border border-papel-linea rounded-2xl p-5 space-y-4">
+        <h2 class="text-sm font-bold">Identificación</h2>
+        <div class="grid gap-4 sm:grid-cols-2">
+          ${seleccion({
+            id: 'tipo', etiqueta: 'Tipo de identificación',
+            opciones: Object.entries(TIPOS_IDENTIFICACION).map(([k, v]) => [k, `${v.codigo} · ${v.texto}`]),
+            valor: c?.tipo ?? 'RUC',
+            ayuda: 'El SRI comprueba que el número cuadre con el tipo. No es una etiqueta.',
+          })}
+          ${campo({
+            id: 'identificacion', etiqueta: 'Número', valor: c?.identificacion ?? '',
+            marcador: '0992384756001',
+            ayuda: 'Se comprueba el dígito verificador aquí mismo, mientras tiene el ' +
+                   'documento delante.',
+          })}
+        </div>
+        ${campo({
+          id: 'razonSocial', etiqueta: 'Razón social o nombres', valor: c?.razonSocial ?? '',
+          marcador: 'Bananera del Litoral Cía. Ltda.',
+          ayuda: 'Tal como consta en el RUC, no el nombre del local.',
+        })}
+
+        <h2 class="text-sm font-bold pt-2">Contacto</h2>
+        <div class="grid gap-4 sm:grid-cols-2">
+          ${campo({
+            id: 'correo', etiqueta: 'Correo', valor: c?.correo ?? '', tipo: 'email',
+            marcador: 'compras@empresa.com.ec',
+            ayuda: 'A donde se le enviará la factura. Si se equivoca, el cliente no la recibe.',
+          })}
+          ${campo({ id: 'telefono', etiqueta: 'Teléfono', valor: c?.telefono ?? '', marcador: '(04) 208 1120' })}
+          ${campo({ id: 'ciudad', etiqueta: 'Ciudad', valor: c?.ciudad ?? '', marcador: 'Samborondón' })}
+          ${campo({ id: 'direccion', etiqueta: 'Dirección', valor: c?.direccion ?? '', marcador: 'Km 12 vía a Samborondón' })}
+        </div>
+
+        <div class="flex flex-wrap justify-end gap-2 pt-2">
+          ${boton('Cancelar', { ruta: '#/clientes', tipo: 'secundario' })}
+          <button id="guardar-cliente" data-editando="${c?.id ?? ''}"
+                  class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-verde text-white
+                         text-sm font-semibold hover:bg-verde-oscuro transition">
+            <span class="ms text-[18px]">save</span>${nuevo ? 'Registrar cliente' : 'Guardar cambios'}
+          </button>
+        </div>
+      </section>
+
+      <section class="bg-white border border-papel-linea rounded-2xl p-5 h-fit">
+        <div class="flex items-center gap-2 mb-3">
+          ${icono('info', 'text-[20px] text-verde')}
+          <h2 class="text-sm font-bold">Por qué importa la identificación</h2>
+        </div>
+        <div class="space-y-3 text-[12px] text-tinta-suave leading-relaxed">
+          <p>
+            Un dígito cambiado de sitio en un RUC hace que el SRI devuelva la factura. No
+            la rechaza por el importe ni por el producto: por el número del comprador.
+          </p>
+          <p>
+            Es el error más común de la facturación electrónica, y es el que más tarda en
+            descubrirse, porque la factura parece emitida hasta que alguien revisa.
+          </p>
+          <p class="text-tinta">
+            Por eso el número se comprueba al escribirlo, y no se puede guardar dos veces
+            el mismo cliente.
+          </p>
+        </div>
+      </section>
+    </form>`;
+}
+
+// ===========================================================================
+//  Producto
+// ===========================================================================
+
+async function formularioProducto(codigo) {
+  const p = codigo && codigo !== 'nuevo' ? await cargar.producto(decodeURIComponent(codigo)) : null;
+  const nuevo = !p;
+
+  return html`
+    ${volver('#/productos', 'Productos y servicios')}
+    ${crudo(cabecera({
+      titulo: nuevo ? 'Nuevo producto o servicio' : p.descripcion,
+      descripcion: 'Lo que guarde aquí es lo que se copiará en cada factura donde aparezca.',
+    }))}
+
+    <div id="recado"></div>
+
+    <form id="forma-producto" class="grid gap-5 lg:grid-cols-3" onsubmit="return false">
+      <section class="lg:col-span-2 bg-white border border-papel-linea rounded-2xl p-5 space-y-4">
+        <div class="grid gap-4 sm:grid-cols-2">
+          ${campo({
+            id: 'codigo', etiqueta: 'Código', valor: p?.codigo ?? '', marcador: 'FERT-UREA-01',
+            ayuda: 'El suyo, el que usa en bodega. Viaja dentro del XML.',
+          })}
+          ${seleccion({
+            id: 'tipoProducto', etiqueta: 'Tipo',
+            opciones: [['Bien', 'Bien'], ['Servicio', 'Servicio']], valor: p?.tipo ?? 'Bien',
+          })}
+        </div>
+        ${campo({
+          id: 'descripcion', etiqueta: 'Descripción', valor: p?.descripcion ?? '',
+          marcador: 'Urea fertilizante granulada 50kg',
+          ayuda: 'Es lo que va a leer su cliente en la factura.',
+        })}
+        <div class="grid gap-4 sm:grid-cols-3">
+          ${campo({
+            id: 'unidad', etiqueta: 'Unidad de medida', valor: p?.unidad ?? '', marcador: 'SACO',
+          })}
+          ${campo({
+            id: 'precio', etiqueta: 'Precio unitario', valor: p?.precio ?? '', tipo: 'number',
+            marcador: '28.50', extra: 'min="0" step="0.01"',
+            ayuda: 'Sin IVA.',
+          })}
+          ${seleccion({
+            id: 'iva', etiqueta: 'Tarifa de IVA',
+            opciones: TARIFAS_IVA.map((t) => [t.tarifa, `${t.texto} (código ${t.codigo})`]),
+            valor: p?.iva ?? 15,
+          })}
+        </div>
+
+        <div class="flex flex-wrap justify-end gap-2 pt-2">
+          ${boton('Cancelar', { ruta: '#/productos', tipo: 'secundario' })}
+          <button id="guardar-producto" data-editando="${p?.codigo ?? ''}"
+                  class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-verde text-white
+                         text-sm font-semibold hover:bg-verde-oscuro transition">
+            <span class="ms text-[18px]">save</span>${nuevo ? 'Añadir al catálogo' : 'Guardar cambios'}
+          </button>
+        </div>
+      </section>
+
+      <section class="bg-white border border-papel-linea rounded-2xl p-5 h-fit">
+        <div class="flex items-center gap-2 mb-3">
+          ${icono('percent', 'text-[20px] text-verde')}
+          <h2 class="text-sm font-bold">La tarifa de IVA no es una preferencia</h2>
+        </div>
+        <div class="space-y-3 text-[12px] text-tinta-suave leading-relaxed">
+          <p>
+            Que un producto lleve 15% o 0% lo dice la ley, no la empresa. El arroz va al
+            0% y el fertilizante al 15% porque así está clasificado.
+          </p>
+          <p>
+            Guardarlo aquí y no escribirlo en cada factura es lo que evita que el mismo
+            producto salga hoy al 15% y mañana al 0% según quién lo facture.
+          </p>
+          <p class="text-tinta">
+            Si tiene dudas sobre cómo clasificar algo, es exactamente la clase de pregunta
+            para la consulta legal-tributaria.
+          </p>
+        </div>
+      </section>
+    </form>`;
+}
+
+// ===========================================================================
+//  Lo que hacen los formularios al pulsar guardar
+// ===========================================================================
+
+let conectado = false;
+
+const valor = (id) => document.getElementById(id)?.value ?? '';
+
+function mostrarError(e) {
+  const sitio = document.getElementById('recado');
+  if (!sitio) return;
+  sitio.innerHTML = String(aviso({
+    tono: 'rojo', ico: 'error', titulo: 'No se pudo guardar', texto: e.message,
+  }));
+  sitio.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function conectarFormularios() {
+  const zona = document.getElementById('raiz');
+  if (!zona || conectado) return;
+  conectado = true;
+
+  zona.addEventListener('click', async (ev) => {
+    if (ev.target.closest('#guardar-cliente')) {
+      const boton = ev.target.closest('#guardar-cliente');
+      try {
+        const c = await guardar.cliente({
+          id: boton.dataset.editando || undefined,
+          tipo: valor('tipo'),
+          identificacion: valor('identificacion'),
+          razonSocial: valor('razonSocial'),
+          correo: valor('correo'),
+          telefono: valor('telefono'),
+          ciudad: valor('ciudad'),
+          direccion: valor('direccion'),
+        });
+        dejarRecado({
+          tono: 'info', ico: 'check_circle', titulo: 'Cliente guardado',
+          texto: `${c.razonSocial} ya está en su lista y se puede facturar.`,
+        });
+        location.hash = '#/clientes';
+      } catch (e) {
+        mostrarError(e);
+      }
+      return;
+    }
+
+    if (ev.target.closest('#guardar-producto')) {
+      const boton = ev.target.closest('#guardar-producto');
+      try {
+        const p = await guardar.producto({
+          codigoOriginal: boton.dataset.editando || undefined,
+          codigo: valor('codigo'),
+          descripcion: valor('descripcion'),
+          unidad: valor('unidad'),
+          tipo: valor('tipoProducto'),
+          precio: valor('precio'),
+          iva: valor('iva'),
+        });
+        dejarRecado({
+          tono: 'info', ico: 'check_circle', titulo: 'Producto guardado',
+          texto: `${p.descripcion} ya se puede añadir a una factura.`,
+        });
+        location.hash = '#/productos';
+      } catch (e) {
+        mostrarError(e);
+      }
+    }
+  });
+}
+
+
+  return { formularioCliente, formularioProducto, conectarFormularios };
+})();
+
+// ---- src/vistas/empresa.js ---------------------------------------
+const __src_vistas_empresa_js = (function () {
+  const { html, crudo, esc, icono, tabla, boton, cabecera, aviso, dato, chipEstado, fechaLarga } = __src_ui_js;
+  const { cargar } = __src_almacen_js;
+
+/**
+ * Las pantallas de administración de la propia empresa: sus datos, su
+ * certificado de firma, sus usuarios y sus puntos de emisión.
+ *
+ * La del certificado es la más delicada de todo el sistema y está escrita con
+ * eso en mente. Un archivo .p12 no es un documento: es la firma de una persona.
+ * Quien lo tiene puede firmar en nombre de ella, y eso tiene efectos jurídicos
+ * reales. La pantalla lo dice con todas las letras en lugar de tratarlo como un
+ * adjunto más.
+ */
+
+
+
+
+// ===========================================================================
+//  Datos de la empresa
+// ===========================================================================
+
+async function configuracion() {
+  const e = await cargar.empresa();
+
+  const campo = (etiqueta, valor, ayuda = '') => html`
+    <label class="block">
+      <span class="text-[11px] font-bold uppercase tracking-wide text-tinta-suave">${etiqueta}</span>
+      <input value="${valor}" class="mt-1.5 w-full px-3.5 py-2.5 rounded-xl border border-papel-linea
+                                     bg-white text-sm focus:outline-none focus:border-verde">
+      ${ayuda ? crudo(`<span class="mt-1.5 block text-[11px] text-tinta-suave leading-relaxed">${esc(ayuda)}</span>`) : ''}
+    </label>`;
+
+  const interruptor = (etiqueta, activo, ayuda) => html`
+    <div class="flex items-start justify-between gap-4 py-4 border-b border-papel-linea last:border-0">
+      <div class="min-w-0">
+        <p class="text-sm font-semibold">${etiqueta}</p>
+        <p class="mt-0.5 text-[11px] text-tinta-suave leading-relaxed">${ayuda}</p>
+      </div>
+      <span class="shrink-0 w-11 h-6 rounded-full flex items-center px-0.5 ${crudo(
+        activo ? 'bg-verde justify-end' : 'bg-papel-linea justify-start')}">
+        <span class="w-5 h-5 rounded-full bg-white shadow"></span>
+      </span>
+    </div>`;
+
+  return html`
+    ${crudo(cabecera({
+      titulo: 'Datos de la empresa',
+      descripcion: 'Lo que aparece en la cabecera de cada comprobante. El SRI compara estos ' +
+                   'datos con los de su RUC: si no coinciden, rechaza.',
+      acciones: boton('Guardar cambios', { ico: 'save' }),
+    }))}
+
+    <div class="grid gap-5 lg:grid-cols-3">
+      <div class="lg:col-span-2 space-y-5">
+        <section class="bg-white border border-papel-linea rounded-2xl p-5">
+          <h2 class="text-sm font-bold mb-4">Identificación</h2>
+          <div class="grid gap-4 sm:grid-cols-2">
+            ${campo('Razón social', e.razonSocial, 'Tal como consta en el RUC. No es el nombre comercial.')}
+            ${campo('Nombre comercial', e.nombreComercial, 'El de la puerta del local. Es opcional.')}
+            ${campo('RUC', e.ruc, 'Trece dígitos terminados en 001 para el establecimiento matriz.')}
+            ${campo('Correo de facturación', e.correo, 'A donde llegan las copias de lo emitido.')}
+          </div>
+          <div class="mt-4">
+            ${campo('Dirección matriz', e.dirMatriz)}
+          </div>
+        </section>
+
+        <section class="bg-white border border-papel-linea rounded-2xl p-5">
+          <h2 class="text-sm font-bold mb-1">Condición tributaria</h2>
+          <p class="text-[11px] text-tinta-suave mb-2">
+            Estos tres datos cambian lo que se imprime en cada factura y lo que viaja en el
+            XML. No se marcan por costumbre: se marcan si el SRI lo declaró así.
+          </p>
+          ${interruptor('Obligado a llevar contabilidad', e.obligadoContabilidad,
+            'Se imprime en el RIDE de cada comprobante. Depende de sus ingresos y su capital.')}
+          ${interruptor('Contribuyente especial', e.contribuyenteEspecial,
+            'Solo si el SRI lo designó por resolución. Lleva el número de esa resolución.')}
+          ${interruptor('Agente de retención', e.agenteRetencion,
+            'Si lo es, está obligado a retener al pagar a sus proveedores y a emitir el ' +
+            'comprobante de retención.')}
+        </section>
+      </div>
+
+      <div class="space-y-5">
+        <section class="bg-white border border-papel-linea rounded-2xl p-5">
+          <h2 class="text-sm font-bold mb-4">Ambiente</h2>
+          <div class="p-4 rounded-xl bg-ambar-fondo border border-ambar-borde">
+            <div class="flex items-center gap-2 text-ambar-texto">
+              ${icono('science', 'text-[20px]')}
+              <p class="text-sm font-bold">Pruebas</p>
+            </div>
+            <p class="mt-2 text-[11px] text-ambar-texto/90 leading-relaxed">
+              Lo que emita aquí no tiene ningún efecto tributario. Sirve para comprobar que
+              todo funciona antes de facturar de verdad.
+            </p>
+          </div>
+          <p class="mt-4 text-[11px] text-tinta-suave leading-relaxed">
+            Pasar a producción es una decisión que no se deshace: a partir de ese momento
+            cada factura emitida existe para el SRI y anularla exige una nota de crédito.
+          </p>
+          <button class="mt-3 w-full py-2.5 rounded-xl border border-papel-linea text-sm font-semibold
+                         hover:border-verde hover:text-verde transition">
+            Pasar a producción
+          </button>
+        </section>
+
+        <section class="bg-white border border-papel-linea rounded-2xl p-5">
+          <h2 class="text-sm font-bold mb-4">Plan contratado</h2>
+          <dl class="space-y-4">
+            ${dato('Plan', e.plan)}
+            ${dato('Régimen', e.regimen)}
+            ${dato('Teléfono', e.telefono)}
+          </dl>
+        </section>
+      </div>
+    </div>`;
+}
+
+// ===========================================================================
+//  Certificado de firma
+// ===========================================================================
+
+async function certificado() {
+  const c = await cargar.certificado();
+  const dias = c.diasRestantes;
+  const vigente = dias > 0;
+
+  return html`
+    ${crudo(cabecera({
+      titulo: 'Certificado de firma electrónica',
+      descripcion: 'El archivo .p12 con el que se firma cada comprobante antes de enviarlo al SRI.',
+    }))}
+
+    ${crudo(aviso({
+      tono: dias <= 15 ? 'rojo' : dias <= 60 ? 'ambar' : 'info',
+      ico: vigente ? 'verified_user' : 'gpp_bad',
+      titulo: vigente ? `Certificado vigente · caduca en ${dias} días` : 'Certificado caducado',
+      texto: vigente
+        ? 'Mientras esté vigente, la empresa puede firmar y emitir con normalidad.'
+        : 'Sin certificado vigente el SRI rechaza todo. Hay que renovarlo con la entidad ' +
+          'certificadora antes de poder volver a facturar.',
+    }))}
+
+    <div class="grid gap-5 lg:grid-cols-3">
+      <section class="lg:col-span-2 bg-white border border-papel-linea rounded-2xl p-5">
+        <h2 class="text-sm font-bold mb-4">Certificado instalado</h2>
+        <div class="flex items-center gap-4 p-4 rounded-xl bg-papel mb-5">
+          <span class="w-12 h-12 rounded-xl bg-verde-claro text-verde flex items-center justify-center">
+            ${icono('shield_lock', 'text-[24px]')}
+          </span>
+          <div class="min-w-0">
+            <p class="text-sm font-bold truncate">${c.titular}</p>
+            <p class="text-[11px] text-tinta-suave">Cédula ${c.cedula} · ${c.emisor}</p>
+          </div>
+          ${chipEstado(vigente ? 'ACTIVA' : 'SUSPENDIDA')}
+        </div>
+        <dl class="grid gap-4 sm:grid-cols-3">
+          ${dato('Válido desde', fechaLarga(c.desde))}
+          ${dato('Válido hasta', fechaLarga(c.hasta))}
+          ${dato('Días restantes', String(dias))}
+        </dl>
+        <div class="mt-5 flex flex-wrap gap-2">
+          ${boton('Reemplazar certificado', { ico: 'upload', tipo: 'secundario' })}
+          ${boton('Quitar certificado', { ico: 'delete', tipo: 'peligro' })}
+        </div>
+      </section>
+
+      <section class="bg-white border-2 border-ambar-borde rounded-2xl p-5">
+        <div class="flex items-center gap-2 text-ambar-texto mb-3">
+          ${icono('gavel', 'text-[20px]')}
+          <h2 class="text-sm font-bold">Lo que significa entregarnos su firma</h2>
+        </div>
+        <div class="space-y-3 text-[12px] leading-relaxed text-tinta-suave">
+          <p>
+            El archivo .p12 no es un documento cualquiera: <strong class="text-tinta">es su firma</strong>.
+            Quien lo tiene y conoce su clave puede firmar en su nombre, con los mismos
+            efectos jurídicos que su firma de puño y letra.
+          </p>
+          <p>
+            Por eso Kontia solo lo usa para firmar sus comprobantes electrónicos, y para
+            nada más. Se guarda cifrado, y la autorización para usarlo consta por escrito
+            en el contrato como una cláusula de mandato.
+          </p>
+          <p>
+            <strong class="text-tinta">Su clave no se guarda en claro en ningún sitio</strong>, ni
+            aparece en pantallas, ni en registros del sistema, ni la conoce el personal de
+            soporte.
+          </p>
+        </div>
+        <a href="#/consulta" class="mt-4 inline-flex items-center gap-1.5 text-[12px] font-bold text-verde hover:underline">
+          Leer la cláusula de mandato ${icono('arrow_forward', 'text-[14px]')}
+        </a>
+      </section>
+    </div>`;
+}
+
+// ===========================================================================
+//  Usuarios de la empresa
+// ===========================================================================
+
+async function usuarios() {
+  const lista = await cargar.usuarios();
+
+  const ROLES = {
+    'Administrador': 'Todo dentro de esta empresa: factura, configura y crea usuarios.',
+    'Facturador': 'Emite comprobantes desde los puntos que tenga asignados. No configura.',
+    'Solo lectura': 'Consulta y descarga. No puede emitir ni modificar nada.',
+  };
+
+  const cuerpo = lista.map((u) => html`
+    <tr class="hover:bg-papel transition">
+      <td class="px-5 py-3.5">
+        <div class="flex items-center gap-3">
+          <span class="w-9 h-9 shrink-0 rounded-full bg-verde-claro text-verde flex items-center justify-center text-[11px] font-extrabold">
+            ${u.nombre.split(' ').map((p) => p[0]).slice(0, 2).join('')}
+          </span>
+          <div class="min-w-0">
+            <span class="block text-sm font-semibold truncate">${u.nombre}</span>
+            <span class="block text-[11px] text-tinta-suave truncate">${u.correo}</span>
+          </div>
+        </div>
+      </td>
+      <td class="px-5 py-3.5">
+        <span class="text-sm font-semibold">${u.rol}</span>
+        <span class="block text-[11px] text-tinta-suave max-w-[280px]">${ROLES[u.rol] ?? ''}</span>
+      </td>
+      <td class="px-5 py-3.5 text-sm tabular">${u.puntos}</td>
+      <td class="px-5 py-3.5 text-sm text-tinta-suave whitespace-nowrap">${u.ultimoAcceso}</td>
+      <td class="px-5 py-3.5 text-right">${chipEstado(u.activo ? 'ACTIVA' : 'SUSPENDIDA')}</td>
+    </tr>`);
+
+  return html`
+    ${crudo(cabecera({
+      titulo: 'Usuarios de la empresa',
+      descripcion: 'Los crea el administrador de la empresa, no Kontia. Cada uno ve solo lo ' +
+                   'que su rol le permite.',
+      acciones: boton('Invitar usuario', { ico: 'person_add' }),
+    }))}
+
+    ${crudo(aviso({
+      tono: 'info', ico: 'lock',
+      titulo: 'Los permisos no son una preferencia de pantalla',
+      texto: 'Lo que un rol puede hacer lo decide la base de datos, no la interfaz. Aunque ' +
+             'alguien se salte los botones, las políticas de acceso siguen ahí: un facturador ' +
+             'que pida datos de configuración recibe una respuesta vacía, no un error.',
+    }))}
+
+    <section class="bg-white border border-papel-linea rounded-2xl overflow-hidden">
+      ${crudo(tabla([
+        { texto: 'Usuario' }, { texto: 'Rol' }, { texto: 'Puntos de emisión' },
+        { texto: 'Último acceso' }, { texto: 'Estado', der: true },
+      ], cuerpo))}
+    </section>`;
+}
+
+// ===========================================================================
+//  Puntos de emisión
+// ===========================================================================
+
+async function puntosEmision() {
+  const lista = await cargar.puntos();
+
+  const cuerpo = lista.map((p) => html`
+    <tr class="hover:bg-papel transition">
+      <td class="px-5 py-3.5 text-sm font-bold tabular">${p.codigo}</td>
+      <td class="px-5 py-3.5 text-sm">${p.nombre}</td>
+      <td class="px-5 py-3.5 text-sm text-tinta-suave">${p.lugar}</td>
+      <td class="px-5 py-3.5 text-right text-sm tabular">${String(p.ultimo).padStart(9, '0')}</td>
+      <td class="px-5 py-3.5 text-right text-sm font-bold tabular">${String(p.ultimo + 1).padStart(9, '0')}</td>
+      <td class="px-5 py-3.5 text-right">${chipEstado(p.activo ? 'ACTIVA' : 'SUSPENDIDA')}</td>
+    </tr>`);
+
+  return html`
+    ${crudo(cabecera({
+      titulo: 'Puntos de emisión',
+      descripcion: 'Cada caja o mostrador lleva su propia numeración, y esa numeración no ' +
+                   'puede saltarse ni repetirse.',
+      acciones: boton('Añadir punto', { ico: 'add' }),
+    }))}
+
+    ${crudo(aviso({
+      tono: 'info', ico: 'pin',
+      titulo: 'Por qué el número siguiente no se puede elegir a mano',
+      texto: 'El SRI exige que los comprobantes de un punto de emisión vayan seguidos. Dos ' +
+             'cajas emitiendo a la vez podrían pedir el mismo número, así que el sistema lo ' +
+             'entrega de uno en uno y nunca repite: el número se reserva en el mismo momento ' +
+             'en que se pide.',
+    }))}
+
+    <section class="bg-white border border-papel-linea rounded-2xl overflow-hidden">
+      ${crudo(tabla([
+        { texto: 'Código' }, { texto: 'Nombre' }, { texto: 'Ubicación' },
+        { texto: 'Último emitido', der: true }, { texto: 'Siguiente', der: true },
+        { texto: 'Estado', der: true },
+      ], cuerpo))}
+    </section>`;
+}
+
+
+  return { configuracion, certificado, usuarios, puntosEmision };
+})();
+
+// ---- src/vistas/admin.js -----------------------------------------
+const __src_vistas_admin_js = (function () {
+  const { html, crudo, esc, icono, tabla, boton, cabecera, aviso, dato, chipEstado, fecha, fechaLarga, fechaHora, vacio } = __src_ui_js;
+  const { cargar } = __src_almacen_js;
+
+/**
+ * Las pantallas del super administrador.
+ *
+ * Aquí está la idea central de Kontia, y conviene leerla despacio porque de
+ * ella cuelga todo lo demás:
+ *
+ *   **Quien administra la plataforma no ve los datos de las empresas.**
+ *
+ * No "no los enseña la pantalla": no los ve. El directorio de abajo tiene plan,
+ * estado, fecha de alta y CUÁNTOS comprobantes se emitieron. No tiene ni un
+ * cliente, ni un importe, ni una factura. Si alguien añadiera aquí una columna
+ * con las ventas, el día que esto lea de Supabase vendría vacía, porque las
+ * políticas de acceso de la migración 0004 no devuelven esos datos a un super
+ * administrador.
+ *
+ * Y cuando hace falta entrar de verdad —una empresa pide ayuda con un
+ * comprobante rechazado— no se entra sin más: se abre un acceso de soporte con
+ * un motivo escrito, dura dos horas y queda anotado en una auditoría que ni el
+ * super administrador puede borrar.
+ */
+
+
+
+
+// ===========================================================================
+//  Directorio de empresas
+// ===========================================================================
+
+async function adminEmpresas() {
+  const lista = await cargar.empresasAdmin();
+  const activas = lista.filter((e) => e.estado === 'ACTIVA').length;
+  const total = lista.reduce((a, e) => a + e.comprobantesMes, 0);
+
+  const resumen = [
+    { ico: 'domain', etiqueta: 'Empresas', valor: lista.length, pie: `${activas} activas` },
+    { ico: 'group', etiqueta: 'Usuarios', valor: lista.reduce((a, e) => a + e.usuarios, 0),
+      pie: 'En todas las empresas' },
+    { ico: 'receipt_long', etiqueta: 'Comprobantes del mes', valor: total,
+      pie: 'Cuántos, no cuáles' },
+    { ico: 'warning', etiqueta: 'Requieren atención', valor: 2,
+      pie: '1 suspendida · 1 certificado por caducar' },
+  ];
+
+  const cuerpo = lista.map((e) => html`
+    <tr class="hover:bg-papel transition cursor-pointer" onclick="location.hash='#/admin/empresas/${e.id}'">
+      <td class="px-5 py-3.5">
+        <div class="flex items-center gap-3">
+          <span class="w-9 h-9 shrink-0 rounded-xl bg-papel flex items-center justify-center text-[11px] font-extrabold text-tinta-suave">
+            ${e.razonSocial.slice(0, 2).toUpperCase()}
+          </span>
+          <div class="min-w-0">
+            <a href="#/admin/empresas/${e.id}" class="block text-sm font-semibold truncate max-w-[260px] hover:text-verde">
+              ${e.razonSocial}
+            </a>
+            <span class="block text-[11px] text-tinta-suave tabular">${e.ruc} · ${e.ciudad}</span>
+          </div>
+        </div>
+      </td>
+      <td class="px-5 py-3.5">
+        <span class="text-[11px] font-bold px-2 py-1 rounded-full bg-papel text-tinta-suave">${e.plan}</span>
+      </td>
+      <td class="px-5 py-3.5 text-sm text-tinta-suave whitespace-nowrap">${fecha(e.alta)}</td>
+      <td class="px-5 py-3.5 text-right text-sm tabular">${e.usuarios}</td>
+      <td class="px-5 py-3.5 text-right text-sm font-semibold tabular">${e.comprobantesMes}</td>
+      <td class="px-5 py-3.5 text-right">${chipEstado(e.estado)}</td>
+    </tr>`);
+
+  return html`
+    ${crudo(cabecera({
+      titulo: 'Empresas',
+      descripcion: 'Las empresas con contrato activo en Kontia. Se administra el servicio: ' +
+                   'plan, estado y consumo.',
+      acciones: boton('Dar de alta una empresa', { ruta: '#/admin/empresas/nueva', ico: 'add_business' }),
+    }))}
+
+    <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4 mb-5">
+      ${resumen.map((r) => html`
+        <div class="bg-white border border-papel-linea rounded-2xl p-5">
+          <div class="flex items-start justify-between">
+            <p class="text-[11px] font-bold uppercase tracking-wide text-tinta-suave">${r.etiqueta}</p>
+            <span class="w-9 h-9 rounded-xl bg-papel text-tinta-suave flex items-center justify-center">
+              ${icono(r.ico, 'text-[18px]')}
+            </span>
+          </div>
+          <p class="mt-3 text-[30px] font-extrabold tracking-tight tabular">${r.valor}</p>
+          <p class="mt-1 text-xs text-tinta-suave">${r.pie}</p>
+        </div>`)}
+    </div>
+
+    ${crudo(aviso({
+      tono: 'info', ico: 'visibility_off',
+      titulo: 'Aquí no hay ni una factura, ni un cliente, ni un importe de venta',
+      texto: 'No es que la pantalla no los enseñe: es que no llegan. Las políticas de la ' +
+             'base de datos no devuelven los datos de una empresa a quien administra la ' +
+             'plataforma. Para entrar hace falta que la empresa lo autorice, y ese acceso ' +
+             'dura dos horas y queda anotado.',
+    }))}
+
+    <section class="bg-white border border-papel-linea rounded-2xl overflow-hidden">
+      ${crudo(tabla([
+        { texto: 'Empresa' }, { texto: 'Plan' }, { texto: 'Alta' },
+        { texto: 'Usuarios', der: true }, { texto: 'Comprobantes/mes', der: true },
+        { texto: 'Estado', der: true },
+      ], cuerpo))}
+    </section>`;
+}
+
+// ===========================================================================
+//  Ficha de una empresa
+// ===========================================================================
+
+async function adminFicha(id) {
+  const e = await cargar.empresaAdmin(id);
+  if (!e) {
+    return html`<section class="bg-white border border-papel-linea rounded-2xl">
+      ${crudo(vacio({
+        ico: 'search_off', titulo: 'No existe esa empresa',
+        texto: `No hay ninguna empresa con el identificador ${id}.`,
+        accion: boton('Volver al directorio', { ruta: '#/admin/empresas', tipo: 'secundario' }),
+      }))}</section>`;
+  }
+
+  const diasCert = e.certificadoVence
+    ? Math.ceil((e.certificadoVence - new Date()) / (24 * 60 * 60 * 1000)) : null;
+
+  return html`
+    <a href="#/admin/empresas" class="inline-flex items-center gap-1.5 text-xs font-bold text-tinta-suave hover:text-verde mb-4">
+      ${icono('arrow_back', 'text-[16px]')} Empresas
+    </a>
+
+    <header class="flex flex-wrap items-start justify-between gap-4 mb-6">
+      <div class="flex items-center gap-4">
+        <span class="w-14 h-14 rounded-2xl bg-white border border-papel-linea flex items-center justify-center text-sm font-extrabold text-tinta-suave">
+          ${e.razonSocial.slice(0, 2).toUpperCase()}
+        </span>
+        <div>
+          <div class="flex items-center gap-3">
+            <h1 class="text-2xl font-bold tracking-tight">${e.razonSocial}</h1>
+            ${chipEstado(e.estado)}
+          </div>
+          <p class="mt-1 text-sm text-tinta-suave tabular">RUC ${e.ruc} · ${e.ciudad}</p>
+        </div>
+      </div>
+      <div class="flex flex-wrap gap-2">
+        ${boton('Cambiar plan', { ico: 'sync_alt', tipo: 'secundario' })}
+        ${e.estado === 'SUSPENDIDA'
+          ? boton('Reactivar', { ico: 'play_arrow' })
+          : boton('Suspender', { ico: 'pause', tipo: 'peligro' })}
+      </div>
+    </header>
+
+    <div class="grid gap-5 lg:grid-cols-3">
+      <div class="lg:col-span-2 space-y-5">
+
+        <section class="bg-white border border-papel-linea rounded-2xl p-5">
+          <h2 class="text-sm font-bold mb-4">Contrato y servicio</h2>
+          <dl class="grid gap-5 sm:grid-cols-3">
+            ${dato('Plan', e.plan)}
+            ${dato('Alta', fechaLarga(e.alta))}
+            ${dato('Ambiente', e.ambiente)}
+            ${dato('Usuarios', String(e.usuarios))}
+            ${dato('Comprobantes este mes', String(e.comprobantesMes))}
+            ${dato('Certificado', e.certificadoVence
+              ? `Caduca ${fecha(e.certificadoVence)}${diasCert > 0 ? ` · ${diasCert} días` : ' · caducado'}`
+              : 'Sin certificado cargado')}
+          </dl>
+        </section>
+
+        <section class="bg-white border-2 border-papel-linea border-dashed rounded-2xl p-6">
+          <div class="flex items-start gap-4">
+            <span class="w-11 h-11 shrink-0 rounded-xl bg-papel text-tinta-suave flex items-center justify-center">
+              ${icono('visibility_off', 'text-[22px]')}
+            </span>
+            <div>
+              <h2 class="text-sm font-bold">Lo que usted no puede ver de esta empresa</h2>
+              <p class="mt-2 text-[12px] text-tinta-suave leading-relaxed max-w-2xl">
+                Sus facturas, sus clientes, sus productos, sus importes de venta, su
+                contabilidad y los datos de sus usuarios. Nada de eso llega a esta pantalla,
+                y no llega porque la base de datos no lo entrega: no hay un botón escondido
+                que lo muestre.
+              </p>
+              <p class="mt-3 text-[12px] text-tinta-suave leading-relaxed max-w-2xl">
+                Es lo que permite prometerle a un cliente que su competencia, su contador
+                anterior y el propio Kontia no van a ver lo que factura. Una promesa que
+                dependa de que nadie mire el sitio equivocado no vale nada.
+              </p>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <div class="space-y-5">
+        <section class="bg-white border border-papel-linea rounded-2xl p-5">
+          <div class="flex items-center gap-2 mb-3">
+            ${icono('support_agent', 'text-[20px] text-verde')}
+            <h2 class="text-sm font-bold">Acceso de soporte</h2>
+          </div>
+          <p class="text-[12px] text-tinta-suave leading-relaxed">
+            Cuando la empresa pide ayuda, se puede abrir un acceso temporal a sus datos.
+            Exige escribir el motivo, dura <strong class="text-tinta">dos horas</strong> y
+            se anota en la auditoría con su nombre.
+          </p>
+          <label class="block mt-4">
+            <span class="text-[11px] font-bold uppercase tracking-wide text-tinta-suave">Motivo</span>
+            <textarea rows="3" placeholder="Ej.: revisar por qué el SRI devolvió el comprobante 001-001-000000203"
+                      class="mt-1.5 w-full px-3 py-2.5 rounded-xl border border-papel-linea bg-white text-sm
+                             placeholder:text-tinta-suave/50 focus:outline-none focus:border-verde"></textarea>
+            <span class="mt-1 block text-[11px] text-tinta-suave">
+              Mínimo quince caracteres. "Revisión" no es un motivo.
+            </span>
+          </label>
+          <button class="mt-3 w-full py-2.5 rounded-xl bg-verde text-white text-sm font-bold hover:bg-verde-oscuro transition">
+            Solicitar acceso por 2 horas
+          </button>
+        </section>
+
+        <section class="bg-white border border-papel-linea rounded-2xl p-5">
+          <h2 class="text-sm font-bold mb-4">Contacto</h2>
+          <dl class="space-y-4">
+            ${dato('Representante', 'Dato del contrato')}
+            ${dato('Ciudad', e.ciudad)}
+            ${dato('Identificador', e.id)}
+          </dl>
+        </section>
+      </div>
+    </div>`;
+}
+
+// ===========================================================================
+//  Alta de una empresa
+// ===========================================================================
+
+const PASOS = [
+  ['Datos de la empresa', 'La identifican ante el SRI'],
+  ['Plan y contrato', 'Qué se factura y desde cuándo'],
+  ['Administrador', 'Quién manda dentro de la empresa'],
+];
+
+async function adminAlta() {
+  const campo = (etiqueta, marcador, ayuda = '', ancho = '') => html`
+    <label class="block ${ancho}">
+      <span class="text-[11px] font-bold uppercase tracking-wide text-tinta-suave">${etiqueta}</span>
+      <input placeholder="${marcador}" class="mt-1.5 w-full px-3.5 py-2.5 rounded-xl border border-papel-linea
+                                              bg-white text-sm placeholder:text-tinta-suave/50
+                                              focus:outline-none focus:border-verde">
+      ${ayuda ? crudo(`<span class="mt-1.5 block text-[11px] text-tinta-suave leading-relaxed">${esc(ayuda)}</span>`) : ''}
+    </label>`;
+
+  return html`
+    <a href="#/admin/empresas" class="inline-flex items-center gap-1.5 text-xs font-bold text-tinta-suave hover:text-verde mb-4">
+      ${icono('arrow_back', 'text-[16px]')} Empresas
+    </a>
+
+    ${crudo(cabecera({
+      titulo: 'Dar de alta una empresa',
+      descripcion: 'Tres pasos. Al terminar, la empresa recibe una invitación y su ' +
+                   'administrador crea a los demás usuarios por su cuenta.',
+    }))}
+
+    <ol class="flex flex-wrap gap-3 mb-6">
+      ${PASOS.map((p, i) => html`
+        <li class="flex-1 min-w-[200px] flex items-start gap-3 p-4 rounded-2xl border ${crudo(
+          i === 0 ? 'bg-white border-verde' : 'bg-white/60 border-papel-linea')}">
+          <span class="w-7 h-7 shrink-0 rounded-full flex items-center justify-center text-xs font-extrabold ${crudo(
+            i === 0 ? 'bg-verde text-white' : 'bg-papel text-tinta-suave')}">${i + 1}</span>
+          <span class="min-w-0">
+            <span class="block text-sm font-bold ${crudo(i === 0 ? '' : 'text-tinta-suave')}">${p[0]}</span>
+            <span class="block text-[11px] text-tinta-suave">${p[1]}</span>
+          </span>
+        </li>`)}
+    </ol>
+
+    <div class="grid gap-5 lg:grid-cols-3">
+      <section class="lg:col-span-2 bg-white border border-papel-linea rounded-2xl p-5">
+        <h2 class="text-sm font-bold mb-4">Paso 1 · Datos de la empresa</h2>
+        <div class="grid gap-4 sm:grid-cols-2">
+          ${campo('RUC', '0912345678001', 'Trece dígitos. Es lo que identifica a la empresa ante el SRI.')}
+          ${campo('Razón social', 'Agroquímicos Pérez S.A.', 'Tal como consta en el RUC.')}
+          ${campo('Nombre comercial', 'Agroquímicos Pérez', 'Opcional.')}
+          ${campo('Cantón', 'Daule')}
+        </div>
+        <div class="mt-4 grid gap-4">
+          ${campo('Dirección matriz', 'Km 14.5 Vía Daule, Daule, Guayas')}
+        </div>
+        <div class="mt-5 flex justify-end gap-2">
+          ${boton('Cancelar', { ruta: '#/admin/empresas', tipo: 'secundario' })}
+          ${boton('Continuar al paso 2', { ico: 'arrow_forward' })}
+        </div>
+      </section>
+
+      <section class="bg-white border border-papel-linea rounded-2xl p-5">
+        <div class="flex items-center gap-2 mb-3">
+          ${icono('gavel', 'text-[20px] text-verde')}
+          <h2 class="text-sm font-bold">Antes de dar de alta</h2>
+        </div>
+        <ul class="space-y-3 text-[12px] text-tinta-suave leading-relaxed">
+          <li class="flex gap-2">${icono('check_circle', 'text-[16px] text-verde shrink-0 mt-0.5')}
+            <span>Contrato firmado, con la cláusula de mandato para usar el certificado de firma.</span></li>
+          <li class="flex gap-2">${icono('check_circle', 'text-[16px] text-verde shrink-0 mt-0.5')}
+            <span>Contrato de tratamiento de datos personales, que exige la LOPDP.</span></li>
+          <li class="flex gap-2">${icono('check_circle', 'text-[16px] text-verde shrink-0 mt-0.5')}
+            <span>RUC activo y comprobado en la página del SRI.</span></li>
+        </ul>
+        <p class="mt-4 text-[11px] text-tinta-suave leading-relaxed">
+          El alta empieza siempre en ambiente de pruebas. Pasar a producción es una decisión
+          de la empresa, no de Kontia.
+        </p>
+      </section>
+    </div>`;
+}
+
+// ===========================================================================
+//  Auditoría
+// ===========================================================================
+
+async function adminAuditoria() {
+  const lista = await cargar.auditoria();
+
+  const COLOR = {
+    ACCESO_SOPORTE_ABIERTO: 'bg-ambar-fondo text-ambar-texto',
+    EMPRESA_SUSPENDIDA: 'bg-rojo-fondo text-rojo-texto',
+    EMPRESA_CREADA: 'bg-verde-claro text-verde',
+    USUARIO_CREADO: 'bg-papel text-tinta-suave',
+  };
+
+  const cuerpo = lista.map((a) => html`
+    <tr class="hover:bg-papel transition">
+      <td class="px-5 py-3.5 text-sm text-tinta-suave whitespace-nowrap">${fechaHora(a.cuando)}</td>
+      <td class="px-5 py-3.5">
+        <span class="text-[11px] font-bold px-2 py-1 rounded-full ${crudo(COLOR[a.accion] ?? 'bg-papel text-tinta-suave')}">
+          ${a.accion.replaceAll('_', ' ')}
+        </span>
+      </td>
+      <td class="px-5 py-3.5">
+        <span class="block text-sm font-semibold">${a.quien}</span>
+        <span class="block text-[11px] text-tinta-suave">${a.rol}</span>
+      </td>
+      <td class="px-5 py-3.5 text-sm truncate max-w-[220px]">${a.empresa}</td>
+      <td class="px-5 py-3.5 text-[12px] text-tinta-suave">${a.detalle}</td>
+    </tr>`);
+
+  return html`
+    ${crudo(cabecera({
+      titulo: 'Auditoría',
+      descripcion: 'Quién hizo qué, cuándo y sobre qué empresa.',
+    }))}
+
+    ${crudo(aviso({
+      tono: 'info', ico: 'lock',
+      titulo: 'Este registro solo crece: nadie puede borrar una línea',
+      texto: 'Ni el super administrador. La base de datos acepta añadir y rechaza modificar ' +
+             'o eliminar. Un registro que quien manda puede editar no sirve como prueba de ' +
+             'nada, y el sentido de esta pantalla es precisamente poder demostrar lo que pasó.',
+    }))}
+
+    <section class="bg-white border border-papel-linea rounded-2xl overflow-hidden">
+      ${crudo(tabla([
+        { texto: 'Cuándo' }, { texto: 'Acción' }, { texto: 'Quién' },
+        { texto: 'Empresa' }, { texto: 'Detalle' },
+      ], cuerpo))}
+    </section>`;
+}
+
+
+  return { adminEmpresas, adminFicha, adminAlta, adminAuditoria };
+})();
+
+// ---- src/app.js --------------------------------------------------
+const __src_app_js = (function () {
+  const { sesion } = __src_sesion_js;
+  const { marco, suelta } = __src_disposicion_js;
+  const { entrar, seleccionEmpresa } = __src_vistas_acceso_js;
+  const { resumen } = __src_vistas_resumen_js;
+  const { comprobantes, comprobante, conectarComprobante } = __src_vistas_comprobantes_js;
+  const { emision, conectarEmision } = __src_vistas_emision_js;
+  const { clientes, productos } = __src_vistas_catalogo_js;
+  const { formularioCliente, formularioProducto, conectarFormularios } = __src_vistas_formularios_js;
+  const { configuracion, certificado, usuarios, puntosEmision } = __src_vistas_empresa_js;
+  const { adminEmpresas, adminAlta, adminFicha, adminAuditoria } = __src_vistas_admin_js;
+  const { pendiente } = __src_vistas_pendiente_js;
+  const { aviso, crudo, recogerRecado } = __src_ui_js;
+
+/**
+ * El enrutador: mira la dirección del navegador y dibuja la pantalla que toca.
+ *
+ * Cada pantalla es una función que devuelve HTML. No hay estado compartido
+ * entre pantallas ni nada que recordar de una a otra: se entra, se pide el
+ * dato, se dibuja. Es la forma más aburrida de hacerlo, y por eso se puede leer
+ * entera en una tarde.
+ */
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+/**
+ * La tabla de rutas.
+ *
+ * `admin` marca las pantallas del super administrador. La separación se
+ * comprueba abajo, en `resolver`: sin ella, escribir la dirección a mano
+ * llevaría al mundo equivocado. Recuerde que la defensa de verdad está en la
+ * base de datos, no aquí; esto solo evita que la aplicación se enseñe sola.
+ */
+const RUTAS = [
+  { patron: /^#\/entrar\/?$/, vista: entrar, sinSesion: true },
+  { patron: /^#\/empresas\/?$/, vista: seleccionEmpresa, sinMarco: true },
+
+  { patron: /^#\/resumen\/?$/, vista: resumen },
+  { patron: /^#\/comprobantes\/?$/, vista: comprobantes },
+  { patron: /^#\/comprobantes\/nuevo\/?$/, vista: emision, alDibujar: conectarEmision },
+  { patron: /^#\/comprobantes\/([\d-]+)\/?$/, vista: comprobante, alDibujar: conectarComprobante },
+  { patron: /^#\/clientes\/?$/, vista: clientes },
+  // Las rutas con nombre fijo van ANTES que la que captura cualquier cosa: si
+  // `#/clientes/nuevo` cayera en la de abajo, se buscaria un cliente llamado
+  // "nuevo" y la pantalla de alta no existiria.
+  { patron: /^#\/clientes\/(nuevo)\/?$/, vista: formularioCliente, alDibujar: conectarFormularios },
+  { patron: /^#\/clientes\/([^/]+)\/?$/, vista: formularioCliente, alDibujar: conectarFormularios },
+  { patron: /^#\/productos\/?$/, vista: productos },
+  { patron: /^#\/productos\/(nuevo)\/?$/, vista: formularioProducto, alDibujar: conectarFormularios },
+  { patron: /^#\/productos\/([^/]+)\/?$/, vista: formularioProducto, alDibujar: conectarFormularios },
+  { patron: /^#\/usuarios\/?$/, vista: usuarios },
+  { patron: /^#\/configuracion\/?$/, vista: configuracion },
+  { patron: /^#\/certificado\/?$/, vista: certificado },
+  { patron: /^#\/puntos-emision\/?$/, vista: puntosEmision },
+
+  { patron: /^#\/admin\/empresas\/?$/, vista: adminEmpresas, admin: true },
+  { patron: /^#\/admin\/empresas\/nueva\/?$/, vista: adminAlta, admin: true },
+  { patron: /^#\/admin\/empresas\/([\w-]+)\/?$/, vista: adminFicha, admin: true },
+  { patron: /^#\/admin\/auditoria\/?$/, vista: adminAuditoria, admin: true },
+];
+
+/** Las que todavía no están hechas. Se dicen, no se disimulan. */
+const PENDIENTES = {
+  '#/retenciones': ['Retenciones', 'receipt',
+    'Emitir comprobantes de retención, que es lo que hace un agente de retención cuando ' +
+    'paga a un proveedor. El motor ya los genera y los firma; falta la pantalla.'],
+  '#/guias': ['Guías de remisión', 'local_shipping',
+    'El documento que acompaña a la mercadería mientras viaja. No lleva precios ni ' +
+    'impuestos: ampara el traslado, no la venta. El motor ya la genera; falta la pantalla.'],
+  '#/notas-credito': ['Notas de crédito', 'assignment_return',
+    'Para anular o corregir una factura ya autorizada. Una factura emitida no se borra ' +
+    'nunca: se corrige con otro documento que deja constancia. El motor ya las genera.'],
+  '#/reportes': ['Reportes contables', 'bar_chart',
+    'Libro de ventas, libro de compras y los cuadros que pide el SRI. Esto pertenece a ' +
+    'la Fase 2 y no se construye sin un contador que valide las reglas.'],
+  '#/consulta': ['Consulta legal-tributaria', 'gavel',
+    'El módulo que distingue a Kontia de un proveedor de software: poder preguntarle a ' +
+    'un abogado sobre una glosa o un trámite desde dentro del sistema.'],
+  '#/admin/suscripciones': ['Suscripciones', 'receipt_long',
+    'Planes, cobros mensuales y anuales, y el estado de pago de cada empresa.'],
+  '#/admin/uso': ['Uso de la plataforma', 'speed',
+    'Cuántos comprobantes emite cada empresa, para dimensionar el servicio y los planes. ' +
+    'Cuántos, no cuáles.'],
+  '#/admin/soporte': ['Soporte', 'support_agent',
+    'Las peticiones de ayuda y los accesos temporales que una empresa autoriza para que ' +
+    'usted pueda mirar sus datos durante dos horas.'],
+};
+
+const raiz = () => document.getElementById('raiz');
+
+/** Decide qué dibujar, y corrige la dirección cuando no corresponde. */
+function resolver(hash) {
+  const ruta = hash || '#/entrar';
+
+  if (ruta === '#/salir') { sesion.salir(); return { redirigir: '#/entrar' }; }
+
+  if (!sesion.activa()) {
+    return ruta === '#/entrar' ? { ruta, coincide: RUTAS[0], args: [] }
+                               : { redirigir: '#/entrar' };
+  }
+
+  const esSuper = sesion.esSuperAdmin();
+  if (ruta === '#/entrar') return { redirigir: esSuper ? '#/admin/empresas' : '#/resumen' };
+
+  const pendienteAqui = PENDIENTES[ruta];
+  if (pendienteAqui) return { ruta, pendiente: pendienteAqui, admin: ruta.startsWith('#/admin') };
+
+  for (const r of RUTAS) {
+    const m = ruta.match(r.patron);
+    if (!m) continue;
+    // Cada quien en su mundo: el super administrador no entra a las pantallas de
+    // una empresa, y un usuario de empresa no entra a las de la plataforma.
+    if (!!r.admin !== esSuper && !r.sinMarco) {
+      return { redirigir: esSuper ? '#/admin/empresas' : '#/resumen' };
+    }
+    return { ruta, coincide: r, args: m.slice(1) };
+  }
+  return { ruta, noEncontrada: true, admin: esSuper };
+}
+
+async function dibujar() {
+  const r = resolver(location.hash);
+
+  if (r.redirigir) { location.hash = r.redirigir; return; }
+
+  let contenido;
+  let opciones = { ruta: r.ruta, admin: r.admin ?? sesion.esSuperAdmin() };
+  let alDibujar = null;
+
+  if (r.pendiente) {
+    const [titulo, ico, texto] = r.pendiente;
+    contenido = pendiente({ titulo, ico, texto });
+  } else if (r.noEncontrada) {
+    contenido = pendiente({
+      titulo: 'Esa pantalla no existe', ico: 'help',
+      texto: `La dirección ${r.ruta} no corresponde a ninguna pantalla de Kontia.`,
+    });
+  } else {
+    contenido = await r.coincide.vista(...r.args);
+    alDibujar = r.coincide.alDibujar ?? null;
+    if (r.coincide.sinSesion || r.coincide.sinMarco) {
+      raiz().innerHTML = suelta(contenido);
+      window.scrollTo(0, 0);
+      if (alDibujar) alDibujar();
+      return;
+    }
+  }
+
+  const recado = recogerRecado();
+  if (recado) contenido = crudo(String(aviso(recado)) + String(contenido));
+
+  raiz().innerHTML = marco(contenido, opciones);
+  window.scrollTo(0, 0);
+  if (alDibujar) alDibujar();
+}
+
+window.addEventListener('hashchange', dibujar);
+window.addEventListener('DOMContentLoaded', dibujar);
+if (document.readyState !== 'loading') dibujar();
+
+// Permite que las vistas pidan un redibujado sin conocer el enrutador.
+window.addEventListener('kontia:redibujar', dibujar);
+
+
+  return {  };
+})();
+
+})();
+</script>
+</body>
+</html>
