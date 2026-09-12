@@ -3,11 +3,16 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Kontia · demostracion</title>
+<title>Kontia</title>
+<meta name="theme-color" content="#0F7B4F">
+<link rel="manifest" href="manifiesto.json">
+<link rel="icon" href="iconos/favicon-32.png" sizes="32x32">
+<link rel="apple-touch-icon" href="iconos/icono-180.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap">
 <script src="https://cdn.tailwindcss.com"></script>
 <script>
   tailwind.config = {
@@ -24,6 +29,446 @@
   };
 </script>
 <style>
+  /* ═══════════════════════════════════════════════════════════════════
+     EL SITIO
+
+     Vive en la misma página que el sistema. Se llega, se recorre, se
+     inicia sesión ahí mismo y el sistema ocupa su sitio. Una sola
+     dirección para todo.
+
+     VARIAS PANTALLAS, UN SOLO ARCHIVO. Cada pantalla del sitio es un
+     bloque `.pantalla` y solo una está visible a la vez; un guion corto al
+     final las cambia según la dirección (#inicio, #planes, #ingresar…).
+     Se comporta como un sitio de varias páginas —enlaces que se pueden
+     compartir, botón de atrás del navegador, menú que marca dónde está
+     uno— sin necesitar un servidor que sirva varios archivos.
+
+     TODO VA COLGADO DE #portada. Los selectores llevan ese prefijo a
+     propósito: así ni una regla de aquí se le escapa al sistema, que usa
+     Tailwind y tiene sus propias bases.
+     ═══════════════════════════════════════════════════════════════════ */
+  :root {
+    --hondo:      #0C3A27;
+    --hondo-mas:  #072A1C;
+    --verde-p:    #0F7B4F;
+    --verde-viv:  #35A876;
+    --verde-tenue:#8FDCB6;
+    --tinta-p:    #14201A;
+    --suave:      #5C6660;
+    --carta:      #FFFFFF;
+    --papel-p:    #F5F8F6;
+    --linea:      #E3E8E4;
+    --ambar-p:    #9A5B0B;
+    --ambar-suave:#FBF3E6;
+    --sobre-hondo: rgba(255, 255, 255, .09);
+    --texto-hondo: rgba(255, 255, 255, .66);
+  }
+
+  #portada { background: var(--papel-p); color: var(--tinta-p); }
+  #portada .franja { padding: 0 1.5rem; }
+  #portada .centro { max-width: 68rem; margin: 0 auto; }
+  #portada .angosto { max-width: 48rem; }
+
+  #portada h1, #portada h2, #portada h3 {
+    text-wrap: balance; letter-spacing: -.022em; line-height: 1.12; margin: 0;
+  }
+  #portada p { margin: 0; }
+  #portada a { color: inherit; }
+  #portada ul { margin: 0; padding: 0; list-style: none; }
+
+  #portada .mono { font-family: 'IBM Plex Mono', ui-monospace, monospace; font-variant-numeric: tabular-nums; }
+  #portada .rotulo {
+    font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: .7rem; font-weight: 500;
+    letter-spacing: .16em; text-transform: uppercase;
+  }
+  #portada .letra-chica { font-size: .82rem; color: var(--suave); }
+
+  /* ═══════════════════════════════════════════ la barra de arriba */
+  /* Se queda pegada arriba: en un sitio de varias pantallas, el menú es
+     por donde se cambia de pantalla, y perseguirlo hacia arriba cansa. */
+  #portada .alto {
+    position: sticky; top: 0; z-index: 40;
+    background: var(--hondo); color: #fff;
+    border-bottom: 1px solid rgba(255,255,255,.09);
+  }
+  #portada .barra { display: flex; align-items: center; gap: .8rem; padding: .95rem 0; }
+  #portada .marca { display: flex; align-items: center; gap: .65rem; text-decoration: none; }
+  #portada .marca img { width: 32px; height: 32px; border-radius: 9px; display: block; }
+  #portada .marca b { font-size: 1.18rem; font-weight: 800; letter-spacing: -.02em; color: #fff; }
+  #portada .barra > .rotulo { color: var(--texto-hondo); margin-left: .15rem; }
+
+  #portada .barra nav { margin-left: auto; display: flex; align-items: center; gap: 1.5rem; }
+  #portada .barra nav a {
+    font-size: .9rem; font-weight: 500; color: var(--texto-hondo);
+    text-decoration: none; padding: .2rem 0; border-bottom: 2px solid transparent;
+  }
+  #portada .barra nav a:hover { color: #fff; }
+  #portada .barra nav a.aqui { color: #fff; font-weight: 700; border-bottom-color: var(--verde-tenue); }
+  #portada .barra nav a.btn-nav {
+    border: 1px solid rgba(255,255,255,.24); border-radius: 9px;
+    padding: .5rem 1.05rem; background: var(--sobre-hondo); color: #fff; font-weight: 700;
+  }
+  #portada .barra nav a.btn-nav:hover { background: rgba(255,255,255,.17); }
+  #portada .barra nav a.btn-nav.aqui { background: #fff; color: var(--hondo); border-color: #fff; }
+
+  /* El menú en pantalla pequeña: un botón y un panel que baja. */
+  #portada .menu-boton {
+    display: none; margin-left: auto; background: var(--sobre-hondo);
+    border: 1px solid rgba(255,255,255,.2); border-radius: 9px;
+    color: #fff; font: inherit; font-size: .85rem; font-weight: 700;
+    padding: .5rem .85rem; cursor: pointer;
+  }
+  @media (max-width: 58rem) {
+    #portada .menu-boton { display: block; }
+    #portada .barra { flex-wrap: wrap; }
+    #portada .barra nav {
+      order: 9; width: 100%; margin-left: 0; display: none;
+      flex-direction: column; align-items: stretch; gap: 0;
+      border-top: 1px solid rgba(255,255,255,.1); margin-top: .9rem; padding-top: .4rem;
+    }
+    #portada .barra nav.abierto { display: flex; }
+    #portada .barra nav a {
+      padding: .8rem .2rem; border-bottom: 1px solid rgba(255,255,255,.07);
+    }
+    #portada .barra nav a.aqui { border-bottom-color: rgba(255,255,255,.07); color: var(--verde-tenue); }
+    #portada .barra nav a.btn-nav { margin: .7rem 0 .3rem; text-align: center; }
+  }
+
+  /* La barra y el pie no acompañan al inicio de sesión: esa pantalla se
+     ocupa entera, como en cualquier servicio. */
+  #portada[data-pantalla="ingresar"] > .alto,
+  #portada[data-pantalla="ingresar"] > footer { display: none; }
+
+  /* ═══════════════════════════════════════════ pantallas y portadillas */
+  #portada .pantalla[hidden] { display: none; }
+
+  #portada .hero {
+    background: var(--hondo); color: #fff; padding: 3.6rem 0 4.5rem;
+    background-image:
+      radial-gradient(60rem 32rem at 88% -12%, rgba(53, 168, 118, .20), transparent 62%),
+      radial-gradient(44rem 26rem at 4% 8%, rgba(53, 168, 118, .10), transparent 58%);
+  }
+  #portada .insignia {
+    display: inline-flex; align-items: center; gap: .5rem;
+    background: var(--sobre-hondo); border: 1px solid rgba(255,255,255,.14);
+    border-radius: 999px; padding: .35rem .85rem .35rem .7rem;
+    font-size: .78rem; font-weight: 600; color: #CFEBDC;
+  }
+  #portada .insignia span.punto { width: .45rem; height: .45rem; border-radius: 50%; background: var(--verde-viv); }
+  #portada .hero h1 { font-size: clamp(2.05rem, 6vw, 3.8rem); font-weight: 800; margin: 1.5rem 0 0; max-width: 34ch; }
+  #portada .hero h1 em { font-style: normal; color: var(--verde-tenue); }
+  #portada .hero p.sub {
+    margin-top: 1.3rem; font-size: clamp(1rem, 2.4vw, 1.18rem);
+    color: rgba(255,255,255,.78); max-width: 52ch;
+  }
+
+  /* La portadilla de las demás pantallas: misma familia que el hero, más corta. */
+  #portada .tapa { background: var(--hondo); color: #fff; padding: 2.9rem 0 3.1rem; }
+  #portada .tapa .rotulo { color: var(--verde-tenue); }
+  #portada .tapa h1 { font-size: clamp(1.85rem, 5vw, 2.9rem); font-weight: 800; margin-top: .8rem; max-width: 30ch; }
+  #portada .tapa p { margin-top: 1rem; color: rgba(255,255,255,.74); max-width: 56ch; font-size: 1.02rem; }
+
+  /* ═══════════════════════════════════════════ botones */
+  #portada .botones { display: flex; flex-wrap: wrap; gap: .75rem; margin-top: 2.2rem; }
+  #portada .btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: .5rem;
+    padding: .85rem 1.4rem; border-radius: 10px; text-decoration: none;
+    font-size: .95rem; font-weight: 700; border: 1px solid transparent; cursor: pointer;
+    transition: transform .12s ease, box-shadow .12s ease, background .12s ease;
+  }
+  #portada .btn-1 { background: #fff; color: var(--hondo);
+           box-shadow: 0 1px 2px rgba(0,0,0,.2), 0 6px 18px rgba(0,0,0,.22); }
+  #portada .btn-1:hover { transform: translateY(-1px); box-shadow: 0 2px 4px rgba(0,0,0,.2), 0 10px 24px rgba(0,0,0,.28); }
+  #portada .btn-2 { background: var(--sobre-hondo); color: #fff; border-color: rgba(255,255,255,.2); }
+  #portada .btn-2:hover { background: rgba(255,255,255,.16); transform: translateY(-1px); }
+  #portada .btn-verde { background: var(--verde-p); color: #fff;
+           box-shadow: 0 1px 2px rgba(11,92,59,.35), 0 6px 16px rgba(11,92,59,.22); }
+  #portada .btn-verde:hover { background: #0B5C3B; transform: translateY(-1px); }
+  #portada .btn-linea { background: var(--carta); color: var(--tinta-p); border-color: var(--linea); }
+  #portada .btn-linea:hover { border-color: var(--verde-p); color: var(--verde-p); }
+  #portada .btn:active { transform: translateY(1px); }
+  #portada .btn:focus-visible { outline: 2px solid var(--verde-viv); outline-offset: 3px; }
+  #portada a:focus-visible, #portada button:focus-visible, #portada input:focus-visible {
+    outline: 2px solid var(--verde-viv); outline-offset: 2px;
+  }
+
+  /* ═══════════════════════════════════════════ la clave de acceso */
+  #portada .clave {
+    margin-top: 3.2rem; border: 1px solid rgba(255,255,255,.16);
+    border-radius: 12px; background: rgba(0,0,0,.22); padding: 1.3rem 1.4rem; max-width: 50rem;
+  }
+  #portada .clave > .rotulo { color: var(--texto-hondo); display: block; margin-bottom: .85rem; }
+  #portada .digitos { display: flex; flex-wrap: wrap; gap: .6rem .7rem; }
+  /* Cada tramo es una columna con sus dígitos encima de su nombre. Van
+     centrados porque el nombre suele ser más ancho que los dígitos
+     —«ambiente» tiene ocho letras y un solo dígito debajo—. */
+  #portada .tramo { display: flex; flex-direction: column; align-items: center; gap: .3rem; }
+  #portada .tramo b {
+    font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: clamp(.82rem, 2.1vw, 1.02rem);
+    font-weight: 500; letter-spacing: .03em; color: #EAF7F0;
+  }
+  #portada .tramo i {
+    font-style: normal; font-size: .62rem; font-weight: 600; letter-spacing: .04em;
+    text-transform: uppercase; color: rgba(143, 220, 182, .85);
+  }
+  #portada .clave > p { margin-top: 1rem; font-size: .84rem; color: var(--texto-hondo); max-width: 58ch; }
+
+  /* ═══════════════════════════════════════════ secciones y cartas */
+  #portada section.bloque { padding: 4.2rem 0; }
+  #portada .encabeza { max-width: 46rem; }
+  #portada .encabeza .rotulo { color: var(--verde-p); }
+  #portada .encabeza h2 { font-size: clamp(1.6rem, 4vw, 2.2rem); font-weight: 800; margin-top: .8rem; }
+  #portada .encabeza p { margin-top: .9rem; color: var(--suave); }
+
+  #portada .rejilla { display: grid; gap: 1rem; margin-top: 2.4rem; }
+  #portada .col-2 { grid-template-columns: 1fr; }
+  #portada .col-3 { grid-template-columns: 1fr; }
+  @media (min-width: 40rem) {
+    #portada .col-2 { grid-template-columns: 1fr 1fr; }
+    #portada .col-3 { grid-template-columns: 1fr 1fr; }
+  }
+  @media (min-width: 62rem) { #portada .col-3 { grid-template-columns: repeat(3, 1fr); } }
+
+  #portada .carta {
+    background: var(--carta); border: 1px solid var(--linea); border-radius: 12px;
+    padding: 1.4rem 1.5rem;
+    box-shadow: 0 1px 2px rgba(20,32,26,.035), 0 2px 8px rgba(20,32,26,.04);
+  }
+  #portada .carta h3 { font-size: 1.05rem; font-weight: 700; }
+  #portada .carta p { margin-top: .5rem; font-size: .92rem; color: var(--suave); }
+  #portada .carta .cod {
+    font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: .72rem; font-weight: 500;
+    color: var(--verde-p); display: block; margin-bottom: .45rem; letter-spacing: .04em;
+  }
+  /* Una carta que además es enlace: se levanta al pasar por encima para que
+     se note que lleva a otra pantalla. */
+  #portada a.carta { display: block; text-decoration: none; transition: transform .12s ease, border-color .12s ease; }
+  #portada a.carta:hover { transform: translateY(-2px); border-color: var(--verde-p); }
+  #portada a.carta .ir { display: block; margin-top: .9rem; font-size: .82rem; font-weight: 700; color: var(--verde-p); }
+
+  /* Listas con visto: lo que trae cada cosa. */
+  #portada .ticks li {
+    position: relative; padding-left: 1.5rem; margin-top: .55rem;
+    font-size: .92rem; line-height: 1.5;
+  }
+  #portada .ticks li::before {
+    content: ''; position: absolute; left: .1rem; top: .45rem;
+    width: .5rem; height: .5rem; border-radius: 2px; background: var(--verde-p);
+  }
+
+  /* ═══════════════════════════════════════════ la sección oscura */
+  #portada .aparte { background: var(--hondo-mas); color: #fff; }
+  #portada .aparte .encabeza .rotulo { color: var(--verde-tenue); }
+  #portada .aparte .encabeza p { color: rgba(255,255,255,.72); }
+  #portada .aparte .carta {
+    background: rgba(255,255,255,.055); border-color: rgba(255,255,255,.12); box-shadow: none;
+  }
+  #portada .aparte .carta h3 { color: #fff; }
+  #portada .aparte .carta p { color: rgba(255,255,255,.68); }
+  #portada .aparte .carta .cod { color: var(--verde-tenue); }
+  #portada .aparte .ticks li::before { background: var(--verde-tenue); }
+
+  /* ═══════════════════════════════════════════ el abogado */
+  #portada .firma { display: grid; gap: 1.75rem; align-items: center; margin-top: 2.4rem; }
+  @media (min-width: 54rem) { #portada .firma { grid-template-columns: 1.35fr 1fr; } }
+  #portada .firma blockquote {
+    margin: 0; font-size: clamp(1.28rem, 3.4vw, 1.7rem); font-weight: 700;
+    line-height: 1.28; letter-spacing: -.02em;
+  }
+  #portada .firma blockquote span { color: var(--verde-p); }
+  #portada .credencial { border-left: 3px solid var(--verde-p); padding-left: 1.15rem; }
+  #portada .credencial strong { display: block; font-size: 1rem; }
+  #portada .credencial p { font-size: .86rem; color: var(--suave); margin-top: .3rem; }
+
+  /* ═══════════════════════════════════════════ la tabla de estado */
+  #portada .estado {
+    margin-top: 2.4rem; border: 1px solid var(--linea); border-radius: 12px;
+    overflow: hidden; background: var(--carta);
+  }
+  /* Una tabla de tres columnas no cabe en un teléfono: se desplaza ella
+     dentro de su caja en lugar de empujar la página entera de lado. */
+  #portada .estado .rueda { overflow-x: auto; }
+  #portada .estado table { width: 100%; min-width: 34rem; border-collapse: collapse; font-size: .93rem; }
+  #portada .estado th {
+    text-align: left; font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: .68rem;
+    font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: var(--suave);
+    padding: .9rem 1.2rem; border-bottom: 1px solid var(--linea);
+  }
+  #portada .estado td { padding: .85rem 1.2rem; border-bottom: 1px solid var(--linea); vertical-align: top; }
+  #portada .estado tr:last-child td { border-bottom: 0; }
+  #portada .estado td.q { color: var(--suave); font-size: .88rem; }
+  #portada .marca-estado {
+    display: inline-block; font-size: .7rem; font-weight: 700; letter-spacing: .04em;
+    text-transform: uppercase; padding: .2rem .55rem; border-radius: 5px; white-space: nowrap;
+  }
+  #portada .listo  { background: rgba(15,123,79,.12); color: var(--verde-p); }
+  #portada .curso  { background: var(--ambar-suave); color: var(--ambar-p); }
+  #portada .espera { background: rgba(92,102,96,.12); color: var(--suave); }
+
+  /* ═══════════════════════════════════════════ los planes */
+  #portada .plan { display: flex; flex-direction: column; }
+  #portada .plan .precio {
+    margin-top: 1.1rem; padding-top: 1rem; border-top: 1px solid var(--linea);
+    font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 1.05rem; font-weight: 600;
+    color: var(--tinta-p);
+  }
+  #portada .plan .precio small {
+    display: block; font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+    font-size: .78rem; font-weight: 500; color: var(--suave); margin-top: .3rem; letter-spacing: 0;
+  }
+  #portada .plan ul { margin-top: 1rem; flex: 1; }
+  #portada .plan.senalado {
+    border-color: var(--verde-p);
+    box-shadow: 0 0 0 1px var(--verde-p), 0 8px 24px rgba(15,123,79,.1);
+  }
+  #portada .plan .etiqueta {
+    display: inline-block; font-size: .68rem; font-weight: 700; letter-spacing: .1em;
+    text-transform: uppercase; color: var(--verde-p); background: rgba(15,123,79,.1);
+    border-radius: 5px; padding: .2rem .5rem; margin-bottom: .7rem;
+  }
+
+  /* ═══════════════════════════════════════════ el aviso de franja */
+  #portada .nota {
+    margin-top: 2rem; background: var(--ambar-suave); border: 1px solid #F0DFC0;
+    border-radius: 10px; padding: 1.1rem 1.25rem; font-size: .9rem; color: #6B4308;
+    line-height: 1.55;
+  }
+  #portada .nota strong { color: var(--ambar-p); }
+
+  /* ═══════════════════════════════════════════ la franja de cierre */
+  #portada .cierre { background: var(--hondo); color: #fff; text-align: center; padding: 4.2rem 1.5rem; }
+  #portada .cierre h2 { font-size: clamp(1.7rem, 4.5vw, 2.4rem); font-weight: 800; max-width: 30ch; margin: 0 auto; }
+  #portada .cierre p { margin: 1rem auto 0; color: rgba(255,255,255,.75); max-width: 46ch; }
+  #portada .cierre .botones { justify-content: center; }
+
+  #portada footer {
+    background: var(--hondo-mas); color: rgba(255,255,255,.5);
+    padding: 2.5rem 1.5rem; font-size: .82rem;
+  }
+  #portada footer .centro { display: grid; gap: 1.4rem; }
+  @media (min-width: 48rem) { #portada footer .centro { grid-template-columns: 1fr auto; align-items: end; } }
+  #portada footer a { color: rgba(255,255,255,.75); }
+  #portada footer nav { display: flex; flex-wrap: wrap; gap: .35rem .9rem; }
+
+  /* ═══════════════════════════════════════════════════════════════════
+     INICIAR SESIÓN
+
+     Pantalla propia y de pantalla completa: a la izquierda quién es
+     Kontia, a la derecha por dónde se entra. Es la disposición que usa
+     cualquier servicio serio, y no por moda — la mitad oscura sostiene la
+     marca mientras la mitad clara sostiene el trabajo de teclear.
+     ═══════════════════════════════════════════════════════════════════ */
+  #portada .entrada { display: grid; min-height: 100vh; }
+  @media (min-width: 60rem) { #portada .entrada { grid-template-columns: 1fr 1fr; } }
+
+  #portada .entrada-marca {
+    background: var(--hondo); color: #fff; padding: 2rem 1.75rem;
+    display: flex; flex-direction: column; gap: 2rem;
+    background-image:
+      radial-gradient(46rem 26rem at 90% -8%, rgba(53,168,118,.22), transparent 62%),
+      radial-gradient(34rem 22rem at 0% 100%, rgba(53,168,118,.12), transparent 60%);
+  }
+  @media (min-width: 60rem) { #portada .entrada-marca { padding: 3rem 3.2rem; } }
+  #portada .entrada-dicho { margin: auto 0; max-width: 32rem; }
+  #portada .entrada-dicho .rotulo { color: var(--verde-tenue); }
+  #portada .entrada-dicho h2 { font-size: clamp(1.5rem, 3.6vw, 2.3rem); font-weight: 800; margin-top: .9rem; }
+  #portada .entrada-dicho > p { margin-top: 1rem; color: rgba(255,255,255,.74); }
+  #portada .entrada-dicho .ticks { margin-top: 1.6rem; }
+  #portada .entrada-dicho .ticks li { color: rgba(255,255,255,.8); }
+  #portada .entrada-dicho .ticks li::before { background: var(--verde-tenue); }
+  #portada .entrada-marca > p:last-child { color: rgba(255,255,255,.42); font-size: .78rem; }
+  /* En el teléfono la mitad de la marca es un encabezado, no media pantalla:
+     lo primero que hay que ver es dónde se escribe el correo. */
+  @media (max-width: 60rem) {
+    #portada .entrada-dicho h2 { font-size: 1.35rem; }
+    #portada .entrada-dicho > p,
+    #portada .entrada-dicho .ticks,
+    #portada .entrada-marca > p:last-child { display: none; }
+    #portada .entrada-marca { gap: 1.2rem; padding: 1.5rem 1.5rem 1.9rem; }
+  }
+
+  #portada .entrada-forma {
+    background: var(--papel-p); padding: 2rem 1.5rem 3rem;
+    display: flex; flex-direction: column; align-items: center;
+  }
+  @media (min-width: 60rem) { #portada .entrada-forma { padding: 2.5rem 2.5rem 3rem; justify-content: center; } }
+  #portada .volver {
+    align-self: flex-start; font-size: .85rem; font-weight: 600; color: var(--suave);
+    text-decoration: none; margin-bottom: 1.5rem;
+  }
+  #portada .volver:hover { color: var(--verde-p); }
+
+  #portada .caja {
+    width: 100%; max-width: 27rem; background: var(--carta);
+    border: 1px solid var(--linea); border-radius: 16px; padding: 1.9rem 1.8rem;
+    box-shadow: 0 1px 2px rgba(20,32,26,.04), 0 10px 30px rgba(20,32,26,.06);
+  }
+  #portada .caja h1 { font-size: 1.5rem; font-weight: 800; }
+  #portada .caja > p { margin-top: .55rem; font-size: .9rem; color: var(--suave); }
+
+  #portada .caja form { display: grid; gap: .95rem; margin-top: 1.6rem; }
+  #portada .campo { display: grid; gap: .35rem; }
+  #portada .campo > span {
+    font-size: .7rem; font-weight: 700; letter-spacing: .09em;
+    text-transform: uppercase; color: var(--suave);
+  }
+  #portada .campo input {
+    width: 100%; background: var(--papel-p); border: 1px solid var(--linea);
+    border-radius: 10px; padding: .8rem .9rem; font: inherit; font-size: .95rem;
+    color: var(--tinta-p);
+  }
+  #portada .campo input::placeholder { color: rgba(92,102,96,.5); }
+  #portada .campo input:focus { border-color: var(--verde-p); background: #fff; }
+  #portada .fila-forma {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 1rem; font-size: .83rem; color: var(--suave); flex-wrap: wrap;
+  }
+  #portada .fila-forma label { display: inline-flex; align-items: center; gap: .45rem; }
+  #portada .fila-forma a { color: var(--verde-p); font-weight: 600; text-decoration: none; }
+  #portada .recado {
+    background: var(--ambar-suave); border: 1px solid #F0DFC0; border-radius: 9px;
+    padding: .8rem .9rem; font-size: .85rem; color: #6B4308; line-height: 1.5; margin: 0;
+  }
+
+  #portada .separa { display: flex; align-items: center; gap: .8rem; margin: 1.7rem 0 1.1rem; }
+  #portada .separa::before, #portada .separa::after {
+    content: ''; flex: 1; height: 1px; background: var(--linea);
+  }
+  #portada .separa span {
+    font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: .64rem; font-weight: 600;
+    letter-spacing: .12em; text-transform: uppercase; color: var(--suave);
+  }
+
+  #portada .papeles { display: grid; gap: .6rem; }
+  #portada .papel {
+    display: flex; gap: .8rem; text-align: left; width: 100%; align-items: flex-start;
+    background: var(--papel-p); border: 1px solid var(--linea); border-radius: 11px;
+    padding: .85rem .95rem; color: var(--tinta-p); font: inherit; cursor: pointer;
+    transition: transform .12s ease, border-color .12s ease, background .12s ease;
+  }
+  #portada .papel:hover { border-color: var(--verde-p); background: #fff; transform: translateY(-1px); }
+  #portada .papel:active { transform: translateY(1px); }
+  #portada .papel > .ini {
+    width: 2.1rem; height: 2.1rem; flex: 0 0 auto; border-radius: 8px;
+    background: rgba(15,123,79,.1); color: var(--verde-p);
+    display: flex; align-items: center; justify-content: center;
+    font-size: .78rem; font-weight: 800; letter-spacing: .02em;
+  }
+  #portada .papel b { display: block; font-size: .9rem; font-weight: 700; }
+  #portada .papel i {
+    display: block; font-style: normal; font-size: .76rem; font-weight: 600;
+    color: var(--verde-p); margin-top: .1rem;
+  }
+  #portada .papel em {
+    display: block; font-style: normal; font-size: .78rem; color: var(--suave);
+    margin-top: .3rem; line-height: 1.45;
+  }
+  #portada .caja > p.letra-chica { margin-top: 1.2rem; font-size: .78rem; }
+
+  @media (prefers-reduced-motion: reduce) { #portada * { transition: none !important; } }
+
+  /* ── El sistema ── */
+
   /* El fondo y la tipografía se pintan desde aquí, y no con clases en la
      etiqueta del cuerpo, para que la página se vea igual publicada como
      artefacto: allí esa etiqueta la pone el anfitrión y las clases que lleve
@@ -186,7 +631,916 @@
 </style>
 </head>
 <body>
-<div id="raiz"></div>
+<div id="portada" data-pantalla="inicio">
+
+<!-- ══════════════════════════════════════════════════════════ la barra -->
+<header class="alto">
+  <div class="franja">
+    <div class="centro barra">
+      <a class="marca" href="#inicio">
+        <img src="iconos/icono-192.png" alt="">
+        <b>Kontia</b>
+      </a>
+      <span class="rotulo">SRI Ecuador</span>
+
+      <button class="menu-boton" id="menu-boton" aria-expanded="false" aria-controls="menu-sitio">
+        Menú
+      </button>
+
+      <nav id="menu-sitio" aria-label="Pantallas del sitio">
+        <a href="#inicio" data-va="inicio">Inicio</a>
+        <a href="#funciones" data-va="funciones">Qué hace</a>
+        <a href="#privacidad" data-va="privacidad">Privacidad</a>
+        <a href="#planes" data-va="planes">Planes</a>
+        <a href="#estado" data-va="estado">Estado</a>
+        <a href="#contacto" data-va="contacto">Contacto</a>
+        <a href="#ingresar" data-va="ingresar" class="btn-nav">Iniciar sesión</a>
+      </nav>
+    </div>
+  </div>
+</header>
+
+<!-- ══════════════════════════════════════════════════════════ 1 · inicio -->
+<div class="pantalla" id="pag-inicio">
+
+  <div class="hero franja">
+    <div class="centro">
+      <span class="insignia"><span class="punto"></span> En desarrollo · demostración abierta</span>
+
+      <h1>Facturación electrónica para el SRI, con <em>respaldo legal</em>.</h1>
+
+      <p class="sub">
+        Los seis comprobantes, la contabilidad y las declaraciones. Hecho en Daule para
+        empresas de Daule, Nobol y Samborondón — con asesoría legal-tributaria incluida,
+        porque una glosa del SRI no se contesta con un mensaje de error.
+      </p>
+
+      <div class="botones">
+        <a class="btn btn-1" href="#ingresar">Entrar al sistema</a>
+        <a class="btn btn-2" href="#funciones">Ver qué hace</a>
+      </div>
+
+      <!-- La anatomía de una clave de acceso: 49 dígitos que identifican a una
+           factura y a ninguna otra en todo el Ecuador. -->
+      <div class="clave">
+        <span class="rotulo">Clave de acceso · 49 dígitos</span>
+        <div class="digitos">
+          <span class="tramo"><b>24092026</b><i>fecha</i></span>
+          <span class="tramo"><b>01</b><i>tipo</i></span>
+          <span class="tramo"><b>0912345678001</b><i>RUC</i></span>
+          <span class="tramo"><b>2</b><i>ambiente</i></span>
+          <span class="tramo"><b>001001</b><i>serie</i></span>
+          <span class="tramo"><b>000000148</b><i>secuencial</i></span>
+          <span class="tramo"><b>12345678</b><i>código</i></span>
+          <span class="tramo"><b>1</b><i>emisión</i></span>
+          <span class="tramo"><b>4</b><i>verificador</i></span>
+        </div>
+        <p>
+          El último dígito se calcula con módulo 11 sobre los 48 anteriores. Si está mal,
+          el SRI rechaza el comprobante sin mirar nada más. Kontia lo arma y lo comprueba
+          antes de enviar.
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <section class="bloque franja">
+    <div class="centro">
+      <div class="encabeza">
+        <span class="rotulo">Tres cosas, no catorce</span>
+        <h2>Facturar, llevar los libros y declarar</h2>
+        <p>
+          Lo demás sale de ahí. Cada pantalla de este sitio explica una de las tres, con lo
+          que ya funciona y lo que todavía no.
+        </p>
+      </div>
+
+      <div class="rejilla col-3">
+        <a class="carta" href="#funciones">
+          <span class="cod">6 comprobantes</span>
+          <h3>Facturación electrónica</h3>
+          <p>
+            Factura, nota de crédito, nota de débito, retención, guía de remisión y
+            liquidación de compra. Armados contra los esquemas oficiales y firmados antes
+            de salir.
+          </p>
+          <span class="ir">Ver qué hace →</span>
+        </a>
+        <a class="carta" href="#funciones">
+          <span class="cod">371 cuentas</span>
+          <h3>Contabilidad</h3>
+          <p>
+            El plan de cuentas de la Superintendencia de Compañías, el diario, el mayor,
+            el balance de comprobación y los estados financieros.
+          </p>
+          <span class="ir">Ver los libros →</span>
+        </a>
+        <a class="carta" href="#privacidad">
+          <span class="cod">Aislamiento</span>
+          <h3>Sus datos, suyos</h3>
+          <p>
+            Que quien administra la plataforma no vea las facturas de nadie no es una
+            promesa comercial: lo impide la base de datos, y por eso se puede comprobar.
+          </p>
+          <span class="ir">Ver cómo →</span>
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <section class="bloque franja" style="padding-top:0">
+    <div class="centro">
+      <div class="encabeza">
+        <span class="rotulo">Lo que no se copia</span>
+        <h2>El software lo hace cualquiera</h2>
+      </div>
+
+      <div class="firma">
+        <blockquote>
+          Un proveedor de software le vende el programa. Si le llega una glosa del SRI, le
+          dice que consulte con su abogado. <span>En Kontia esa asesoría viene incluida:
+          detrás del sistema hay un estudio jurídico en ejercicio.</span>
+        </blockquote>
+        <div class="credencial">
+          <strong>Asesoría legal-tributaria incluida</strong>
+          <p>
+            Se pregunta desde dentro del sistema, sobre el caso que se tiene delante, y
+            contesta un abogado del estudio.
+          </p>
+          <p style="margin-top:.7rem">
+            Patrocinio en materia tributaria y societaria, con matrícula vigente del Foro de
+            Abogados. <a href="#contacto" style="color:var(--verde-p);font-weight:600">Quién
+            responde →</a>
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="cierre" id="instalar">
+    <h2>Véalo funcionando</h2>
+    <p>
+      La demostración abre sin cuenta ni contraseña. Entre como administrador de la empresa
+      y recórrala: facture, mire los libros, cambie de empresa.
+    </p>
+    <div class="botones">
+      <a class="btn btn-1" href="#ingresar">Iniciar sesión</a>
+      <a class="btn btn-2" href="#" id="boton-instalar">Instalar en este equipo</a>
+    </div>
+    <p style="margin-top:1.6rem;font-size:.84rem">
+      Nada de lo que haga en la demostración se envía a ningún sitio. Los datos son de
+      ejemplo y se guardan solo en su navegador.
+    </p>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════ 2 · qué hace -->
+<div class="pantalla" id="pag-funciones" hidden>
+
+  <div class="tapa franja">
+    <div class="centro">
+      <span class="rotulo">Qué hace</span>
+      <h1>Los seis comprobantes, los libros y las declaraciones</h1>
+      <p>
+        Generados contra los esquemas oficiales de la ficha técnica 2.34, firmados con
+        XAdES-BES y validados antes de salir. Cada tipo con su versión, porque el SRI
+        rechaza una versión equivocada igual que un dato equivocado.
+      </p>
+    </div>
+  </div>
+
+  <section class="bloque franja">
+    <div class="centro">
+      <div class="encabeza">
+        <span class="rotulo">Comprobantes electrónicos</span>
+        <h2>Los seis que exige el SRI, no solo la factura</h2>
+      </div>
+
+      <div class="rejilla col-3">
+        <div class="carta"><span class="cod">01 · v2.1.0</span>
+          <h3>Factura</h3><p>La venta. Con sus impuestos, formas de pago e información adicional.</p></div>
+        <div class="carta"><span class="cod">04 · v1.1.0</span>
+          <h3>Nota de crédito</h3><p>Para corregir o anular una factura autorizada. Una factura emitida no se borra nunca.</p></div>
+        <div class="carta"><span class="cod">05 · v1.0.0</span>
+          <h3>Nota de débito</h3><p>Para cobrar algo que quedó fuera. Sus motivos tienen que sumar el subtotal.</p></div>
+        <div class="carta"><span class="cod">07 · v2.0.0</span>
+          <h3>Comprobante de retención</h3><p>Lo que se retiene al pagar a un proveedor, y se entrega al SRI.</p></div>
+        <div class="carta"><span class="cod">06 · v1.1.0</span>
+          <h3>Guía de remisión</h3><p>Ampara el traslado de la mercadería. Sin precios: no vende, acompaña.</p></div>
+        <div class="carta"><span class="cod">03 · v1.1.0</span>
+          <h3>Liquidación de compra</h3><p>Para comprar a quien no puede facturar. Se niega a emitirse si el proveedor tiene RUC.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="bloque franja" style="padding-top:0">
+    <div class="centro">
+      <div class="encabeza">
+        <span class="rotulo">Contabilidad</span>
+        <h2>Libros que se comprueban solos</h2>
+        <p>
+          Cada factura genera su asiento sin que nadie lo teclee. Y el balance de
+          comprobación dice en grande si cuadra o no, porque un asiento equivocado no se
+          queja: cuadra igual y el error aparece meses después en una glosa.
+        </p>
+      </div>
+
+      <div class="rejilla col-3">
+        <div class="carta"><span class="cod">371 cuentas</span>
+          <h3>Plan de cuentas oficial</h3>
+          <p>Las del catálogo de la Superintendencia de Compañías. Un código que no esté ahí hace que la presentación de estados financieros se rechace.</p></div>
+        <div class="carta"><span class="cod">Diario · mayor · comprobación</span>
+          <h3>Los libros completos</h3>
+          <p>Con el asiento de cada venta generado de la factura, y el saldo de cada cuenta movimiento a movimiento.</p></div>
+        <div class="carta"><span class="cod">Formulario 104</span>
+          <h3>Declaraciones desde los libros</h3>
+          <p>Ninguna casilla se teclea: cada una sale de una cuenta, y la pantalla dice de cuál. Eso es la diferencia entre un número y un número que se puede defender.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="bloque franja" style="padding-top:0">
+    <div class="centro">
+      <div class="encabeza">
+        <span class="rotulo">Las pantallas</span>
+        <h2>Lo que hay dentro, por grupos</h2>
+        <p>
+          Treinta y dos pantallas, agrupadas como se trabaja: primero lo que se emite,
+          después lo que se cobra y se paga, y al final lo que se declara.
+        </p>
+      </div>
+
+      <div class="rejilla col-2">
+        <div class="carta">
+          <h3>Emitir y registrar</h3>
+          <ul class="ticks">
+            <li>Resumen del mes, con gráficos de ventas e IVA</li>
+            <li>Comprobantes emitidos, con su estado en el SRI</li>
+            <li>Emisión de factura, con cálculo de impuestos</li>
+            <li>Clientes, productos y proveedores</li>
+            <li>Puntos de emisión y certificado de firma</li>
+          </ul>
+        </div>
+        <div class="carta">
+          <h3>Contabilidad y estados</h3>
+          <ul class="ticks">
+            <li>Plan de cuentas, libro diario y libro mayor</li>
+            <li>Balance de comprobación, que avisa si no cuadra</li>
+            <li>Estado de resultados y estado de situación financiera</li>
+            <li>Cuentas por cobrar, por pagar y bancos</li>
+            <li>Inventario, nómina y activos fijos</li>
+          </ul>
+        </div>
+        <div class="carta">
+          <h3>Declarar</h3>
+          <ul class="ticks">
+            <li>Formulario 104 · declaración de IVA</li>
+            <li>Anexo Transaccional Simplificado</li>
+            <li>Retenciones, notas de crédito y guías de remisión</li>
+            <li>Consulta legal-tributaria, desde dentro del sistema</li>
+          </ul>
+        </div>
+        <div class="carta">
+          <h3>Administrar el servicio</h3>
+          <ul class="ticks">
+            <li>Empresas dadas de alta, y alta de una nueva</li>
+            <li>Suscripciones y uso de la plataforma</li>
+            <li>Soporte, con acceso que hay que autorizar</li>
+            <li>Auditoría: quién hizo qué y cuándo</li>
+            <li>Protección de datos personales (LOPDP)</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="botones">
+        <a class="btn btn-verde" href="#ingresar">Entrar y recorrerlas</a>
+        <a class="btn btn-linea" href="#estado">Ver qué falta todavía</a>
+      </div>
+    </div>
+  </section>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════ 3 · privacidad -->
+<div class="pantalla" id="pag-privacidad" hidden>
+
+  <div class="tapa franja">
+    <div class="centro">
+      <span class="rotulo">Privacidad</span>
+      <h1>Ni nosotros vemos sus datos</h1>
+      <p>
+        No es una política interna ni una promesa comercial. Lo impide la base de datos,
+        y por eso se puede comprobar.
+      </p>
+    </div>
+  </div>
+
+  <div class="aparte">
+    <section class="bloque franja">
+      <div class="centro">
+        <div class="encabeza">
+          <span class="rotulo">Aislamiento</span>
+          <h2>Cada empresa en su cuarto, con la puerta cerrada</h2>
+          <p>
+            La separación no la decide la aplicación, que puede tener un error: la decide
+            la base de datos, que responde lo mismo a cualquiera que pregunte.
+          </p>
+        </div>
+
+        <div class="rejilla col-3">
+          <div class="carta"><span class="cod">Lo que administramos</span>
+            <h3>El servicio</h3>
+            <p>Su plan, el estado de su cuenta y <strong>cuántos</strong> comprobantes emitió. Nada más.</p></div>
+          <div class="carta"><span class="cod">Lo que no llega</span>
+            <h3>Su negocio</h3>
+            <p>Ni un cliente, ni una factura, ni un importe de venta. Las políticas de acceso no los entregan a quien administra la plataforma.</p></div>
+          <div class="carta"><span class="cod">Si pide ayuda</span>
+            <h3>Una puerta que chirría</h3>
+            <p>Para entrar a sus datos hace falta que usted lo autorice. El acceso exige motivo escrito, dura dos horas y queda anotado donde nadie puede borrarlo.</p></div>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <section class="bloque franja">
+    <div class="centro">
+      <div class="encabeza">
+        <span class="rotulo">Ley Orgánica de Protección de Datos Personales</span>
+        <h2>Quién responde por los datos, y de qué</h2>
+        <p>
+          La LOPDP reparte responsabilidades, y conviene saber cuál le toca a cada uno antes
+          de que haga falta. Kontia está construido sobre ese reparto, no adaptado a él
+          después.
+        </p>
+      </div>
+
+      <div class="rejilla col-2">
+        <div class="carta">
+          <span class="cod">Responsable del tratamiento</span>
+          <h3>Su empresa</h3>
+          <p>
+            Decide qué datos de sus clientes recoge y para qué. Es quien responde ante el
+            titular y ante la autoridad de protección de datos.
+          </p>
+          <ul class="ticks">
+            <li>Define la finalidad y conserva la base legal</li>
+            <li>Atiende los derechos de sus clientes</li>
+            <li>Decide qué se guarda y por cuánto tiempo</li>
+          </ul>
+        </div>
+        <div class="carta">
+          <span class="cod">Encargado del tratamiento</span>
+          <h3>Kontia</h3>
+          <p>
+            Trata esos datos únicamente por cuenta de su empresa y para prestar el
+            servicio. No los usa para nada más, y no los cede.
+          </p>
+          <ul class="ticks">
+            <li>Solo hace lo que su empresa le instruye</li>
+            <li>Guarda registro de todo acceso al dato</li>
+            <li>Devuelve o elimina los datos al terminar el servicio</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="rejilla col-3">
+        <div class="carta">
+          <h3>Derechos del titular</h3>
+          <p>
+            Acceso, rectificación, eliminación, oposición, portabilidad y a no quedar
+            sometido a decisiones automatizadas. El sistema trae la pantalla para
+            atenderlos y dejar constancia.
+          </p>
+        </div>
+        <div class="carta">
+          <h3>Datos que se conservan por ley</h3>
+          <p>
+            Un comprobante emitido no se borra a petición: la normativa tributaria obliga a
+            conservarlo. El sistema lo dice cuando toca, en lugar de prometer un borrado
+            que sería ilegal.
+          </p>
+        </div>
+        <div class="carta">
+          <h3>Registro de accesos</h3>
+          <p>
+            Quién entró, cuándo y a qué. Se escribe siempre y no se puede modificar desde
+            la aplicación, porque un registro que se puede editar no prueba nada.
+          </p>
+        </div>
+      </div>
+
+      <div class="nota">
+        <strong>Pendiente.</strong> El aviso de privacidad y el contrato de encargo del
+        tratamiento se publicarán firmados antes de que el servicio reciba datos de clientes
+        reales. Hoy la demostración trabaja solo con datos de ejemplo.
+      </div>
+    </div>
+  </section>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════ 4 · planes -->
+<div class="pantalla" id="pag-planes" hidden>
+
+  <div class="tapa franja">
+    <div class="centro">
+      <span class="rotulo">Planes</span>
+      <h1>Lo que trae cada plan</h1>
+      <p>
+        Tres formas de usar Kontia, según quién lleva la contabilidad. Las tarifas se
+        publican cuando el servicio salga de la demostración: preferimos no poner un
+        número que después haya que corregir.
+      </p>
+    </div>
+  </div>
+
+  <section class="bloque franja">
+    <div class="centro">
+      <div class="rejilla col-3" style="margin-top:0">
+        <div class="carta plan">
+          <h3>Emprende</h3>
+          <p>Para quien factura poco y necesita estar en regla.</p>
+          <ul class="ticks">
+            <li>Un punto de emisión</li>
+            <li>Factura, nota de crédito y retención</li>
+            <li>Clientes y productos sin límite</li>
+            <li>Declaración de IVA desde los libros</li>
+            <li>Respaldo de sus comprobantes</li>
+          </ul>
+          <div class="precio">Por definir<small>Tarifa mensual, sin contrato de permanencia.</small></div>
+        </div>
+
+        <div class="carta plan senalado">
+          <span class="etiqueta">El habitual</span>
+          <h3>Empresa</h3>
+          <p>Para un negocio con inventario, personal y contador.</p>
+          <ul class="ticks">
+            <li>Varios puntos de emisión y varios usuarios</li>
+            <li>Los seis comprobantes electrónicos</li>
+            <li>Contabilidad completa y estados financieros</li>
+            <li>Anexo Transaccional Simplificado</li>
+            <li>Inventario, nómina y activos fijos</li>
+            <li><strong>Consulta legal-tributaria incluida</strong></li>
+          </ul>
+          <div class="precio">Por definir<small>Tarifa mensual según puntos de emisión.</small></div>
+        </div>
+
+        <div class="carta plan">
+          <h3>Estudio contable</h3>
+          <p>Para quien lleva la contabilidad de varias empresas.</p>
+          <ul class="ticks">
+            <li>Varias empresas con un solo ingreso</li>
+            <li>Cambio de empresa sin volver a entrar</li>
+            <li>Todo lo del plan Empresa, en cada una</li>
+            <li>Aislamiento comprobable entre clientes</li>
+            <li>Registro de accesos por empresa</li>
+          </ul>
+          <div class="precio">Por definir<small>Tarifa por empresa administrada.</small></div>
+        </div>
+      </div>
+
+      <div class="nota">
+        <strong>Sin sorpresas.</strong> El certificado de firma electrónica lo emite una
+        entidad de certificación autorizada y se paga aparte, a ella. Kontia no lo revende
+        ni lo incluye en su tarifa: es personal de cada empresa y así debe seguir siendo.
+      </div>
+
+      <div class="botones">
+        <a class="btn btn-verde" href="#ingresar">Probar la demostración</a>
+        <a class="btn btn-linea" href="#contacto">Preguntar por un plan</a>
+      </div>
+    </div>
+  </section>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════ 5 · estado -->
+<div class="pantalla" id="pag-estado" hidden>
+
+  <div class="tapa franja">
+    <div class="centro">
+      <span class="rotulo">Transparencia</span>
+      <h1>Cómo va, sin adornos</h1>
+      <p>
+        Kontia está en construcción. Preferimos decirlo aquí que dejar que alguien lo
+        descubra después: un sistema que sabe lo que todavía no sabe merece más confianza
+        que uno que finge estar terminado.
+      </p>
+    </div>
+  </div>
+
+  <section class="bloque franja">
+    <div class="centro" style="max-width:58rem">
+      <div class="estado" style="margin-top:0">
+        <div class="rueda">
+          <table>
+            <thead>
+              <tr><th>Parte</th><th>Estado</th><th>Qué significa</th></tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>Motor de comprobantes</strong></td>
+                <td><span class="marca-estado listo">Listo</span></td>
+                <td class="q">Los seis tipos, la firma electrónica y el envío al SRI. 93 pruebas automáticas, 221 elementos validados contra los esquemas oficiales.</td>
+              </tr>
+              <tr>
+                <td><strong>Aislamiento entre empresas</strong></td>
+                <td><span class="marca-estado listo">Listo</span></td>
+                <td class="q">Impuesto por la base de datos y comprobado con pruebas que demuestran que una empresa no ve los datos de otra.</td>
+              </tr>
+              <tr>
+                <td><strong>Las pantallas</strong></td>
+                <td><span class="marca-estado listo">Listo</span></td>
+                <td class="q">Treinta y dos pantallas en computadora, tableta y teléfono. Se pueden recorrer hoy en la demostración.</td>
+              </tr>
+              <tr>
+                <td><strong>El sitio y el ingreso</strong></td>
+                <td><span class="marca-estado listo">Listo</span></td>
+                <td class="q">Una sola dirección con el sitio, el inicio de sesión y el sistema. Instalable en el teléfono y en la computadora.</td>
+              </tr>
+              <tr>
+                <td><strong>Contabilidad</strong></td>
+                <td><span class="marca-estado curso">En curso</span></td>
+                <td class="q">Los libros y los estados funcionan y cuadran. Las reglas de asiento están redactadas contra el catálogo oficial y <strong>pendientes de revisión por un contador colegiado</strong> antes de usarse con una empresa real.</td>
+              </tr>
+              <tr>
+                <td><strong>Emisión contra el SRI</strong></td>
+                <td><span class="marca-estado curso">En curso</span></td>
+                <td class="q">El motor habla con el SRI, pero cada empresa necesita su propio certificado de firma. Todavía no se ha emitido un comprobante con efectos tributarios.</td>
+              </tr>
+              <tr>
+                <td><strong>Cuentas de usuario de verdad</strong></td>
+                <td><span class="marca-estado curso">En curso</span></td>
+                <td class="q">La base de datos y las políticas de acceso existen. Falta conectar la aplicación, y hasta entonces el ingreso funciona con los tres papeles de la demostración.</td>
+              </tr>
+              <tr>
+                <td><strong>Captura automática de compras</strong></td>
+                <td><span class="marca-estado espera">Pendiente</span></td>
+                <td class="q">Descargar del SRI los comprobantes que le emitieron, para no digitar ninguno. Analizado y decidido; se construye después de la contabilidad.</td>
+              </tr>
+              <tr>
+                <td><strong>Nombre y marca</strong></td>
+                <td><span class="marca-estado espera">Pendiente</span></td>
+                <td class="q">«Kontia» es un nombre de trabajo, pendiente de verificación en la Superintendencia de Compañías y en el SENADI.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="nota">
+        <strong>Qué significa «listo».</strong> Que hay pruebas automáticas que lo
+        comprueban en cada cambio, y que se puede ver funcionando hoy. No que no vaya a
+        recibir mejoras.
+      </div>
+    </div>
+  </section>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════ 6 · contacto -->
+<div class="pantalla" id="pag-contacto" hidden>
+
+  <div class="tapa franja">
+    <div class="centro">
+      <span class="rotulo">Contacto</span>
+      <h1>Quién responde</h1>
+      <p>
+        Kontia no es una marca sin cara. Detrás hay un estudio jurídico en ejercicio, en
+        Daule, y eso es precisamente lo que lo diferencia de un proveedor de software.
+      </p>
+    </div>
+  </div>
+
+  <section class="bloque franja">
+    <div class="centro">
+      <div class="rejilla col-2" style="margin-top:0">
+        <div class="carta">
+          <span class="cod">Estudio jurídico</span>
+          <h3>Ab. Gustavo Cajamarca Huayamave</h3>
+          <p>
+            Matrícula 09-2018-362 del Foro de Abogados. Ejercicio en materia tributaria,
+            societaria y civil, en Daule y el resto de la provincia del Guayas.
+          </p>
+          <ul class="ticks">
+            <li>Daule, Nobol y Samborondón · provincia del Guayas</li>
+            <li>Atención a empresas y a personas naturales obligadas a llevar contabilidad</li>
+            <li>Consulta legal-tributaria incluida en el servicio</li>
+          </ul>
+        </div>
+
+        <div class="carta">
+          <span class="cod">Para empresas</span>
+          <h3>Si quiere usarlo en su negocio</h3>
+          <p>
+            Escriba contando qué factura hoy y quién le lleva la contabilidad. Con eso se
+            puede decir en dos líneas si Kontia le sirve ya o conviene esperar.
+          </p>
+
+          <form id="forma-contacto" novalidate style="display:grid;gap:.85rem;margin-top:1.3rem">
+            <label class="campo">
+              <span>Su nombre</span>
+              <input type="text" name="nombre" placeholder="Nombre y apellido">
+            </label>
+            <label class="campo">
+              <span>Su correo</span>
+              <input type="email" name="correo" placeholder="usted@suempresa.com.ec">
+            </label>
+            <button class="btn btn-verde" type="submit">Enviar</button>
+            <p class="recado" id="recado-contacto" hidden role="status"></p>
+          </form>
+        </div>
+      </div>
+
+      <div class="nota">
+        <strong>Todavía no hay formulario que envíe.</strong> El canal de contacto se
+        habilita junto con el dominio propio. Mientras tanto este formulario no manda nada
+        a ningún sitio — y lo dice, en lugar de fingir que lo hizo.
+      </div>
+    </div>
+  </section>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════ 7 · ingresar -->
+<div class="pantalla" id="pag-ingresar" hidden>
+  <div class="entrada">
+
+    <section class="entrada-marca">
+      <a class="marca" href="#inicio">
+        <img src="iconos/icono-192.png" alt="">
+        <b>Kontia</b>
+      </a>
+
+      <div class="entrada-dicho">
+        <span class="rotulo">Acceso al sistema</span>
+        <h2>Su facturación y su contabilidad, en el mismo sitio.</h2>
+        <p>
+          Entre y siga donde lo dejó: los comprobantes del mes, los libros al día y las
+          declaraciones armadas desde las cuentas.
+        </p>
+        <ul class="ticks">
+          <li>Los seis comprobantes electrónicos del SRI</li>
+          <li>Contabilidad con el plan de cuentas oficial</li>
+          <li>Declaración de IVA y Anexo Transaccional</li>
+          <li>Consulta legal-tributaria desde dentro del sistema</li>
+        </ul>
+      </div>
+
+      <p>Kontia es un nombre de trabajo. Pendiente de verificación en SCVS y SENADI.</p>
+    </section>
+
+    <section class="entrada-forma">
+      <a class="volver" href="#inicio">← Volver al sitio</a>
+
+      <div class="caja">
+        <h1>Iniciar sesión</h1>
+        <p>Entre con el correo con el que le dieron de alta en su empresa.</p>
+
+        <form id="forma-ingreso" novalidate>
+          <label class="campo">
+            <span>Correo</span>
+            <input type="email" name="correo" autocomplete="username"
+                   placeholder="usted@suempresa.com.ec">
+          </label>
+          <label class="campo">
+            <span>Contraseña</span>
+            <input type="password" name="clave" autocomplete="current-password"
+                   placeholder="••••••••">
+          </label>
+          <div class="fila-forma">
+            <label><input type="checkbox" name="recordar"> Mantener la sesión</label>
+            <a href="#contacto">¿Olvidó su contraseña?</a>
+          </div>
+          <button class="btn btn-verde" type="submit">Entrar</button>
+          <p class="recado" id="recado-ingreso" hidden role="status"></p>
+        </form>
+
+        <div class="separa"><span>o entre a la demostración</span></div>
+
+        <!--
+          Los tres papeles. El sistema escucha estos botones por su atributo
+          data-papel, así que pulsar uno entra de verdad: no es una maqueta.
+        -->
+        <div class="papeles">
+          <button type="button" class="papel" data-papel="administrador">
+            <span class="ini">JP</span>
+            <span>
+              <b>Juan Carlos Pérez</b>
+              <i>Administrador de la empresa</i>
+              <em>Ve todo lo de Agroquímicos Pérez: factura, lleva los libros, configura y crea usuarios.</em>
+            </span>
+          </button>
+          <button type="button" class="papel" data-papel="facturador">
+            <span class="ini">MV</span>
+            <span>
+              <b>María Elena Vaca</b>
+              <i>Facturadora</i>
+              <em>Emite facturas desde su punto de emisión. No toca la configuración.</em>
+            </span>
+          </button>
+          <button type="button" class="papel" data-papel="super">
+            <span class="ini">GC</span>
+            <span>
+              <b>Gustavo Cajamarca</b>
+              <i>Super administrador de la plataforma</i>
+              <em>Administra el servicio de todas las empresas y no ve los datos de ninguna. Entre aquí para comprobarlo.</em>
+            </span>
+          </button>
+        </div>
+
+        <p class="letra-chica">
+          Nada de lo que haga en la demostración se envía a ningún sitio. Los datos son de
+          ejemplo y se guardan solo en su navegador.
+        </p>
+      </div>
+    </section>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════ el pie -->
+<footer>
+  <div class="centro">
+    <div>
+      <p><strong style="color:rgba(255,255,255,.9)">Kontia</strong> · Facturación electrónica y contabilidad</p>
+      <p style="margin-top:.35rem">
+        Daule, Nobol y Samborondón · provincia del Guayas, Ecuador<br>
+        Nombre de trabajo, pendiente de verificación en SCVS y SENADI.
+      </p>
+      <p style="margin-top:.35rem">Ab. Gustavo Cajamarca Huayamave · Mat. 09-2018-362</p>
+    </div>
+    <div>
+      <nav aria-label="Pie">
+        <a href="#inicio">Inicio</a>
+        <a href="#funciones">Qué hace</a>
+        <a href="#privacidad">Privacidad</a>
+        <a href="#planes">Planes</a>
+        <a href="#estado">Estado</a>
+        <a href="#contacto">Contacto</a>
+        <a href="#ingresar">Iniciar sesión</a>
+      </nav>
+    </div>
+  </div>
+</footer>
+
+</div><!-- /#portada -->
+
+<!-- El sistema entra aqui cuando alguien inicia sesion. Nace vacio y
+     escondido: lo llena el enrutador, en src/app.js. -->
+<div id="raiz" hidden></div>
+
+<script>
+  /*
+   * EL GUION DEL SITIO. Tres cosas pequeñas y nada más.
+   *
+   *   1. Cambiar de pantalla según la dirección.
+   *   2. El menú de pantalla pequeña.
+   *   3. Los dos formularios, que dicen la verdad en lugar de fingir un envío.
+   *
+   * Va en JavaScript de toda la vida, sin nada que instalar, porque tiene que
+   * funcionar igual servido por un alojamiento o abierto con doble clic.
+   */
+  (function () {
+    'use strict';
+
+    var PANTALLAS = ['inicio', 'funciones', 'privacidad', 'planes', 'estado',
+                     'contacto', 'ingresar'];
+    var portada = document.getElementById('portada');
+    if (!portada) return;
+
+    var menu = document.getElementById('menu-sitio');
+    var boton = document.getElementById('menu-boton');
+
+    function cerrarMenu() {
+      if (!menu) return;
+      menu.classList.remove('abierto');
+      if (boton) boton.setAttribute('aria-expanded', 'false');
+    }
+
+    /* Enseña una pantalla del sitio y esconde las demás. */
+    function mostrar(cual) {
+      if (PANTALLAS.indexOf(cual) < 0) cual = 'inicio';
+
+      PANTALLAS.forEach(function (n) {
+        var bloque = document.getElementById('pag-' + n);
+        if (bloque) bloque.hidden = (n !== cual);
+      });
+
+      // El menú marca dónde está uno. `aria-current` es lo que le dice lo
+      // mismo a un lector de pantalla, que no ve el subrayado.
+      var enlaces = portada.querySelectorAll('[data-va]');
+      for (var i = 0; i < enlaces.length; i++) {
+        var aqui = enlaces[i].getAttribute('data-va') === cual;
+        enlaces[i].classList.toggle('aqui', aqui);
+        if (aqui) enlaces[i].setAttribute('aria-current', 'page');
+        else enlaces[i].removeAttribute('aria-current');
+      }
+
+      portada.setAttribute('data-pantalla', cual);
+      cerrarMenu();
+      // Cambiar de pantalla y aparecer a media página es desconcertante.
+      window.scrollTo(0, 0);
+    }
+
+    /*
+     * Las direcciones que empiezan por `#/` son del sistema, no del sitio.
+     * Se dejan pasar sin tocar nada: quien manda ahí es el enrutador de la
+     * aplicación. Así las dos cosas comparten la barra de direcciones sin
+     * pisarse.
+     */
+    function porLaDireccion() {
+      var h = location.hash.replace(/^#/, '');
+      if (h.charAt(0) === '/') return;
+      mostrar(h || 'inicio');
+    }
+
+    window.addEventListener('hashchange', porLaDireccion);
+    porLaDireccion();
+
+    // El sistema usa esto para enseñar el ingreso al cerrar sesión, sin tener
+    // que conocer nada de aquí dentro.
+    window.kontiaSitio = { mostrar: mostrar };
+
+    /* ── el menú de pantalla pequeña ── */
+    if (boton && menu) {
+      boton.addEventListener('click', function () {
+        var abierto = menu.classList.toggle('abierto');
+        boton.setAttribute('aria-expanded', abierto ? 'true' : 'false');
+      });
+    }
+
+    /* ── los formularios ── */
+    /* Ninguno de los dos envía nada todavía, y lo dicen. Un formulario que
+       finge haber enviado un correo es peor que uno apagado. */
+    function contesta(forma, recado, texto) {
+      var f = document.getElementById(forma);
+      var r = document.getElementById(recado);
+      if (!f || !r) return;
+      f.addEventListener('submit', function (ev) {
+        ev.preventDefault();
+        r.hidden = false;
+        r.textContent = texto;
+      });
+    }
+
+    contesta('forma-ingreso', 'recado-ingreso',
+      'Todavía no hay cuentas de usuario activas: la base de datos y el aislamiento ya ' +
+      'existen, falta conectar la aplicación. Entre por la demostración, aquí abajo.');
+
+    contesta('forma-contacto', 'recado-contacto',
+      'El canal de contacto se habilita junto con el dominio propio. Este formulario ' +
+      'todavía no envía nada, y preferimos decirlo a que usted se quede esperando una ' +
+      'respuesta que no iba a llegar.');
+  })();
+</script>
+
+<script>
+  /*
+   * El botón de instalar.
+   *
+   * Un navegador solo deja instalar cuando él decide que se puede —sitio
+   * servido por HTTPS, manifiesto válido, trabajador de servicio registrado—, y
+   * avisa con el evento `beforeinstallprompt`. Hasta que eso pasa, el botón no
+   * tiene nada que ofrecer, así que en lugar de fallar en silencio explica cómo
+   * se hace a mano en cada navegador.
+   */
+  (function () {
+    var invitacion = null;
+    var botones = [document.getElementById('boton-instalar'),
+                   document.getElementById('boton-instalar-2')].filter(Boolean);
+
+    var AMANO = {
+      ios: 'En iPhone o iPad: toque Compartir y luego «Añadir a pantalla de inicio».',
+      android: 'En Android: toque el menú del navegador y luego «Instalar aplicación» o «Añadir a pantalla de inicio».',
+      escritorio: 'En la computadora: busque el icono de instalar en la barra de direcciones, a la derecha.',
+    };
+
+    window.addEventListener('beforeinstallprompt', function (ev) {
+      ev.preventDefault();
+      invitacion = ev;
+    });
+
+    function comoSeHace() {
+      var ua = navigator.userAgent;
+      if (/iPhone|iPad|iPod/.test(ua)) return AMANO.ios;
+      if (/Android/.test(ua)) return AMANO.android;
+      return AMANO.escritorio;
+    }
+
+    botones.forEach(function (b) {
+      b.addEventListener('click', function (ev) {
+        ev.preventDefault();
+        if (invitacion) { invitacion.prompt(); invitacion = null; return; }
+        alert('Kontia se instala desde el propio navegador.\n\n' + comoSeHace() +
+              '\n\nQueda con su icono y su ventana, como cualquier programa. ' +
+              'Necesita internet para funcionar.');
+      });
+    });
+
+    // El trabajador de servicio es lo que permite la instalación. Si falla, la
+    // página sigue funcionando igual: solo se pierde el botón.
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', function () {
+        navigator.serviceWorker.register('servicio.js').catch(function () { /* sin instalador */ });
+      });
+    }
+  })();
+</script>
 <script>
 /* KONTIA · demostracion en un solo archivo.
    GENERADO por scripts/construir-archivo-unico.py — no editar a mano.
@@ -778,6 +2132,25 @@ const recogerRecado = () => {
   return r;
 };
 
+/**
+ * La pantalla de una empresa que acaba de nacer.
+ *
+ * Hace falta una pieza propia porque la tentación es enseñar los datos de la
+ * empresa de ejemplo mientras no haya otros, y eso sería exactamente lo que
+ * este sistema promete que no pasa nunca: los datos de una empresa dentro de
+ * otra. Preferible una pantalla en blanco que explica, a una llena que miente.
+ */
+const empresaEnBlanco = ({ titulo, texto, ico = 'inbox', accion = '' }) => html`
+  <div class="bg-white border border-papel-linea border-dashed rounded-2xl relieve
+              flex flex-col items-center justify-center text-center py-16 px-6">
+    <div class="w-16 h-16 rounded-2xl bg-papel flex items-center justify-center mb-5">
+      ${icono(ico, 'text-[30px] text-tinta-suave')}
+    </div>
+    <h3 class="text-lg font-bold">${titulo}</h3>
+    <p class="mt-2 text-sm text-tinta-suave max-w-md leading-relaxed">${texto}</p>
+    <div class="mt-6">${accion}</div>
+  </div>`;
+
 /** Tabla con cabecera fija de estilo. `columnas` lleva {texto, der} por columna. */
 const tabla = (columnas, filas) => html`
   <div class="overflow-x-auto">
@@ -799,7 +2172,7 @@ const barra = (proporcion, clase = 'bg-verde') => crudo(
     Math.max(2, Math.round(proporcion * 100))}%"></div>`);
 
 
-  return { esc, crudo, html, dinero, usd, fecha, fechaLarga, fechaHora, claveLegible, icono, ESTADOS, chipEstado, cabecera, boton, vacio, dato, aviso, dejarRecado, recogerRecado, tabla, barra };
+  return { esc, crudo, html, dinero, usd, fecha, fechaLarga, fechaHora, claveLegible, icono, ESTADOS, chipEstado, cabecera, boton, vacio, dato, aviso, dejarRecado, recogerRecado, empresaEnBlanco, tabla, barra };
 })();
 
 // ---- src/graficos.js ---------------------------------------------
@@ -1231,17 +2604,40 @@ function reviir(clave, valor) {
 //  Carga y persistencia
 // ===========================================================================
 
+/** La empresa de los datos de ejemplo. Todo lo de la semilla le pertenece. */
+const EMPRESA_SEMILLA = SEMILLA.empresa.id;
+
+/**
+ * El almacén guarda VARIAS empresas, y cada dato lleva a cuál pertenece.
+ *
+ * Ese `empresaId` en cada fila no es contabilidad extra: es la misma columna
+ * que tiene cada tabla en Supabase, y sobre la que se apoyan las políticas de
+ * aislamiento (migración 0004). Aquí filtra; allá impide. Que el modelo sea el
+ * mismo en los dos sitios es lo que evita sorpresas el día de la conexión.
+ *
+ * Una empresa nueva nace SIN NADA: sin clientes, sin productos, sin
+ * comprobantes. Eso no es una carencia de la demostración, es lo correcto —y
+ * de paso es la única forma de ver las pantallas de estado vacío, que son las
+ * que ve de verdad un cliente el primer día.
+ */
 const copiaDeLaSemilla = () => ({
-  clientes: SEMILLA.clientes.map((c) => ({ ...c, semilla: true })),
-  productos: SEMILLA.productos.map((p) => ({ ...p, semilla: true })),
-  comprobantes: SEMILLA.comprobantes.map((c) => ({ ...c, semilla: true })),
-  puntos: SEMILLA.puntos.map((p) => ({ ...p })),
+  empresas: [{ ...SEMILLA.empresa, semilla: true }],
+  activa: EMPRESA_SEMILLA,
+  clientes: SEMILLA.clientes.map((c) => ({ ...c, empresaId: EMPRESA_SEMILLA, semilla: true })),
+  productos: SEMILLA.productos.map((p) => ({ ...p, empresaId: EMPRESA_SEMILLA, semilla: true })),
+  comprobantes: SEMILLA.comprobantes.map((c) => ({ ...c, empresaId: EMPRESA_SEMILLA, semilla: true })),
+  puntos: SEMILLA.puntos.map((p) => ({ ...p, empresaId: EMPRESA_SEMILLA })),
 });
 
 function leer() {
   try {
     const guardado = localStorage.getItem(CLAVE);
-    if (guardado) return JSON.parse(guardado, reviir);
+    if (guardado) {
+      const leido = JSON.parse(guardado, reviir);
+      // Lo guardado por una versión anterior no tiene empresas. Antes de
+      // usarlo a medias, que es como salen los errores raros, se descarta.
+      if (Array.isArray(leido.empresas) && leido.empresas.length) return leido;
+    }
   } catch {
     // Navegador sin almacenamiento, o datos de una versión anterior que ya no
     // encajan. En los dos casos se empieza de cero: perder unos datos de
@@ -1333,7 +2729,7 @@ function comprobarCliente(c) {
   }
 
   const repetido = datos.clientes.find(
-    (x) => x.identificacion === identificacion && x.id !== c.id);
+    (x) => x.empresaId === datos.activa && x.identificacion === identificacion && x.id !== c.id);
   if (repetido) {
     fallo(`Ya existe un cliente con esa identificación: ${repetido.razonSocial}. ` +
           'Dos fichas del mismo cliente acaban con dos correos distintos.');
@@ -1353,7 +2749,8 @@ function comprobarProducto(p) {
   }
 
   const repetido = datos.productos.find(
-    (x) => x.codigo === codigo && x.codigoOriginal !== p.codigoOriginal);
+    (x) => x.empresaId === datos.activa && x.codigo === codigo
+           && x.codigoOriginal !== p.codigoOriginal);
   if (repetido && codigo !== p.codigoOriginal) {
     fallo(`Ya hay un producto con el código ${codigo}: ${repetido.descripcion}.`);
   }
@@ -1366,24 +2763,39 @@ function comprobarProducto(p) {
 
 const activos = (lista) => lista.filter((x) => x.activo !== false);
 
+/** Lo de la empresa con la que se está trabajando, y nada más. */
+const deLaActiva = (lista) => lista.filter((x) => x.empresaId === datos.activa);
+
+/** La empresa con la que se trabaja ahora mismo. */
+const empresaActiva = () =>
+  datos.empresas.find((e) => e.id === datos.activa) ?? datos.empresas[0];
+
+/** Si la empresa activa es la de los datos de ejemplo. */
+const esLaDeEjemplo = () => datos.activa === EMPRESA_SEMILLA;
+
 const cargar = {
-  empresa: () => esperar(SEMILLA.empresa),
-  certificado: () => esperar(SEMILLA.certificado),
-  usuarios: () => esperar(SEMILLA.usuarios),
-  puntos: () => esperar(datos.puntos),
+  empresa: () => esperar(empresaActiva()),
+  empresas: () => esperar(datos.empresas),
+  certificado: () => esperar(esLaDeEjemplo() ? SEMILLA.certificado : null),
+  usuarios: () => esperar(esLaDeEjemplo() ? SEMILLA.usuarios : [
+    { nombre: 'Juan Carlos Pérez', correo: 'jperez@agroperez.com.ec', rol: 'Administrador',
+      puntos: 'Todos', ultimoAcceso: 'Ahora', activo: true },
+  ]),
+  puntos: () => esperar(deLaActiva(datos.puntos)),
 
-  clientes: () => esperar(activos(datos.clientes)),
-  cliente: (id) => esperar(datos.clientes.find((c) => c.id === id) ?? null),
+  clientes: () => esperar(activos(deLaActiva(datos.clientes))),
+  cliente: (id) => esperar(deLaActiva(datos.clientes).find((c) => c.id === id) ?? null),
 
-  productos: () => esperar(activos(datos.productos)),
-  producto: (codigo) => esperar(datos.productos.find((p) => p.codigo === codigo) ?? null),
+  productos: () => esperar(activos(deLaActiva(datos.productos))),
+  producto: (codigo) => esperar(deLaActiva(datos.productos).find((p) => p.codigo === codigo) ?? null),
 
   comprobantes: (filtro = {}) => esperar(
-    datos.comprobantes
+    deLaActiva(datos.comprobantes)
       .filter((c) => !filtro.estado || c.estado === filtro.estado)
       .slice()
       .sort((a, b) => new Date(b.fecha) - new Date(a.fecha))),
-  comprobante: (numero) => esperar(datos.comprobantes.find((c) => c.numero === numero) ?? null),
+  comprobante: (numero) =>
+    esperar(deLaActiva(datos.comprobantes).find((c) => c.numero === numero) ?? null),
 
   /**
    * Las cifras del tablero.
@@ -1394,8 +2806,15 @@ const cargar = {
    * quedarse en una foto.
    */
   resumen: () => {
-    const base = SEMILLA.resumen;
-    const nuevos = datos.comprobantes.filter((c) => !c.semilla);
+    // Una empresa nueva empieza en cero de verdad: sin las cifras de ejemplo
+    // de Agroquímicos Pérez, que no son suyas.
+    const base = esLaDeEjemplo() ? SEMILLA.resumen : {
+      autorizados: 0, pendientes: 0, devueltos: 0, comprobantesDelMes: 0,
+      base15: 0, base0: 0, ventasDelMes: 0, ivaGenerado: 0,
+      ingresosAnio: 0, mesesTranscurridos: 1, promedioMensual: 0,
+      meses: [{ mes: 'Sep', valor: 0 }],
+    };
+    const nuevos = deLaActiva(datos.comprobantes).filter((c) => !c.semilla);
     const cuenta = (estado) => nuevos.filter((c) => c.estado === estado).length;
     // Las bases se suman por separado y de ellas sale todo lo demás. Si el
     // titular dijera una cosa y el pie otra —ventas del mes que no salen de la
@@ -1421,8 +2840,27 @@ const cargar = {
     });
   },
 
-  empresasAdmin: () => esperar(SEMILLA.empresasAdmin),
-  empresaAdmin: (id) => esperar(SEMILLA.empresasAdmin.find((e) => e.id === id) ?? null),
+  /**
+   * El directorio del super administrador.
+   *
+   * Junta las empresas de ejemplo con las que se hayan dado de alta, para que
+   * una empresa nueva aparezca en la lista en cuanto se crea. Sigue sin traer
+   * ni una factura ni un cliente: plan, estado y CUÁNTOS comprobantes.
+   */
+  empresasAdmin: () => {
+    const creadas = datos.empresas
+      .filter((e) => !e.semilla)
+      .map((e) => ({
+        id: e.id, razonSocial: e.razonSocial, ruc: e.ruc, ciudad: e.ciudad || '—',
+        plan: e.plan, estado: e.estado ?? 'PRUEBA', alta: e.alta,
+        usuarios: e.usuarios ?? 1,
+        comprobantesMes: datos.comprobantes.filter(
+          (c) => c.empresaId === e.id && c.estado !== 'BORRADOR').length,
+        ambiente: e.ambiente, certificadoVence: e.certificadoVence ?? null,
+      }));
+    return esperar([...creadas, ...SEMILLA.empresasAdmin]);
+  },
+  empresaAdmin: (id) => cargar.empresasAdmin().then((l) => l.find((e) => e.id === id) ?? null),
   auditoria: () => esperar(SEMILLA.auditoria),
 };
 
@@ -1445,7 +2883,7 @@ const nuevoId = () => 'x' + Date.now().toString(36) + Math.random().toString(36)
  * datos con su restricción de unicidad.
  */
 function siguienteSecuencial(punto) {
-  const usados = datos.comprobantes
+  const usados = deLaActiva(datos.comprobantes)
     .filter((c) => c.numero?.startsWith(punto.codigo + '-'))
     .map((c) => Number(c.numero.split('-')[2]))
     .filter(Number.isFinite);
@@ -1453,6 +2891,70 @@ function siguienteSecuencial(punto) {
 }
 
 const guardar = {
+  /**
+   * Da de alta una empresa.
+   *
+   * Nace vacía y en ambiente de PRUEBAS, las dos cosas a propósito. Vacía
+   * porque los datos de otra empresa no son suyos; en pruebas porque pasar a
+   * producción es una decisión que no se deshace —a partir de ahí cada factura
+   * existe para el SRI— y esa decisión la toma la empresa, no quien la da de
+   * alta.
+   */
+  empresa(entrada) {
+    const ruc = String(entrada.ruc ?? '').trim();
+    const razonSocial = String(entrada.razonSocial ?? '').trim();
+
+    if (!rucValido(ruc)) {
+      fallo('Ese RUC no es válido. Son trece dígitos y terminan en 001 para la matriz.');
+    }
+    if (razonSocial.length < 3) fallo('La razón social no puede quedar vacía.');
+    if (datos.empresas.some((e) => e.ruc === ruc)) {
+      fallo(`Ya hay una empresa con el RUC ${ruc}. Una empresa no se da de alta dos veces.`);
+    }
+
+    const empresa = {
+      id: 'e' + Date.now().toString(36),
+      razonSocial,
+      nombreComercial: String(entrada.nombreComercial ?? '').trim() || razonSocial,
+      ruc,
+      dirMatriz: String(entrada.direccion ?? '').trim(),
+      ciudad: String(entrada.ciudad ?? '').trim(),
+      regimen: entrada.regimen ?? 'General',
+      plan: entrada.plan ?? 'Profesional',
+      obligadoContabilidad: true,
+      contribuyenteEspecial: false,
+      agenteRetencion: false,
+      ambiente: 'PRUEBAS',
+      correo: String(entrada.correo ?? '').trim(),
+      telefono: String(entrada.telefono ?? '').trim(),
+      estado: 'PRUEBA',
+      alta: new Date(),
+      usuarios: 1,
+      comprobantesMes: 0,
+      certificadoVence: null,
+      semilla: false,
+    };
+
+    datos.empresas.push(empresa);
+    // Un punto de emisión, que sin él no se puede facturar nada.
+    datos.puntos.push({
+      codigo: '001-001', nombre: 'Caja principal',
+      lugar: empresa.ciudad || 'Matriz', ultimo: 0, activo: true,
+      empresaId: empresa.id,
+    });
+    datos.activa = empresa.id;
+    persistir();
+    return esperar(empresa);
+  },
+
+  /** Cambia la empresa con la que se está trabajando. */
+  cambiarEmpresa(id) {
+    if (!datos.empresas.some((e) => e.id === id)) fallo('Esa empresa no existe.');
+    datos.activa = id;
+    persistir();
+    return esperar(empresaActiva());
+  },
+
   /** Crea o actualiza un cliente. Devuelve el cliente tal como quedó. */
   cliente(entrada) {
     const { identificacion, razonSocial } = comprobarCliente(entrada);
@@ -1461,6 +2963,7 @@ const guardar = {
     const cliente = {
       ...(existente ?? {}),
       id: existente?.id ?? nuevoId(),
+      empresaId: existente?.empresaId ?? datos.activa,
       tipo: entrada.tipo,
       identificacion,
       razonSocial,
@@ -1487,6 +2990,7 @@ const guardar = {
 
     const producto = {
       ...(existente ?? {}),
+      empresaId: existente?.empresaId ?? datos.activa,
       codigo,
       descripcion,
       unidad: String(entrada.unidad ?? '').trim() || 'UNIDAD',
@@ -1513,12 +3017,13 @@ const guardar = {
    * número repetido lo rechaza el SRI.
    */
   borrador(entrada) {
-    const cliente = datos.clientes.find((c) => c.id === entrada.clienteId);
+    const cliente = deLaActiva(datos.clientes).find((c) => c.id === entrada.clienteId);
     if (!cliente) fallo('Hay que elegir a quién se le factura.');
     if (!entrada.lineas?.length) fallo('Una factura sin líneas no se puede emitir.');
 
-    const punto = datos.puntos.find((p) => p.codigo === entrada.punto && p.activo)
-      ?? datos.puntos.find((p) => p.activo);
+    const mios = deLaActiva(datos.puntos);
+    const punto = mios.find((p) => p.codigo === entrada.punto && p.activo)
+      ?? mios.find((p) => p.activo);
     if (!punto) fallo('No hay ningún punto de emisión activo.');
 
     const secuencial = siguienteSecuencial(punto);
@@ -1529,13 +3034,14 @@ const guardar = {
     // sobre (punto, tipo, secuencial) que rechazaría esto, y el SRI rechaza dos
     // comprobantes con el mismo número. Vale más fallar aquí, con un mensaje
     // que se entiende, que descubrirlo cuando el documento ya salió.
-    if (datos.comprobantes.some((c) => c.numero === numeroNuevo)) {
+    if (deLaActiva(datos.comprobantes).some((c) => c.numero === numeroNuevo)) {
       fallo(`Ya existe un comprobante ${numeroNuevo}. La numeración de un punto de ` +
             'emisión no puede repetirse: el SRI lo rechaza.');
     }
 
     const comprobante = {
       id: nuevoId(),
+      empresaId: datos.activa,
       numero: numeroNuevo,
       tipo: 'Factura',
       estado: 'BORRADOR',
@@ -1568,7 +3074,7 @@ const guardar = {
    * autorizado sin estarlo es peor que no tener ninguno.
    */
   emitirSimulado(numero) {
-    const c = datos.comprobantes.find((x) => x.numero === numero);
+    const c = deLaActiva(datos.comprobantes).find((x) => x.numero === numero);
     if (!c) fallo(`No existe el comprobante ${numero}.`);
     if (c.estado !== 'BORRADOR') {
       fallo(`El comprobante ${numero} ya salió de borrador y no se puede volver a emitir. ` +
@@ -1583,7 +3089,7 @@ const guardar = {
 };
 
 
-  return { reiniciar, cargar, guardar };
+  return { reiniciar, empresaActiva, esLaDeEjemplo, cargar, guardar };
 })();
 
 // ---- src/datos-contables.js --------------------------------------
@@ -1902,6 +3408,43 @@ const CARTERA_COBRAR = [
   { cliente: 'Bananera del Litoral Cía. Ltda.', documento: '001-002-000000027', emision: new Date(2026, 6, 12), vence: new Date(2026, 7, 11), monto: 4120.00, abonado: 1500.00 },
 ];
 
+/**
+ * Proveedores.
+ *
+ * Los dos datos que no tiene un cliente y que aquí deciden dinero:
+ *
+ *   `tipo`        bienes o servicios, porque la retención de renta no es la
+ *                 misma para uno que para otro.
+ *   `contribuyenteEspecial`  porque a un especial se le retiene distinto.
+ *
+ * Los porcentajes que aparecen son los de uso corriente y están **pendientes
+ * de confirmar** con la tabla vigente del SRI: es la pregunta 4 del documento
+ * de reglas. Se guardan por proveedor y no dentro del código para que el día
+ * que cambien se corrijan aquí, sin tocar ningún programa.
+ */
+const PROVEEDORES = [
+  { id: 'p1', razonSocial: 'Fertilizantes del Pacífico S.A.', ruc: '0990123456001',
+    ciudad: 'Guayaquil', tipo: 'Bienes', contribuyenteEspecial: true,
+    retencionIR: 1.75, retencionIVA: 30, correo: 'ventas@fertipacifico.com.ec',
+    telefono: '(04) 216 7788', comprado: 48620.00, saldo: 7240.00, activo: true },
+  { id: 'p2', razonSocial: 'Semillas del Guayas Cía. Ltda.', ruc: '0991765432001',
+    ciudad: 'Daule', tipo: 'Bienes', contribuyenteEspecial: false,
+    retencionIR: 1.75, retencionIVA: 30, correo: 'pedidos@semillasguayas.ec',
+    telefono: '(04) 279 3311', comprado: 21400.00, saldo: 2450.00, activo: true },
+  { id: 'p3', razonSocial: 'Transportes Samborondón S.A.', ruc: '0992871045001',
+    ciudad: 'Samborondón', tipo: 'Servicios', contribuyenteEspecial: false,
+    retencionIR: 1, retencionIVA: 70, correo: 'facturacion@transamborondon.ec',
+    telefono: '(04) 208 4420', comprado: 9840.50, saldo: 1180.50, activo: true },
+  { id: 'p4', razonSocial: 'Inmobiliaria Km 14 Cía. Ltda.', ruc: '0993311220001',
+    ciudad: 'Daule', tipo: 'Servicios', contribuyenteEspecial: false,
+    retencionIR: 8, retencionIVA: 70, correo: 'arriendos@km14.ec',
+    telefono: '(04) 279 6600', comprado: 10800.00, saldo: 0, activo: true },
+  { id: 'p5', razonSocial: 'Corporación Nacional de Electricidad', ruc: '0968599190001',
+    ciudad: 'Guayaquil', tipo: 'Servicios', contribuyenteEspecial: true,
+    retencionIR: 0, retencionIVA: 0, correo: 'servicioalcliente@cnel.gob.ec',
+    telefono: '1800 CNEL EC', comprado: 4120.40, saldo: 0, activo: true },
+];
+
 const CARTERA_PAGAR = [
   { proveedor: 'Fertilizantes del Pacífico S.A.', documento: '001-001-000009104', emision: new Date(2026, 8, 26), vence: new Date(2026, 9, 26), monto: 7240.00, abonado: 0 },
   { proveedor: 'Transportes Samborondón S.A.', documento: '002-001-000003318', emision: new Date(2026, 8, 19), vence: new Date(2026, 9, 3), monto: 1180.50, abonado: 0 },
@@ -2051,7 +3594,7 @@ function formulario104(saldos = balanceDeComprobacion()) {
 }
 
 
-  return { CUENTAS, cuenta, nombreCuenta, asientoDeFactura, DIARIO, balanceDeComprobacion, mayorDe, CARTERA_COBRAR, CARTERA_PAGAR, BANCOS, INVENTARIO, EMPLEADOS, ACTIVOS_FIJOS, SUSCRIPCIONES, USO_MENSUAL, SOPORTE, RETENCIONES, NOTAS_CREDITO, GUIAS_REMISION, formulario104 };
+  return { CUENTAS, cuenta, nombreCuenta, asientoDeFactura, DIARIO, balanceDeComprobacion, mayorDe, CARTERA_COBRAR, PROVEEDORES, CARTERA_PAGAR, BANCOS, INVENTARIO, EMPLEADOS, ACTIVOS_FIJOS, SUSCRIPCIONES, USO_MENSUAL, SOPORTE, RETENCIONES, NOTAS_CREDITO, GUIAS_REMISION, formulario104 };
 })();
 
 // ---- src/disposicion.js ------------------------------------------
@@ -2099,6 +3642,7 @@ const MENU_EMPRESA = [
   ] },
   { grupo: 'Operaciones', enlaces: [
     { ico: 'group', texto: 'Clientes', ruta: '#/clientes' },
+    { ico: 'local_shipping', texto: 'Proveedores', ruta: '#/proveedores' },
     { ico: 'inventory_2', texto: 'Productos', ruta: '#/productos' },
     { ico: 'warehouse', texto: 'Inventario', ruta: '#/inventario' },
     { ico: 'badge', texto: 'Nómina', ruta: '#/nomina' },
@@ -2126,45 +3670,100 @@ const MENU_ADMIN = [
   { grupo: 'Control', enlaces: [
     { ico: 'support_agent', texto: 'Soporte', ruta: '#/admin/soporte' },
     { ico: 'verified_user', texto: 'Auditoría', ruta: '#/admin/auditoria' },
+    { ico: 'shield_person', texto: 'Protección de datos', ruta: '#/admin/datos' },
   ] },
 ];
 
 const LOGO = `<svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor"
   stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 4v16M6 13.5l10-8.5M10 10.5l8 9.5"/></svg>`;
 
+/**
+ * Qué grupos del menú están abiertos.
+ *
+ * Con veintisiete opciones, tenerlas todas desplegadas obliga a bajar por la
+ * lista para llegar a las de abajo. Plegadas, el menú entero cabe de un vistazo
+ * y solo se abre el grupo en el que se está trabajando.
+ *
+ * Vive fuera de la función de dibujo para que sobreviva a los redibujados: si
+ * se reiniciara en cada pantalla, se cerraría justo después de abrirlo.
+ */
+const gruposAbiertos = new Set();
+let primeraVez = true;
+
+/** Si un grupo contiene la pantalla que se está viendo. */
+const grupoActivo = (seccion, ruta) =>
+  seccion.enlaces.some((e) => ruta.startsWith(e.ruta));
+
 function enlaces(menu, rutaActual, tema) {
-  return menu.map((seccion) => html`
-    <div class="mb-6">
-      <p class="px-3 mb-2 text-[10px] font-bold uppercase tracking-widest ${crudo(tema.grupo)}">
-        ${seccion.grupo}
-      </p>
-      <nav class="space-y-0.5">
-        ${seccion.enlaces.map((e) => {
-          const activo = rutaActual.startsWith(e.ruta);
-          return crudo(
-            `<a href="${esc(e.ruta)}" class="flex items-center gap-3 px-3 py-2.5 rounded-xl ` +
-            `text-sm font-medium transition ${activo ? tema.activo : tema.inactivo}">` +
-            `<span class="ms text-[20px]">${esc(e.ico)}</span>` +
-            `<span class="truncate">${esc(e.texto)}</span></a>`);
-        })}
-      </nav>
-    </div>`);
+  // La primera vez se abre el grupo de la pantalla actual y se cierran los
+  // demás. A partir de ahí manda lo que haya abierto o cerrado la persona.
+  if (primeraVez) {
+    primeraVez = false;
+    const suyo = menu.find((s) => grupoActivo(s, rutaActual));
+    if (suyo) gruposAbiertos.add(suyo.grupo);
+  }
+
+  return menu.map((seccion) => {
+    const abierto = gruposAbiertos.has(seccion.grupo);
+    const dentro = grupoActivo(seccion, rutaActual);
+
+    return html`
+      <div class="mb-1">
+        <button data-grupo="${seccion.grupo}" aria-expanded="${abierto ? 'true' : 'false'}"
+                class="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-[10px] font-bold
+                       uppercase tracking-widest transition ${crudo(tema.grupo)}">
+          ${crudo(`<span class="ms text-[16px]" style="transform:rotate(${abierto ? 90 : 0}deg)">chevron_right</span>`)}
+          <span class="flex-1 text-left truncate">${seccion.grupo}</span>
+          ${!abierto && dentro
+            ? crudo(`<span class="w-1.5 h-1.5 rounded-full ${esc(tema.punto)}"></span>`) : ''}
+        </button>
+        <nav class="space-y-0.5 pb-3 ${crudo(abierto ? '' : 'hidden')}">
+          ${seccion.enlaces.map((e) => {
+            const activo = rutaActual.startsWith(e.ruta);
+            return crudo(
+              `<a href="${esc(e.ruta)}" class="flex items-center gap-3 pl-6 pr-3 py-2.5 rounded-xl ` +
+              `text-sm font-medium transition ${activo ? tema.activo : tema.inactivo}">` +
+              `<span class="ms text-[20px]">${esc(e.ico)}</span>` +
+              `<span class="truncate">${esc(e.texto)}</span></a>`);
+          })}
+        </nav>
+      </div>`;
+  });
 }
 
+/**
+ * Los dos temas de la barra lateral.
+ *
+ * Era blanca sobre un fondo casi blanco y se confundía con el contenido: no se
+ * veía dónde acababa el menú y empezaba la pantalla. Ahora es una superficie
+ * oscura, lo que además libera el color de marca para lo que de verdad importa
+ * —los importes, los estados, los gráficos— en lugar de repartirlo por todas
+ * partes.
+ *
+ * Los dos mundos siguen distinguiéndose a simple vista: verde profundo para una
+ * empresa, casi negro para la plataforma. Quien administra Kontia nunca debe
+ * dudar de en cuál de los dos está mirando.
+ */
 const TEMA_EMPRESA = {
-  aside: 'bg-white border-r border-papel-linea',
-  marca: 'bg-verde text-white',
-  grupo: 'text-tinta-suave/70',
-  activo: 'activa-3d bg-verde-claro text-verde font-semibold',
-  inactivo: 'text-tinta-suave hover:bg-papel hover:text-tinta',
+  aside: 'bg-[#0C3A27] border-r border-black/20',
+  marca: 'bg-white/12 text-white border border-white/20',
+  grupo: 'text-white/45 hover:text-white hover:bg-white/5',
+  activo: 'bg-white text-[#0C3A27] font-bold shadow-sm',
+  inactivo: 'text-white/70 hover:bg-white/10 hover:text-white',
+  punto: 'bg-white',
+  titulo: 'text-white',
+  subtitulo: 'text-white/45',
 };
 
 const TEMA_ADMIN = {
-  aside: 'bg-[#12211A] border-r border-white/10',
+  aside: 'bg-[#14181C] border-r border-black/30',
   marca: 'bg-white/10 text-white border border-white/20',
-  grupo: 'text-white/40',
-  activo: 'activa-3d bg-white/10 text-white font-semibold',
-  inactivo: 'text-white/60 hover:bg-white/5 hover:text-white',
+  grupo: 'text-white/40 hover:text-white hover:bg-white/5',
+  activo: 'bg-white text-[#14181C] font-bold shadow-sm',
+  inactivo: 'text-white/60 hover:bg-white/10 hover:text-white',
+  punto: 'bg-white',
+  titulo: 'text-white',
+  subtitulo: 'text-white/40',
 };
 
 /**
@@ -2173,10 +3772,18 @@ const TEMA_ADMIN = {
  * @param {string} contenido  el HTML de la vista, ya construido
  * @param {object} opciones   ruta actual y si es el mundo del super admin
  */
-function marco(contenido, { ruta = '', admin = false } = {}) {
+let ultimoMenu = [];
+let ultimaRuta = '';
+let ultimoTema = null;
+
+function marco(contenido, { ruta = '', admin = false, empresa = null } = {}) {
   const tema = admin ? TEMA_ADMIN : TEMA_EMPRESA;
   const menu = admin ? MENU_ADMIN : MENU_EMPRESA;
+  ultimoMenu = menu;
+  ultimaRuta = ruta;
+  ultimoTema = tema;
   const u = sesion.usuario();
+  empresa = empresa ?? { razonSocial: u.empresa, ruc: u.ruc, ambiente: u.ambiente };
 
   const pie = admin ? html`
     <div class="mx-3 p-3 rounded-xl bg-white/5 border border-white/10">
@@ -2186,15 +3793,15 @@ function marco(contenido, { ruta = '', admin = false } = {}) {
         una empresa hace falta que ella lo autorice.
       </p>
     </div>` : html`
-    <div class="mx-3 p-3 rounded-xl bg-verde-claro border border-verde-medio">
-      <div class="flex items-center gap-2 text-verde">
+    <div class="mx-3 p-3 rounded-xl bg-white/8 border border-white/12">
+      <div class="flex items-center gap-2 text-white">
         ${icono('gavel', 'text-[18px]')}
         <p class="text-[11px] font-bold">Consulta legal-tributaria</p>
       </div>
-      <p class="mt-1.5 text-[11px] leading-relaxed text-verde/80">
+      <p class="mt-1.5 text-[11px] leading-relaxed text-white/55">
         ¿Dudas sobre una glosa o un trámite? Hable con un abogado.
       </p>
-      <a href="#/consulta" class="mt-2.5 inline-flex items-center gap-1 text-[11px] font-bold text-verde hover:underline">
+      <a href="#/consulta" class="mt-2.5 inline-flex items-center gap-1 text-[11px] font-bold text-white hover:underline">
         Consultar ${icono('arrow_forward', 'text-[14px]')}
       </a>
     </div>`;
@@ -2202,19 +3809,19 @@ function marco(contenido, { ruta = '', admin = false } = {}) {
   return html`
     <div id="marco" class="flex min-h-screen">
       <div class="velo" data-cerrar-menu aria-hidden="true"></div>
-      <aside class="lateral flex w-[268px] shrink-0 flex-col ${crudo(tema.aside)}">
+      <aside class="lateral flex w-[268px] shrink-0 flex-col lg:sticky lg:top-0 lg:h-screen ${crudo(tema.aside)}">
         <div class="p-5 flex items-center gap-3">
           <div class="w-10 h-10 rounded-xl flex items-center justify-center ${crudo(tema.marca)}">
             ${crudo(LOGO)}
           </div>
           <button data-cerrar-menu aria-label="Cerrar el menú"
                   class="lg:hidden order-last ml-auto w-9 h-9 rounded-lg flex items-center justify-center
-                         ${crudo(admin ? 'text-white/60 hover:bg-white/10' : 'text-tinta-suave hover:bg-papel')}">
+                         text-white/60 hover:bg-white/10">
             ${icono('close', 'text-[20px]')}
           </button>
           <div class="min-w-0">
-            <p class="text-lg font-extrabold tracking-tight ${crudo(admin ? 'text-white' : 'text-tinta')}">Kontia</p>
-            <p class="text-[10px] font-bold uppercase tracking-widest ${crudo(admin ? 'text-white/40' : 'text-tinta-suave/70')}">
+            <p class="text-lg font-extrabold tracking-tight ${crudo(tema.titulo)}">Kontia</p>
+            <p class="text-[10px] font-bold uppercase tracking-widest ${crudo(tema.subtitulo)}">
               ${admin ? 'Super admin' : 'SRI Ecuador'}
             </p>
           </div>
@@ -2233,14 +3840,23 @@ function marco(contenido, { ruta = '', admin = false } = {}) {
                 ${icono('menu', 'text-[22px]')}
               </button>
               <div class="min-w-0">
-                <p class="text-sm font-bold truncate">${admin ? 'Plataforma Kontia' : u.empresa}</p>
-                <p class="text-[11px] text-tinta-suave truncate">
-                  ${admin ? 'Administración del servicio' : crudo(`RUC ${esc(u.ruc)} · Ambiente ${esc(u.ambiente)}`)}
-                </p>
+                ${admin ? html`
+                  <p class="text-sm font-bold truncate">Plataforma Kontia</p>
+                  <p class="text-[11px] text-tinta-suave truncate">Administración del servicio</p>
+                ` : html`
+                  <a href="#/empresas" title="Cambiar de empresa"
+                     class="group flex items-center gap-1.5 min-w-0">
+                    <span class="text-sm font-bold truncate">${empresa.razonSocial}</span>
+                    ${icono('unfold_more', 'text-[16px] text-tinta-suave group-hover:text-verde')}
+                  </a>
+                  <p class="text-[11px] text-tinta-suave truncate">
+                    RUC ${empresa.ruc} · Ambiente ${empresa.ambiente}
+                  </p>
+                `}
               </div>
             </div>
             <div class="flex items-center gap-3">
-              ${!admin && u.ambiente === 'PRUEBAS' ? crudo(
+              ${!admin && empresa.ambiente === 'PRUEBAS' ? crudo(
                 '<span class="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full ' +
                 'text-[11px] font-bold bg-ambar-fondo text-ambar-texto border border-ambar-borde">' +
                 '<span class="ms text-[14px]">science</span>Ambiente de pruebas</span>') : ''}
@@ -2310,6 +3926,25 @@ function conectarMenu() {
   document.addEventListener('keydown', (ev) => {
     if (ev.key === 'Escape') abrir(false);
   });
+
+  // Plegar y desplegar los grupos del menú.
+  document.addEventListener('click', (ev) => {
+    const cabecera = ev.target.closest('[data-grupo]');
+    if (!cabecera) return;
+    const nombre = cabecera.dataset.grupo;
+    if (gruposAbiertos.has(nombre)) gruposAbiertos.delete(nombre);
+    else gruposAbiertos.add(nombre);
+    // Solo se redibuja el menú, no la pantalla: redibujarla entera haría
+    // perder la posición de lectura de quien solo queria abrir un grupo.
+    const contenedor = document.querySelector('.lateral .overflow-y-auto');
+    if (contenedor) {
+      const desplazamiento = contenedor.scrollTop;
+      contenedor.innerHTML = String(crudo(
+        enlaces(ultimoMenu, ultimaRuta, ultimoTema)
+          .map(String).join('')));
+      contenedor.scrollTop = desplazamiento;
+    }
+  });
 }
 
 
@@ -2360,14 +3995,18 @@ function pendiente({ titulo, ico, texto }) {
 const __src_vistas_acceso_js = (function () {
   const { html, crudo, icono } = __src_ui_js;
   const { sesion } = __src_sesion_js;
-  const { EMPRESAS_ADMIN } = __src_datos_js;
+  const { cargar, guardar } = __src_almacen_js;
 
 /**
- * Entrar en Kontia, y elegir con qué empresa se trabaja.
+ * Elegir con qué empresa se trabaja, y entrar al pulsar un papel.
  *
- * La pantalla de entrada de esta demostración no pide contraseña: ofrece los
- * tres papeles para poder verlos. La de verdad la resuelve Supabase, y ni el
- * correo ni la clave pasan nunca por este archivo.
+ * El inicio de sesión no está aquí: vive en el sitio (apps/web/sitio.html),
+ * en la pantalla #ingresar, porque quien llega por primera vez no debería
+ * tener que cruzar dos puertas. De este archivo queda lo que pasa después de
+ * pulsar: con qué empresa se trabaja, y qué papel tiene quien entró.
+ *
+ * Ni el correo ni la contraseña pasan nunca por aquí. Eso lo resolverá
+ * Supabase cuando haya usuarios de verdad.
  */
 
 
@@ -2378,140 +4017,6 @@ const LOGO_BLANCO = `<svg class="w-6 h-6 text-white" viewBox="0 0 24 24" fill="n
   stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
   <path d="M6 4v16M6 13.5l10-8.5M10 10.5l8 9.5"/></svg>`;
 
-const PAPELES_DEMO = [
-  { id: 'administrador', ico: 'admin_panel_settings', nombre: 'Juan Carlos Pérez',
-    rol: 'Administrador de la empresa',
-    que: 'Ve todo lo de Agroquímicos Pérez: factura, configura y crea usuarios.' },
-  { id: 'facturador', ico: 'point_of_sale', nombre: 'María Elena Vaca',
-    rol: 'Facturadora',
-    que: 'Emite facturas desde su punto de emisión. No toca la configuración.' },
-  { id: 'super', ico: 'shield_person', nombre: 'Gustavo Cajamarca',
-    rol: 'Super administrador de la plataforma',
-    que: 'Administra el servicio de todas las empresas y no ve los datos de ninguna.' },
-];
-
-async function entrar() {
-  return html`
-  <main class="min-h-screen flex flex-col lg:flex-row">
-
-    <!--
-      En pantalla ancha esta columna ocupa media pantalla y puede permitirse el
-      cartel entero. En el telefono no: cada linea que se anade aqui es una
-      linea mas que hay que bajar antes de encontrar por donde entrar. Asi que
-      en pequenio se queda en lo imprescindible —quien es y que hace— y el
-      resto aparece a partir de tableta.
-    -->
-    <section class="relative lg:w-1/2 bg-verde text-white flex flex-col justify-between
-                    px-6 py-7 sm:p-12 lg:p-16 overflow-hidden">
-      <div class="pointer-events-none absolute -top-48 -left-48 w-96 h-96 rounded-full bg-white/5 blur-3xl"></div>
-      <div class="pointer-events-none absolute -bottom-32 -right-32 w-80 h-80 rounded-full bg-emerald-400/10 blur-3xl"></div>
-
-      <header class="relative z-10 flex items-center gap-3">
-        <div class="w-10 h-10 rounded-xl bg-white/15 border border-white/20 flex items-center justify-center">
-          ${crudo(LOGO_BLANCO)}
-        </div>
-        <span class="text-2xl font-extrabold tracking-tight">Kontia</span>
-        <span class="ml-1 text-[10px] font-bold tracking-widest uppercase px-2 py-0.5 rounded-full bg-white/15 border border-white/20">
-          SRI Ecuador
-        </span>
-      </header>
-
-      <div class="relative z-10 mt-6 sm:my-12 lg:my-auto max-w-lg">
-        <div class="hidden sm:inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 border border-white/10 text-emerald-100 text-xs font-medium mb-6">
-          <span class="w-2 h-2 rounded-full bg-emerald-300"></span>
-          Facturación electrónica · ficha técnica 2.34
-        </div>
-        <h1 class="text-[26px] sm:text-4xl lg:text-[42px] font-semibold leading-[1.15] tracking-tight">
-          Tu facturación electrónica, en orden
-        </h1>
-        <p class="mt-3 sm:mt-5 text-sm sm:text-lg text-emerald-100/90 leading-relaxed">
-          Software contable con respaldo legal para empresas de Daule, Nobol y Samborondón.
-        </p>
-        <div class="hidden sm:grid mt-8 pt-8 border-t border-white/15 grid-cols-2 gap-4 text-xs text-emerald-100/80">
-          ${['Firma electrónica .p12', 'IVA 15% y retenciones', 'Los seis comprobantes', 'Asesoría legal incluida']
-            .map((t) => html`
-              <div class="flex items-center gap-2">
-                ${icono('check_circle', 'text-[16px] text-emerald-300')}
-                <span>${t}</span>
-              </div>`)}
-        </div>
-      </div>
-
-      <footer class="hidden sm:block relative z-10 text-[11px] text-emerald-100/60">
-        Kontia es un nombre de trabajo. Pendiente de verificación en SCVS y SENADI.
-      </footer>
-    </section>
-
-    <section class="lg:w-1/2 flex items-center justify-center p-6 sm:p-10 lg:p-16 bg-white">
-      <!--
-        El orden cambia segun el tamanio, y no por gusto. En pantalla ancha
-        manda el formulario de verdad y la demostracion queda debajo, como una
-        nota. En el telefono se invierte: lo primero que se ve tiene que ser
-        por donde se entra, porque el formulario esta apagado y no lleva a
-        ninguna parte todavia.
-      -->
-      <div class="w-full max-w-md flex flex-col">
-        <div class="order-2 lg:order-1">
-        <h2 class="hidden lg:block text-2xl font-bold tracking-tight">Iniciar sesión</h2>
-        <p class="hidden lg:block mt-2 text-sm text-tinta-suave">
-          Entre con el correo con el que le dieron de alta.
-        </p>
-
-        <form class="mt-6 lg:mt-8 space-y-4" onsubmit="return false">
-          <label class="block">
-            <span class="text-xs font-bold uppercase tracking-wide text-tinta-suave">Correo</span>
-            <input type="email" placeholder="usted@suempresa.com.ec" disabled
-                   class="mt-1.5 w-full px-4 py-3 rounded-xl border border-papel-linea bg-papel text-sm
-                          placeholder:text-tinta-suave/50 disabled:cursor-not-allowed">
-          </label>
-          <label class="block">
-            <span class="text-xs font-bold uppercase tracking-wide text-tinta-suave">Contraseña</span>
-            <input type="password" placeholder="••••••••" disabled
-                   class="mt-1.5 w-full px-4 py-3 rounded-xl border border-papel-linea bg-papel text-sm
-                          placeholder:text-tinta-suave/50 disabled:cursor-not-allowed">
-          </label>
-          <button disabled class="w-full py-3 rounded-xl bg-papel-linea text-tinta-suave text-sm font-bold cursor-not-allowed">
-            Entrar
-          </button>
-        </form>
-
-        </div>
-
-        <div class="order-1 lg:order-2">
-        <div class="hidden lg:flex mt-8 items-center gap-3">
-          <span class="h-px flex-1 bg-papel-linea"></span>
-          <span class="text-[11px] font-bold uppercase tracking-widest text-tinta-suave">Demostración</span>
-          <span class="h-px flex-1 bg-papel-linea"></span>
-        </div>
-
-        <h2 class="lg:hidden text-xl font-bold tracking-tight">Entrar a la demostración</h2>
-
-        <p class="mt-2 lg:mt-4 text-sm text-tinta-suave leading-relaxed">
-          Todavía no hay usuarios de verdad ni contraseñas: la base de datos existe pero
-          la aplicación no está conectada. Toque un papel para ver el sistema desde sus ojos.
-        </p>
-
-        <div class="mt-4 space-y-2.5">
-          ${PAPELES_DEMO.map((p) => html`
-            <button data-papel="${p.id}"
-                    class="w-full text-left flex items-start gap-3 p-4 rounded-xl border border-papel-linea
-                           hover:border-verde hover:bg-verde-claro/40 transition">
-              <span class="w-10 h-10 shrink-0 rounded-xl bg-verde-claro text-verde flex items-center justify-center">
-                ${icono(p.ico, 'text-[20px]')}
-              </span>
-              <span class="min-w-0">
-                <span class="block text-sm font-bold">${p.nombre}</span>
-                <span class="block text-[11px] font-semibold text-verde">${p.rol}</span>
-                <span class="block mt-1 text-[11px] text-tinta-suave leading-relaxed">${p.que}</span>
-              </span>
-            </button>`)}
-        </div>
-        </div>
-      </div>
-    </section>
-  </main>`;
-}
-
 /**
  * Elegir empresa.
  *
@@ -2521,7 +4026,7 @@ async function entrar() {
  * empresa sin darse cuenta es emitir una factura desde el RUC equivocado.
  */
 async function seleccionEmpresa() {
-  const mias = EMPRESAS_ADMIN.slice(0, 2);
+  const mias = await cargar.empresas();
   return html`
   <div class="min-h-screen flex items-center justify-center p-6 bg-papel">
     <div class="w-full max-w-2xl">
@@ -2538,20 +4043,26 @@ async function seleccionEmpresa() {
 
       <div class="mt-7 space-y-3">
         ${mias.map((e) => html`
-          <a href="#/resumen" class="flex items-center gap-4 p-5 bg-white border border-papel-linea rounded-2xl relieve
-                                     hover:border-verde hover:shadow-sm transition">
+          <button data-empresa="${e.id}"
+                  class="w-full text-left flex items-center gap-4 p-5 bg-white border border-papel-linea
+                         rounded-2xl relieve hover:border-verde transition">
             <span class="w-12 h-12 shrink-0 rounded-xl bg-verde-claro text-verde flex items-center justify-center text-sm font-extrabold">
               ${e.razonSocial.slice(0, 2).toUpperCase()}
             </span>
             <span class="min-w-0 flex-1">
               <span class="block text-sm font-bold truncate">${e.razonSocial}</span>
-              <span class="block text-xs text-tinta-suave">RUC ${e.ruc} · ${e.ciudad}</span>
+              <span class="block text-xs text-tinta-suave">
+                RUC ${e.ruc}${e.ciudad ? ' · ' + e.ciudad : ''}
+              </span>
             </span>
+            ${!e.semilla ? crudo(
+              '<span class="hidden sm:block text-[10px] font-bold uppercase tracking-wide px-2.5 py-1 ' +
+              'rounded-full bg-ambar-fondo text-ambar-texto border border-ambar-borde">Nueva</span>') : ''}
             <span class="hidden sm:block text-[11px] font-bold px-2.5 py-1 rounded-full bg-papel text-tinta-suave">
               ${e.plan}
             </span>
             ${icono('arrow_forward', 'text-[20px] text-tinta-suave')}
-          </a>`)}
+          </button>`)}
       </div>
 
       <p class="mt-6 text-xs text-tinta-suave">
@@ -2568,15 +4079,24 @@ async function seleccionEmpresa() {
  * redibujan enteras: un escuchador puesto sobre un botón concreto se pierde en
  * el primer redibujado, y el botón deja de responder sin dar ninguna señal.
  */
-document.addEventListener('click', (ev) => {
-  const boton = ev.target.closest('[data-papel]');
-  if (!boton) return;
-  sesion.entrar(boton.dataset.papel);
-  location.hash = sesion.esSuperAdmin() ? '#/admin/empresas' : '#/empresas';
+document.addEventListener('click', async (ev) => {
+  const papel = ev.target.closest('[data-papel]');
+  if (papel) {
+    sesion.entrar(papel.dataset.papel);
+    location.hash = sesion.esSuperAdmin() ? '#/admin/empresas' : '#/empresas';
+    return;
+  }
+  // Elegir con qué empresa se trabaja. Lo que se elija aquí decide qué datos se
+  // ven después, así que se guarda antes de entrar a ninguna pantalla.
+  const empresa = ev.target.closest('[data-empresa]');
+  if (empresa) {
+    await guardar.cambiarEmpresa(empresa.dataset.empresa);
+    location.hash = '#/resumen';
+  }
 });
 
 
-  return { entrar, seleccionEmpresa };
+  return { seleccionEmpresa };
 })();
 
 // ---- src/vistas/resumen.js ---------------------------------------
@@ -2625,13 +4145,24 @@ async function resumen() {
     cargar.resumen(), cargar.certificado(), cargar.comprobantes(),
   ]);
 
-  const tope = Math.max(...r.meses.map((m) => m.valor));
-  const dias = cert.diasRestantes;
+  const dias = cert ? cert.diasRestantes : null;
+
+  const tope = Math.max(...r.meses.map((m) => m.valor), 1);
 
   // El aviso del certificado solo aparece cuando de verdad hay algo que hacer.
   // Un panel lleno de avisos permanentes se deja de leer en una semana, y
   // entonces tampoco se lee el que importaba.
-  const avisoCertificado = dias <= 60 ? aviso({
+  // Sin certificado no se puede firmar nada, así que el aviso es otro: no es
+  // que caduque pronto, es que la empresa todavía no puede facturar.
+  const avisoCertificado = !cert ? aviso({
+    tono: 'ambar', ico: 'gpp_maybe',
+    titulo: 'Todavía no hay certificado de firma',
+    texto: 'Sin él no se puede emitir ningún comprobante: el SRI exige que cada documento ' +
+           'vaya firmado. Lo emite una entidad certificadora autorizada y lo carga la propia ' +
+           'empresa, nunca Kontia.',
+    accion: html`<a href="#/certificado" class="inline-block mt-2 text-sm font-bold underline">
+                   Cargar el certificado</a>`,
+  }) : dias <= 60 ? aviso({
     tono: dias <= 15 ? 'rojo' : 'ambar',
     ico: dias <= 15 ? 'error' : 'schedule',
     titulo: `Su certificado de firma caduca en ${dias} días`,
@@ -2694,6 +4225,20 @@ async function resumen() {
 
       <section class="bg-white border border-papel-linea rounded-2xl relieve p-5">
         <h2 class="text-sm font-bold">Estado de la firma</h2>
+        ${!cert ? html`
+          <div class="mt-4 flex items-center gap-3">
+            <span class="w-11 h-11 rounded-xl bg-ambar-fondo text-ambar-texto flex items-center justify-center">
+              ${icono('gpp_maybe', 'text-[22px]')}
+            </span>
+            <div>
+              <p class="text-sm font-bold">Sin certificado</p>
+              <p class="text-xs text-tinta-suave">No se puede emitir todavía</p>
+            </div>
+          </div>
+          <a href="#/certificado" class="mt-5 flex items-center justify-center gap-2 w-full py-2.5
+                    rounded-xl boton-3d bg-verde text-white text-sm font-semibold">
+            Cargar certificado
+          </a>` : html`
         <div class="mt-4 flex items-center gap-3">
           <span class="w-11 h-11 rounded-xl flex items-center justify-center
                        ${crudo(dias <= 15 ? 'bg-rojo-fondo text-rojo-texto' : 'bg-verde-claro text-verde')}">
@@ -2718,9 +4263,9 @@ async function resumen() {
           </div>
         </dl>
         <a href="#/certificado" class="mt-5 flex items-center justify-center gap-2 w-full py-2.5 rounded-xl
-                  border border-papel-linea text-sm font-semibold hover:border-verde hover:text-verde transition">
+                  boton-3d-claro border border-papel-linea text-sm font-semibold">
           Administrar ${icono('arrow_forward', 'text-[16px]')}
-        </a>
+        </a>`}
       </section>
     </div>
 
@@ -4038,6 +5583,67 @@ async function configuracion() {
 
 async function certificado() {
   const c = await cargar.certificado();
+
+  // Sin certificado la pantalla no habla de fechas: habla de lo único que hay
+  // que hacer, que es conseguirlo. Y de lo que significa entregarlo, que es lo
+  // que nadie explica antes de pedirlo.
+  if (!c) {
+    return html`
+      ${crudo(cabecera({
+        titulo: 'Certificado de firma electrónica',
+        descripcion: 'El archivo .p12 con el que se firma cada comprobante antes de enviarlo al SRI.',
+      }))}
+      ${crudo(aviso({
+        tono: 'ambar', ico: 'gpp_maybe',
+        titulo: 'Esta empresa todavía no puede emitir',
+        texto: 'El SRI exige que cada comprobante vaya firmado electrónicamente. Sin ' +
+               'certificado vigente, ninguna factura se autoriza.',
+      }))}
+      <div class="grid gap-5 lg:grid-cols-3">
+        <section class="lg:col-span-2 bg-white border border-papel-linea border-dashed rounded-2xl relieve p-8 text-center">
+          <div class="w-16 h-16 mx-auto rounded-2xl bg-papel flex items-center justify-center mb-5">
+            ${icono('shield_lock', 'text-[30px] text-tinta-suave')}
+          </div>
+          <h2 class="text-lg font-bold">Cargue el certificado de la empresa</h2>
+          <p class="mt-2 text-sm text-tinta-suave max-w-md mx-auto leading-relaxed">
+            Es un archivo con extensión <strong class="text-tinta">.p12</strong> que emite una
+            entidad certificadora autorizada —Security Data, Banco Central, Uanataca—. Se
+            tramita una vez y dura dos años.
+          </p>
+          <div class="mt-6 flex justify-center">
+            ${boton('Cargar archivo .p12', { ico: 'upload' })}
+          </div>
+          <p class="mt-4 text-[11px] text-tinta-suave">
+            Lo carga la empresa desde aquí. Kontia nunca lo pide por correo ni por teléfono.
+          </p>
+        </section>
+
+        <section class="bg-white border-2 border-ambar-borde rounded-2xl relieve p-5">
+          <div class="flex items-center gap-2 text-ambar-texto mb-3">
+            ${icono('gavel', 'text-[20px]')}
+            <h2 class="text-sm font-bold">Antes de entregarlo, sépalo</h2>
+          </div>
+          <div class="space-y-3 text-[12px] leading-relaxed text-tinta-suave">
+            <p>
+              El archivo .p12 no es un documento cualquiera:
+              <strong class="text-tinta">es su firma</strong>. Quien lo tiene y conoce su clave
+              puede firmar en su nombre, con los mismos efectos jurídicos que su firma de puño
+              y letra.
+            </p>
+            <p>
+              Kontia solo lo usa para firmar sus comprobantes, y para nada más. Se guarda
+              cifrado, y la autorización consta por escrito en el contrato como cláusula de
+              mandato.
+            </p>
+            <p class="text-tinta">
+              Su clave no se guarda en claro en ningún sitio, ni aparece en pantallas, ni en
+              registros, ni la conoce el personal de soporte.
+            </p>
+          </div>
+        </section>
+      </div>`;
+  }
+
   const dias = c.diasRestantes;
   const vigente = dias > 0;
 
@@ -4218,8 +5824,8 @@ async function puntosEmision() {
 
 // ---- src/vistas/admin.js -----------------------------------------
 const __src_vistas_admin_js = (function () {
-  const { html, crudo, esc, icono, tabla, boton, cabecera, aviso, dato, chipEstado, fecha, fechaLarga, fechaHora, vacio } = __src_ui_js;
-  const { cargar } = __src_almacen_js;
+  const { html, crudo, esc, icono, tabla, boton, cabecera, aviso, dato, chipEstado, fecha, fechaLarga, fechaHora, vacio, dejarRecado } = __src_ui_js;
+  const { cargar, guardar } = __src_almacen_js;
 
 /**
  * Las pantallas del super administrador.
@@ -4455,17 +6061,18 @@ async function adminFicha(id) {
 
 const PASOS = [
   ['Datos de la empresa', 'La identifican ante el SRI'],
-  ['Plan y contrato', 'Qué se factura y desde cuándo'],
-  ['Administrador', 'Quién manda dentro de la empresa'],
+  ['Certificado de firma', 'Lo carga la empresa, nunca Kontia'],
+  ['Usuarios', 'Los crea su administrador, no usted'],
 ];
 
 async function adminAlta() {
-  const campo = (etiqueta, marcador, ayuda = '', ancho = '') => html`
+  const campo = (id, etiqueta, marcador, ayuda = '', ancho = '') => html`
     <label class="block ${ancho}">
       <span class="text-[11px] font-bold uppercase tracking-wide text-tinta-suave">${etiqueta}</span>
-      <input placeholder="${marcador}" class="mt-1.5 w-full px-3.5 py-2.5 rounded-xl border border-papel-linea
-                                              bg-white text-sm placeholder:text-tinta-suave/50
-                                              focus:outline-none focus:border-verde">
+      <input id="${id}" placeholder="${marcador}"
+             class="mt-1.5 w-full px-3.5 py-2.5 rounded-xl border border-papel-linea
+                    bg-white text-sm placeholder:text-tinta-suave/50
+                    focus:outline-none focus:border-verde">
       ${ayuda ? crudo(`<span class="mt-1.5 block text-[11px] text-tinta-suave leading-relaxed">${esc(ayuda)}</span>`) : ''}
     </label>`;
 
@@ -4476,9 +6083,11 @@ async function adminAlta() {
 
     ${crudo(cabecera({
       titulo: 'Dar de alta una empresa',
-      descripcion: 'Tres pasos. Al terminar, la empresa recibe una invitación y su ' +
-                   'administrador crea a los demás usuarios por su cuenta.',
+      descripcion: 'Al terminar, la empresa existe de verdad: nace vacía, en ambiente de ' +
+                   'pruebas y con su punto de emisión listo para facturar.',
     }))}
+
+    <div id="recado"></div>
 
     <ol class="flex flex-wrap gap-3 mb-6">
       ${PASOS.map((p, i) => html`
@@ -4495,19 +6104,40 @@ async function adminAlta() {
 
     <div class="grid gap-5 lg:grid-cols-3">
       <section class="lg:col-span-2 bg-white border border-papel-linea rounded-2xl relieve p-5">
-        <h2 class="text-sm font-bold mb-4">Paso 1 · Datos de la empresa</h2>
+        <h2 class="text-sm font-bold">Paso 1 · Datos de la empresa</h2>
+        <p class="text-[11px] text-tinta-suave mb-4 mt-1">
+          Los dos pasos siguientes no los hace usted: el certificado lo carga la empresa
+          desde su propia pantalla, y los usuarios los crea su administrador. Por eso el
+          alta termina aquí.
+        </p>
         <div class="grid gap-4 sm:grid-cols-2">
-          ${campo('RUC', '0912345678001', 'Trece dígitos. Es lo que identifica a la empresa ante el SRI.')}
-          ${campo('Razón social', 'Agroquímicos Pérez S.A.', 'Tal como consta en el RUC.')}
-          ${campo('Nombre comercial', 'Agroquímicos Pérez', 'Opcional.')}
-          ${campo('Cantón', 'Daule')}
+          ${campo('nueva-ruc', 'RUC', '0993048172001',
+                  'Trece dígitos, terminados en 001 la matriz. Se comprueba aquí mismo.')}
+          ${campo('nueva-razon', 'Razón social', 'Camaronera El Estero S.A.',
+                  'Tal como consta en el RUC.')}
+          ${campo('nueva-comercial', 'Nombre comercial', 'El Estero', 'Opcional.')}
+          ${campo('nueva-ciudad', 'Cantón', 'Daule')}
         </div>
-        <div class="mt-4 grid gap-4">
-          ${campo('Dirección matriz', 'Km 14.5 Vía Daule, Daule, Guayas')}
+        <div class="mt-4 grid gap-4 sm:grid-cols-2">
+          ${campo('nueva-direccion', 'Dirección matriz', 'Km 22 Vía a Samborondón')}
+          ${campo('nueva-correo', 'Correo de facturación', 'facturacion@empresa.com.ec')}
         </div>
-        <div class="mt-5 flex justify-end gap-2">
+        <label class="block mt-4">
+          <span class="text-[11px] font-bold uppercase tracking-wide text-tinta-suave">Plan</span>
+          <select id="nueva-plan" class="mt-1.5 w-full px-3.5 py-2.5 rounded-xl border border-papel-linea
+                                         bg-white text-sm focus:outline-none focus:border-verde">
+            <option>Profesional</option>
+            <option>Básico</option>
+          </select>
+        </label>
+
+        <div class="mt-5 flex flex-wrap justify-end gap-2">
           ${boton('Cancelar', { ruta: '#/admin/empresas', tipo: 'secundario' })}
-          ${boton('Continuar al paso 2', { ico: 'arrow_forward' })}
+          <button id="crear-empresa"
+                  class="boton-3d bg-verde text-white inline-flex items-center gap-2 px-4 py-2.5
+                         rounded-xl text-sm font-semibold">
+            <span class="ms text-[18px]">add_business</span>Dar de alta y entrar
+          </button>
         </div>
       </section>
 
@@ -4585,14 +6215,60 @@ async function adminAuditoria() {
 }
 
 
-  return { adminEmpresas, adminFicha, adminAlta, adminAuditoria };
+// ===========================================================================
+//  Dar de alta de verdad
+// ===========================================================================
+
+let conectado = false;
+const valor = (id) => document.getElementById(id)?.value ?? '';
+
+function conectarAlta() {
+  const zona = document.getElementById('raiz');
+  if (!zona || conectado) return;
+  conectado = true;
+
+  zona.addEventListener('click', async (ev) => {
+    if (!ev.target.closest('#crear-empresa')) return;
+    try {
+      const e = await guardar.empresa({
+        ruc: valor('nueva-ruc'),
+        razonSocial: valor('nueva-razon'),
+        nombreComercial: valor('nueva-comercial'),
+        ciudad: valor('nueva-ciudad'),
+        direccion: valor('nueva-direccion'),
+        correo: valor('nueva-correo'),
+        plan: valor('nueva-plan'),
+      });
+      dejarRecado({
+        tono: 'info', ico: 'add_business',
+        titulo: `${e.razonSocial} dada de alta`,
+        texto: 'Nace vacía y en ambiente de pruebas, con su punto de emisión 001-001 listo. ' +
+               'Entre como administrador de empresa para trabajar con ella: va a ver las ' +
+               'pantallas tal como las ve un cliente el primer día.',
+      });
+      location.hash = '#/admin/empresas';
+    } catch (error) {
+      const sitio = document.getElementById('recado');
+      if (sitio) {
+        sitio.innerHTML = String(aviso({
+          tono: 'rojo', ico: 'error', titulo: 'No se pudo dar de alta', texto: error.message,
+        }));
+        sitio.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
+    }
+  });
+}
+
+
+  return { adminEmpresas, adminFicha, adminAlta, adminAuditoria, conectarAlta };
 })();
 
 // ---- src/vistas/contabilidad.js ----------------------------------
 const __src_vistas_contabilidad_js = (function () {
-  const { html, crudo, esc, usd, dinero, icono, tabla, cabecera, aviso, boton, fecha, vacio } = __src_ui_js;
+  const { html, crudo, esc, usd, dinero, icono, tabla, cabecera, aviso, boton, fecha, vacio, empresaEnBlanco } = __src_ui_js;
   const { barras } = __src_graficos_js;
   const { CUENTAS, DIARIO, balanceDeComprobacion, mayorDe, nombreCuenta } = __src_datos_contables_js;
+  const { esLaDeEjemplo } = __src_almacen_js;
 
 /**
  * Los libros: plan de cuentas, diario, mayor y balance de comprobación.
@@ -4605,6 +6281,7 @@ const __src_vistas_contabilidad_js = (function () {
  * Por eso la diferencia se muestra siempre, aunque sea cero. Un cero visible
  * dice "se comprobó"; la ausencia de la cifra no dice nada.
  */
+
 
 
 
@@ -4689,6 +6366,14 @@ async function planDeCuentas() {
 // ===========================================================================
 
 async function libroDiario() {
+  // Los libros de la empresa de ejemplo no son de ninguna otra.
+  if (!esLaDeEjemplo()) {
+    return html`${crudo(cabecera({ titulo: 'Libro diario' }))}${empresaEnBlanco({
+      ico: 'menu_book', titulo: 'Todavía no hay asientos',
+      texto: 'El libro diario se llena solo conforme se emiten comprobantes y se registran compras. Emita su primera factura y vuelva aquí.',
+    })}`;
+  }
+
   const totalDebe = DIARIO.reduce((s, a) => s + a.debe, 0);
   const generados = DIARIO.filter((a) => a.generado).length;
 
@@ -4767,6 +6452,14 @@ async function libroDiario() {
 // ===========================================================================
 
 async function libroMayor(codigo) {
+  // Los libros de la empresa de ejemplo no son de ninguna otra.
+  if (!esLaDeEjemplo()) {
+    return html`${crudo(cabecera({ titulo: 'Libro mayor' }))}${empresaEnBlanco({
+      ico: 'auto_stories', titulo: 'Todavía no hay movimientos',
+      texto: 'El mayor muestra lo que entró y salió de cada cuenta. Se llena con el primer asiento.',
+    })}`;
+  }
+
   const conMovimiento = balanceDeComprobacion();
   const elegida = codigo && conMovimiento.some((c) => c.codigo === codigo)
     ? codigo : conMovimiento[0]?.codigo;
@@ -4846,6 +6539,14 @@ async function libroMayor(codigo) {
 // ===========================================================================
 
 async function balanceComprobacion() {
+  // Los libros de la empresa de ejemplo no son de ninguna otra.
+  if (!esLaDeEjemplo()) {
+    return html`${crudo(cabecera({ titulo: 'Balance de comprobación' }))}${empresaEnBlanco({
+      ico: 'balance', titulo: 'Todavía no hay nada que comprobar',
+      texto: 'El balance compara las sumas del debe y del haber. Sin asientos no hay nada que comparar.',
+    })}`;
+  }
+
   const filas = balanceDeComprobacion();
   const centavos = (n) => Math.round(n * 100);
   const suma = (campo) => filas.reduce((s, f) => s + centavos(f[campo]), 0);
@@ -4959,9 +6660,10 @@ async function balanceComprobacion() {
 
 // ---- src/vistas/estados.js ---------------------------------------
 const __src_vistas_estados_js = (function () {
-  const { html, crudo, esc, usd, dinero, icono, cabecera, aviso, boton } = __src_ui_js;
+  const { html, crudo, esc, usd, dinero, icono, cabecera, aviso, boton, empresaEnBlanco } = __src_ui_js;
   const { dona, leyenda, barraCompuesta, VERDE, AMBAR } = __src_graficos_js;
   const { balanceDeComprobacion } = __src_datos_contables_js;
+  const { esLaDeEjemplo } = __src_almacen_js;
 
 /**
  * Los dos estados financieros que pide la Superintendencia.
@@ -4974,6 +6676,7 @@ const __src_vistas_estados_js = (function () {
  * La comprobación que sale en pantalla —activo = pasivo + patrimonio— no es
  * decoración: es la ecuación contable, y si no se cumple, algo está mal.
  */
+
 
 
 
@@ -5038,6 +6741,14 @@ const renglon = (codigo, nombre, valor, { fuerte = false, sangria = 0 } = {}) =>
 // ===========================================================================
 
 async function estadoResultados() {
+  // Los libros de la empresa de ejemplo no son de ninguna otra.
+  if (!esLaDeEjemplo()) {
+    return html`${crudo(cabecera({ titulo: 'Estado de resultados' }))}${empresaEnBlanco({
+      ico: 'trending_up', titulo: 'Todavía no hay resultados',
+      texto: 'Se calcula de los libros. Empieza a existir con la primera venta y el primer gasto.',
+    })}`;
+  }
+
   const por = agrupar();
   const ingresos = totalDelGrupo(por['4'], 4);
   const costo = totalDelGrupo(por['5']?.filter((f) => f.codigo.startsWith('51')), 5);
@@ -5149,6 +6860,14 @@ async function estadoResultados() {
 // ===========================================================================
 
 async function balanceGeneral() {
+  // Los libros de la empresa de ejemplo no son de ninguna otra.
+  if (!esLaDeEjemplo()) {
+    return html`${crudo(cabecera({ titulo: 'Estado de situación financiera' }))}${empresaEnBlanco({
+      ico: 'account_balance_wallet', titulo: 'Todavía no hay balance',
+      texto: 'La situación financiera sale de los libros. Registre el asiento de apertura con lo que la empresa tiene y debe hoy.',
+    })}`;
+  }
+
   const por = agrupar();
   const activo = totalDelGrupo(por['1'], 1);
   const pasivo = totalDelGrupo(por['2'], 2);
@@ -5253,8 +6972,9 @@ async function balanceGeneral() {
 
 // ---- src/vistas/documentos.js ------------------------------------
 const __src_vistas_documentos_js = (function () {
-  const { html, crudo, usd, dinero, icono, tabla, cabecera, aviso, boton, chipEstado, fecha, vacio } = __src_ui_js;
+  const { html, crudo, usd, dinero, icono, tabla, cabecera, aviso, boton, chipEstado, fecha, vacio, empresaEnBlanco } = __src_ui_js;
   const { RETENCIONES, NOTAS_CREDITO, GUIAS_REMISION } = __src_datos_contables_js;
+  const { esLaDeEjemplo } = __src_almacen_js;
 
 /**
  * Los otros tres comprobantes: retenciones, notas de crédito y guías de
@@ -5265,6 +6985,7 @@ const __src_vistas_documentos_js = (function () {
  * tres que la gente confunde: una nota de crédito no borra una factura, una
  * guía no cobra nada, y una retención es dinero de un tercero.
  */
+
 
 
 
@@ -5286,6 +7007,14 @@ const tarjetaCifra = (etiqueta, valor, ico, pie = '') => html`
 // ===========================================================================
 
 async function retenciones() {
+  // Los libros de la empresa de ejemplo no son de ninguna otra.
+  if (!esLaDeEjemplo()) {
+    return html`${crudo(cabecera({ titulo: 'Comprobantes de retención' }))}${empresaEnBlanco({
+      ico: 'content_cut', titulo: 'Todavía no ha emitido retenciones',
+      texto: 'Se emiten al pagar a un proveedor, si la empresa es agente de retención.',
+    })}`;
+  }
+
   const con = (r) => ({
     ...r,
     ir: Math.round(r.baseIR * r.porcentajeIR) / 100,
@@ -5353,6 +7082,14 @@ async function retenciones() {
 // ===========================================================================
 
 async function notasCredito() {
+  // Los libros de la empresa de ejemplo no son de ninguna otra.
+  if (!esLaDeEjemplo()) {
+    return html`${crudo(cabecera({ titulo: 'Notas de crédito' }))}${empresaEnBlanco({
+      ico: 'assignment_return', titulo: 'Todavía no hay notas de crédito',
+      texto: 'Se emiten para corregir o anular una factura ya autorizada.',
+    })}`;
+  }
+
   const total = NOTAS_CREDITO.reduce((s, n) => s + n.base + n.iva, 0);
 
   const cuerpo = NOTAS_CREDITO.map((n) => html`
@@ -5407,6 +7144,14 @@ async function notasCredito() {
 // ===========================================================================
 
 async function guiasRemision() {
+  // Los libros de la empresa de ejemplo no son de ninguna otra.
+  if (!esLaDeEjemplo()) {
+    return html`${crudo(cabecera({ titulo: 'Guías de remisión' }))}${empresaEnBlanco({
+      ico: 'local_shipping', titulo: 'Todavía no ha emitido guías',
+      texto: 'Se emiten cuando la mercadería sale del establecimiento hacia el cliente.',
+    })}`;
+  }
+
   const cuerpo = GUIAS_REMISION.map((g) => html`
     <tr class="hover:bg-papel transition">
       <td class="px-5 py-3.5">
@@ -5462,9 +7207,10 @@ async function guiasRemision() {
 
 // ---- src/vistas/finanzas.js --------------------------------------
 const __src_vistas_finanzas_js = (function () {
-  const { html, crudo, usd, dinero, icono, tabla, cabecera, aviso, boton, fecha } = __src_ui_js;
+  const { html, crudo, usd, dinero, icono, tabla, cabecera, aviso, boton, fecha, empresaEnBlanco } = __src_ui_js;
   const { dona, leyenda, barraCompuesta, VERDE, AMBAR, ROJO } = __src_graficos_js;
   const { CARTERA_COBRAR, CARTERA_PAGAR, BANCOS } = __src_datos_contables_js;
+  const { esLaDeEjemplo } = __src_almacen_js;
 
 /**
  * Cartera y bancos: a quién hay que cobrarle, a quién hay que pagarle y cuánto
@@ -5475,6 +7221,7 @@ const __src_vistas_finanzas_js = (function () {
  * llevo esperando demasiado". Un cobro de hace noventa días no es una cuenta
  * por cobrar: es un problema.
  */
+
 
 
 
@@ -5614,25 +7361,41 @@ function pantallaCartera({ lista, campo, titulo, descripcion, etiquetaContrapart
     </section>`;
 }
 
-const cuentasPorCobrar = async () => pantallaCartera({
+const cuentasPorCobrar = async () => (esLaDeEjemplo() ? pantallaCartera({
   lista: CARTERA_COBRAR, campo: 'cliente', cobrar: true, ico: 'request_quote',
   titulo: 'Cuentas por cobrar',
   descripcion: 'Lo que le deben, ordenado por lo que lleva más tiempo esperando.',
   etiquetaContraparte: 'Cliente',
-});
+}) : html`${crudo(cabecera({ titulo: 'Cuentas por cobrar' }))}${empresaEnBlanco({
+  ico: 'request_quote', titulo: 'Todavía no le deben nada',
+  texto: 'La cartera se llena sola con las facturas que emita a crédito, y se ordena por lo ' +
+         'que lleva más tiempo esperando.',
+})}`);
 
-const cuentasPorPagar = async () => pantallaCartera({
+const cuentasPorPagar = async () => (esLaDeEjemplo() ? pantallaCartera({
   lista: CARTERA_PAGAR, campo: 'proveedor', cobrar: false, ico: 'credit_card',
   titulo: 'Cuentas por pagar',
   descripcion: 'Lo que la empresa debe a sus proveedores.',
   etiquetaContraparte: 'Proveedor',
-});
+}) : html`${crudo(cabecera({ titulo: 'Cuentas por pagar' }))}${empresaEnBlanco({
+  ico: 'credit_card', titulo: 'Todavía no debe nada',
+  texto: 'Aquí aparecerán las facturas de compra pendientes de pago, ordenadas por su ' +
+         'vencimiento.',
+})}`);
 
 // ===========================================================================
 //  Bancos
 // ===========================================================================
 
 async function bancos() {
+  // Los libros de la empresa de ejemplo no son de ninguna otra.
+  if (!esLaDeEjemplo()) {
+    return html`${crudo(cabecera({ titulo: 'Bancos y conciliación' }))}${empresaEnBlanco({
+      ico: 'account_balance', titulo: 'Todavía no hay cuentas bancarias',
+      texto: 'Registre las cuentas de la empresa para poder conciliar lo que dicen los libros con lo que dice el banco.',
+    })}`;
+  }
+
   const libros = BANCOS.reduce((s, b) => s + Math.round(b.saldoLibros * 100), 0) / 100;
   const banco = BANCOS.reduce((s, b) => s + Math.round(b.saldoBanco * 100), 0) / 100;
   const diferencia = Math.round((banco - libros) * 100) / 100;
@@ -5710,9 +7473,10 @@ async function bancos() {
 
 // ---- src/vistas/operaciones.js -----------------------------------
 const __src_vistas_operaciones_js = (function () {
-  const { html, crudo, usd, dinero, icono, tabla, cabecera, aviso, boton, fecha, fechaLarga } = __src_ui_js;
+  const { html, crudo, usd, dinero, icono, tabla, cabecera, aviso, boton, fecha, fechaLarga, empresaEnBlanco } = __src_ui_js;
   const { barras, dona, leyenda, barraCompuesta, VERDE, AMBAR } = __src_graficos_js;
   const { INVENTARIO, EMPLEADOS, ACTIVOS_FIJOS } = __src_datos_contables_js;
+  const { esLaDeEjemplo } = __src_almacen_js;
 
 /**
  * Inventario, nómina y activos fijos.
@@ -5722,6 +7486,7 @@ const __src_vistas_operaciones_js = (function () {
  * construye sin criterio profesional, y conviene que eso se lea en pantalla y
  * no solo en un documento.
  */
+
 
 
 
@@ -5746,6 +7511,14 @@ const cifra = (etiqueta, valor, ico, pie = '', tono = 'verde') => html`
 // ===========================================================================
 
 async function inventario() {
+  // Los libros de la empresa de ejemplo no son de ninguna otra.
+  if (!esLaDeEjemplo()) {
+    return html`${crudo(cabecera({ titulo: 'Inventario' }))}${empresaEnBlanco({
+      ico: 'inventory_2', titulo: 'La bodega está vacía',
+      texto: 'Registre los productos y sus existencias para saber qué hay, cuánto vale y qué falta.',
+    })}`;
+  }
+
   const filas = INVENTARIO.map((p) => ({
     ...p,
     valor: Math.round(p.cantidad * p.costo * 100) / 100,
@@ -5827,6 +7600,14 @@ async function inventario() {
 // ===========================================================================
 
 async function nomina() {
+  // Los libros de la empresa de ejemplo no son de ninguna otra.
+  if (!esLaDeEjemplo()) {
+    return html`${crudo(cabecera({ titulo: 'Nómina' }))}${empresaEnBlanco({
+      ico: 'badge', titulo: 'Todavía no hay empleados',
+      texto: 'Registre a los empleados en relación de dependencia para generar el rol de pagos del mes.',
+    })}`;
+  }
+
   // Porcentajes vigentes del IESS para relación de dependencia.
   const APORTE_PERSONAL = 9.45;
   const APORTE_PATRONAL = 11.15;
@@ -5924,6 +7705,14 @@ async function nomina() {
 // ===========================================================================
 
 async function activosFijos() {
+  // Los libros de la empresa de ejemplo no son de ninguna otra.
+  if (!esLaDeEjemplo()) {
+    return html`${crudo(cabecera({ titulo: 'Activos fijos' }))}${empresaEnBlanco({
+      ico: 'precision_manufacturing', titulo: 'Todavía no hay activos fijos',
+      texto: 'Son las cosas que la empresa compró para usar, no para vender: vehículos, maquinaria, computadoras.',
+    })}`;
+  }
+
   const filas = ACTIVOS_FIJOS.map((a) => ({
     ...a,
     neto: Math.round((a.costo - a.depreciado) * 100) / 100,
@@ -6017,11 +7806,347 @@ async function activosFijos() {
   return { inventario, nomina, activosFijos };
 })();
 
+// ---- src/vistas/proveedores.js -----------------------------------
+const __src_vistas_proveedores_js = (function () {
+  const { html, crudo, usd, dinero, icono, tabla, cabecera, aviso, boton, vacio, empresaEnBlanco } = __src_ui_js;
+  const { dona, leyenda, barras } = __src_graficos_js;
+  const { PROVEEDORES } = __src_datos_contables_js;
+  const { esLaDeEjemplo } = __src_almacen_js;
+
+/**
+ * Proveedores.
+ *
+ * Faltaba, y era un hueco de verdad: el sistema ya tenía cuentas por pagar y
+ * retenciones practicadas a proveedores, pero no había dónde estuvieran los
+ * proveedores. Los datos vivían sueltos dentro de cada documento.
+ *
+ * No es la misma ficha que la de un cliente, aunque lo parezca. Un proveedor
+ * trae dos datos que un cliente no tiene y que deciden cuánto dinero se le
+ * entrega:
+ *
+ *   - **Qué se le compra** — bienes o servicios— porque el porcentaje de
+ *     retención de renta no es el mismo.
+ *   - **Si es contribuyente especial**, porque a un especial se le retiene
+ *     distinto que a uno que no lo es.
+ *
+ * Guardarlos aquí es lo que permite que la retención salga propuesta sola en
+ * lugar de que alguien la calcule a mano cada vez.
+ */
+
+
+
+
+
+
+async function proveedores() {
+  // Los libros de la empresa de ejemplo no son de ninguna otra.
+  if (!esLaDeEjemplo()) {
+    return html`${crudo(cabecera({ titulo: 'Proveedores' }))}${empresaEnBlanco({
+      ico: 'local_shipping', titulo: 'Todavía no tiene proveedores',
+      texto: 'Registrarlos evita teclear su RUC en cada compra y permite que la retención se proponga sola.',
+    })}`;
+  }
+
+  const lista = PROVEEDORES.filter((p) => p.activo !== false);
+  const total = lista.reduce((s, p) => s + Math.round(p.comprado * 100), 0) / 100;
+  const conDeuda = lista.filter((p) => p.saldo > 0);
+  const deuda = conDeuda.reduce((s, p) => s + Math.round(p.saldo * 100), 0) / 100;
+  const especiales = lista.filter((p) => p.contribuyenteEspecial);
+
+  const cuerpo = lista.map((p) => html`
+    <tr class="hover:bg-papel transition">
+      <td class="px-5 py-3.5">
+        <div class="flex items-center gap-3">
+          <span class="w-9 h-9 shrink-0 rounded-xl bg-verde-claro text-verde flex items-center justify-center text-[11px] font-extrabold">
+            ${p.razonSocial.slice(0, 2).toUpperCase()}
+          </span>
+          <div class="min-w-0">
+            <span class="block text-sm font-semibold truncate max-w-[240px]">${p.razonSocial}</span>
+            <span class="block text-[11px] text-tinta-suave tabular">${p.ruc} · ${p.ciudad}</span>
+          </div>
+        </div>
+      </td>
+      <td class="px-5 py-3.5">
+        <span class="text-[11px] font-bold px-2 py-1 rounded-full ${crudo(
+          p.tipo === 'Servicios' ? 'bg-[#F6F0F8] text-[#6B4A80]' : 'bg-papel text-tinta-suave')}">
+          ${p.tipo}
+        </span>
+        ${p.contribuyenteEspecial ? crudo(
+          '<span class="block mt-1 text-[10px] font-bold uppercase tracking-wide text-ambar-texto">' +
+          'Contribuyente especial</span>') : ''}
+      </td>
+      <td class="px-5 py-3.5 text-right">
+        <span class="block text-sm font-semibold tabular">${dinero(p.retencionIR)}%</span>
+        <span class="block text-[11px] text-tinta-suave">renta</span>
+      </td>
+      <td class="px-5 py-3.5 text-right">
+        <span class="block text-sm font-semibold tabular">${p.retencionIVA}%</span>
+        <span class="block text-[11px] text-tinta-suave">IVA</span>
+      </td>
+      <td class="px-5 py-3.5 text-sm text-tinta-suave truncate max-w-[200px]">${p.correo}</td>
+      <td class="px-5 py-3.5 text-right text-sm tabular">${usd(p.comprado)}</td>
+      <td class="px-5 py-3.5 text-right text-sm font-bold tabular ${crudo(
+        p.saldo > 0 ? 'text-ambar-texto' : 'text-tinta-suave')}">
+        ${p.saldo > 0 ? usd(p.saldo) : '—'}
+      </td>
+    </tr>`);
+
+  const porTipo = ['Bienes', 'Servicios'].map((t) => ({
+    etiqueta: t,
+    valor: lista.filter((p) => p.tipo === t).reduce((s, p) => s + Math.round(p.comprado * 100), 0) / 100,
+  })).filter((x) => x.valor > 0);
+
+  return html`
+    ${crudo(cabecera({
+      titulo: 'Proveedores',
+      descripcion: 'A quién le compra la empresa, y con qué porcentajes se le retiene al pagarle.',
+      acciones: boton('Añadir proveedor', { ico: 'add_business' }),
+    }))}
+
+    ${crudo(aviso({
+      tono: 'info', ico: 'content_cut',
+      titulo: 'La ficha del proveedor decide cuánto se le paga',
+      texto: 'No es la misma ficha que la de un cliente. Guardar aquí si vende bienes o ' +
+             'servicios, y si es contribuyente especial, es lo que permite que la retención ' +
+             'salga propuesta sola en vez de calcularla a mano en cada pago. Una retención ' +
+             'mal hecha se le descuenta de menos al proveedor o de más, y la diferencia se ' +
+             'reclama meses después.',
+    }))}
+
+    <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4 mb-5">
+      ${[['Proveedores activos', String(lista.length), 'local_shipping', ''],
+         ['Comprado en el año', usd(total), 'shopping_cart', ''],
+         ['Pendiente de pago', usd(deuda), 'credit_card', `${conDeuda.length} con saldo`],
+         ['Contribuyentes especiales', String(especiales.length), 'verified',
+          'Se les retiene distinto']].map(([t, v, i, pie]) => html`
+        <div class="bg-white border border-papel-linea rounded-2xl relieve p-5">
+          <div class="flex items-start justify-between">
+            <p class="text-[11px] font-bold uppercase tracking-wide text-tinta-suave">${t}</p>
+            <span class="w-9 h-9 rounded-xl bg-verde-claro text-verde flex items-center justify-center">
+              ${icono(i, 'text-[18px]')}
+            </span>
+          </div>
+          <p class="mt-3 text-[26px] font-extrabold tracking-tight tabular">${v}</p>
+          ${pie ? html`<p class="mt-1 text-xs text-tinta-suave">${pie}</p>` : ''}
+        </div>`)}
+    </div>
+
+    <div class="grid gap-5 lg:grid-cols-3 mb-5">
+      <section class="lg:col-span-2 bg-white border border-papel-linea rounded-2xl relieve p-5">
+        <h2 class="text-sm font-bold mb-1">A quién se le compra más</h2>
+        <p class="text-xs text-tinta-suave mb-5">Comprado en lo que va del año.</p>
+        ${barras(lista.map((p) => ({ etiqueta: p.razonSocial.split(' ')[0], valor: p.comprado })),
+                 { alto: 180, titulo: 'Compras por proveedor' })}
+      </section>
+      <section class="bg-white border border-papel-linea rounded-2xl relieve p-5">
+        <h2 class="text-sm font-bold mb-1">Bienes frente a servicios</h2>
+        <p class="text-xs text-tinta-suave mb-4">
+          Importa porque cada uno retiene a un porcentaje distinto.
+        </p>
+        <div class="flex justify-center mb-2">
+          ${dona(porTipo, { centro: usd(total), subcentro: 'comprado' })}
+        </div>
+        <div class="divide-y divide-papel-linea">${leyenda(porTipo)}</div>
+      </section>
+    </div>
+
+    <section class="bg-white border border-papel-linea rounded-2xl relieve overflow-hidden">
+      ${lista.length ? crudo(tabla([
+        { texto: 'Proveedor' }, { texto: 'Qué vende' },
+        { texto: 'Ret. renta', der: true }, { texto: 'Ret. IVA', der: true },
+        { texto: 'Correo' }, { texto: 'Comprado', der: true }, { texto: 'Saldo', der: true },
+      ], cuerpo)) : crudo(vacio({
+        ico: 'local_shipping', titulo: 'Todavía no tiene proveedores registrados',
+        texto: 'Registrarlos evita teclear su RUC en cada compra y permite que la retención ' +
+               'se proponga sola.',
+        accion: boton('Registrar el primer proveedor', { ico: 'add_business' }),
+      }))}
+    </section>`;
+}
+
+
+  return { proveedores };
+})();
+
+// ---- src/vistas/proteccion-datos.js ------------------------------
+const __src_vistas_proteccion_datos_js = (function () {
+  const { html, crudo, icono, cabecera, aviso, boton } = __src_ui_js;
+
+/**
+ * Protección de datos personales · LOPDP.
+ *
+ * Esta pantalla existe porque Kontia trata datos personales que no son suyos
+ * ni de sus clientes: son de los clientes DE SUS CLIENTES. Cuando Agroquímicos
+ * Pérez factura a Bananera del Litoral, el RUC, el nombre y el correo de
+ * Bananera pasan por los servidores de Kontia sin que Bananera haya contratado
+ * nada con Kontia.
+ *
+ * La Ley Orgánica de Protección de Datos Personales del Ecuador tiene un nombre
+ * para cada papel, y confundirlos es el error que cuesta caro:
+ *
+ *   RESPONSABLE del tratamiento — la empresa. Decide qué datos recoge y para
+ *   qué. Es quien responde ante la persona cuyos datos son.
+ *
+ *   ENCARGADO del tratamiento — Kontia. Trata esos datos por cuenta de la
+ *   empresa y solo para lo que la empresa le encargó. No puede usarlos para
+ *   nada propio, ni siquiera para estadísticas de producto.
+ *
+ * Que el super administrador no vea los datos de las empresas no es entonces
+ * una decisión de diseño simpática: es la forma técnica de cumplir el deber de
+ * confidencialidad del encargado. Las políticas de la base de datos son la
+ * prueba de que se cumple, no la promesa de que se cumplirá.
+ */
+
+
+
+const PAPELES = [
+  {
+    quien: 'La persona', ico: 'person', tono: 'bg-papel text-tinta-suave',
+    papel: 'Titular de los datos',
+    que: 'El cliente al que se le factura. Los datos son suyos, no de quien los guarda. ' +
+         'Puede pedir acceso, rectificación, eliminación y oposición.',
+  },
+  {
+    quien: 'La empresa', ico: 'domain', tono: 'bg-verde-claro text-verde',
+    papel: 'Responsable del tratamiento',
+    que: 'Decide qué datos recoge y para qué. Responde ante el titular y ante la ' +
+         'Superintendencia de Protección de Datos.',
+  },
+  {
+    quien: 'Kontia', ico: 'dns', tono: 'bg-ambar-fondo text-ambar-texto',
+    papel: 'Encargado del tratamiento',
+    que: 'Trata los datos por cuenta de la empresa y solo para lo que ella le encargó. ' +
+         'No puede usarlos para fines propios ni cederlos a nadie.',
+  },
+];
+
+const COMPROMISOS = [
+  { ico: 'visibility_off', titulo: 'Finalidad limitada',
+    texto: 'Los datos se usan para emitir comprobantes y llevar la contabilidad de esa ' +
+           'empresa. Para nada más: ni analítica de producto, ni venta a terceros, ni ' +
+           'entrenamiento de modelos.',
+    hecho: 'El administrador de la plataforma no ve los datos de ninguna empresa. Lo impide ' +
+           'la base de datos, no una norma interna.' },
+  { ico: 'lock', titulo: 'Confidencialidad',
+    texto: 'Quien administra Kontia solo entra a los datos de una empresa con un acceso de ' +
+           'soporte que la empresa puede leer.',
+    hecho: 'Motivo escrito de al menos quince caracteres, caducidad automática a las dos ' +
+           'horas y constancia en una auditoría que nadie puede borrar.' },
+  { ico: 'delete', titulo: 'Conservación y devolución',
+    texto: 'Al terminar el contrato, los datos se devuelven a la empresa o se eliminan, ' +
+           'según lo que ella decida.',
+    hecho: 'Con una excepción que manda la ley tributaria: los comprobantes electrónicos se ' +
+           'conservan siete años aunque el contrato termine antes.' },
+  { ico: 'travel_explore', titulo: 'Dónde están los datos',
+    texto: 'Los servidores están en Sao Paulo, Brasil. Sacar datos del país exige que el ' +
+           'destino tenga protección adecuada o garantías contractuales.',
+    hecho: 'Es un dato que tiene que constar en el contrato con cada empresa, no una letra ' +
+           'pequeña.' },
+  { ico: 'report', titulo: 'Aviso de incidentes',
+    texto: 'Si hubiera una brecha de seguridad, hay obligación de avisar a la empresa y a la ' +
+           'autoridad.',
+    hecho: 'El plazo y el procedimiento tienen que estar escritos antes de que pase nada, no ' +
+           'improvisarse el día que pase.' },
+];
+
+const PENDIENTES = [
+  'El contrato de encargo de tratamiento con cada empresa, firmado antes del alta.',
+  'El registro de actividades de tratamiento que exige la ley.',
+  'La política de privacidad publicada, en lenguaje que se entienda.',
+  'El procedimiento escrito para atender una petición de acceso o eliminación.',
+  'Designar delegado de protección de datos, si por volumen corresponde.',
+];
+
+async function proteccionDatos() {
+  return html`
+    ${crudo(cabecera({
+      titulo: 'Protección de datos personales',
+      descripcion: 'Qué papel tiene cada quien sobre los datos que pasan por Kontia, y qué ' +
+                   'está hecho y qué falta.',
+    }))}
+
+    ${crudo(aviso({
+      tono: 'ambar', ico: 'gavel',
+      titulo: 'Kontia trata datos de personas que no son sus clientes',
+      texto: 'Cuando una empresa factura, el nombre, el RUC y el correo de SU cliente pasan ' +
+             'por los servidores de Kontia sin que ese cliente haya contratado nada con ' +
+             'Kontia. Eso convierte a Kontia en encargado del tratamiento, con obligaciones ' +
+             'propias frente a la LOPDP. No es un trámite: es responsabilidad legal.',
+    }))}
+
+    <section class="bg-white border border-papel-linea rounded-2xl relieve p-5 sm:p-6 mb-5">
+      <h2 class="text-sm font-bold mb-1">Quién es quién</h2>
+      <p class="text-xs text-tinta-suave mb-5">
+        La ley da un nombre a cada papel, y confundirlos es el error que cuesta caro.
+      </p>
+      <div class="grid gap-4 md:grid-cols-3">
+        ${PAPELES.map((p) => html`
+          <div class="p-5 rounded-xl border border-papel-linea bg-papel/40">
+            <span class="w-11 h-11 rounded-xl flex items-center justify-center mb-3 ${crudo(p.tono)}">
+              ${icono(p.ico, 'text-[22px]')}
+            </span>
+            <p class="text-sm font-extrabold">${p.quien}</p>
+            <p class="text-[11px] font-bold uppercase tracking-wide text-tinta-suave mt-0.5">${p.papel}</p>
+            <p class="mt-2 text-[12px] text-tinta-suave leading-relaxed">${p.que}</p>
+          </div>`)}
+      </div>
+    </section>
+
+    <div class="grid gap-5 lg:grid-cols-3">
+      <div class="lg:col-span-2 space-y-4">
+        <h2 class="text-sm font-bold">Lo que Kontia se compromete a hacer, y cómo lo cumple</h2>
+        ${COMPROMISOS.map((c) => html`
+          <article class="bg-white border border-papel-linea rounded-2xl relieve p-5">
+            <div class="flex items-start gap-4">
+              <span class="w-10 h-10 shrink-0 rounded-xl bg-verde-claro text-verde flex items-center justify-center">
+                ${icono(c.ico, 'text-[20px]')}
+              </span>
+              <div class="min-w-0">
+                <p class="text-sm font-bold">${c.titulo}</p>
+                <p class="mt-1.5 text-[12px] text-tinta-suave leading-relaxed">${c.texto}</p>
+                <div class="mt-3 flex items-start gap-2 p-3 rounded-lg bg-verde-claro/40 border border-verde-medio">
+                  ${icono('check_circle', 'text-[16px] text-verde shrink-0 mt-0.5')}
+                  <p class="text-[12px] text-verde leading-relaxed">${c.hecho}</p>
+                </div>
+              </div>
+            </div>
+          </article>`)}
+      </div>
+
+      <section class="bg-white border-2 border-ambar-borde rounded-2xl relieve p-5 h-fit">
+        <div class="flex items-center gap-2 text-ambar-texto mb-3">
+          ${icono('assignment_late', 'text-[20px]')}
+          <h2 class="text-sm font-bold">Lo que todavía falta</h2>
+        </div>
+        <p class="text-[12px] text-tinta-suave leading-relaxed mb-4">
+          Son documentos y procedimientos, no programación. Ninguno se puede dar por hecho
+          porque el sistema esté bien construido.
+        </p>
+        <ul class="space-y-3">
+          ${PENDIENTES.map((t) => html`
+            <li class="flex items-start gap-2.5">
+              ${icono('radio_button_unchecked', 'text-[16px] text-tinta-suave shrink-0 mt-0.5')}
+              <span class="text-[12px] leading-relaxed">${t}</span>
+            </li>`)}
+        </ul>
+        <p class="mt-5 pt-4 border-t border-papel-linea text-[11px] text-tinta-suave leading-relaxed">
+          Redactarlos es trabajo de abogado, y aquí hay uno. Es una de las pocas cosas de este
+          proyecto que no hay que subcontratar.
+        </p>
+      </section>
+    </div>`;
+}
+
+
+  return { proteccionDatos };
+})();
+
 // ---- src/vistas/impuestos.js -------------------------------------
 const __src_vistas_impuestos_js = (function () {
-  const { html, crudo, usd, dinero, icono, cabecera, aviso, boton, fecha, fechaLarga } = __src_ui_js;
+  const { html, crudo, usd, dinero, icono, cabecera, aviso, boton, fecha, fechaLarga, empresaEnBlanco } = __src_ui_js;
   const { barraCompuesta, leyenda, VERDE, AMBAR } = __src_graficos_js;
   const { formulario104, nombreCuenta } = __src_datos_contables_js;
+  const { esLaDeEjemplo } = __src_almacen_js;
 
 /**
  * Impuestos: el formulario 104 y el anexo transaccional.
@@ -6040,7 +8165,16 @@ const __src_vistas_impuestos_js = (function () {
 
 
 
+
 async function declaracionIva() {
+  // Los libros de la empresa de ejemplo no son de ninguna otra.
+  if (!esLaDeEjemplo()) {
+    return html`${crudo(cabecera({ titulo: 'Declaración de IVA' }))}${empresaEnBlanco({
+      ico: 'description', titulo: 'Todavía no hay nada que declarar',
+      texto: 'El formulario 104 se arma solo desde los libros. Sin movimientos del mes, no hay casillas que llenar.',
+    })}`;
+  }
+
   const f = formulario104();
   const dias = Math.ceil((f.vence - new Date(2026, 8, 30)) / (24 * 60 * 60 * 1000));
 
@@ -6144,6 +8278,14 @@ async function declaracionIva() {
 // ===========================================================================
 
 async function anexoTransaccional() {
+  // Los libros de la empresa de ejemplo no son de ninguna otra.
+  if (!esLaDeEjemplo()) {
+    return html`${crudo(cabecera({ titulo: 'Anexo transaccional' }))}${empresaEnBlanco({
+      ico: 'folder_zip', titulo: 'Todavía no hay transacciones',
+      texto: 'El anexo detalla las compras y ventas del mes. Se genera cuando haya alguna.',
+    })}`;
+  }
+
   const bloques = [
     { nombre: 'Compras', registros: 34, ico: 'shopping_cart',
       detalle: 'Facturas recibidas de proveedores, con su retención' },
@@ -6499,23 +8641,26 @@ async function consultaLegal() {
 const __src_app_js = (function () {
   const { sesion } = __src_sesion_js;
   const { marco, suelta, conectarMenu } = __src_disposicion_js;
-  const { entrar, seleccionEmpresa } = __src_vistas_acceso_js;
+  const { seleccionEmpresa } = __src_vistas_acceso_js;
   const { resumen } = __src_vistas_resumen_js;
   const { comprobantes, comprobante, conectarComprobante } = __src_vistas_comprobantes_js;
   const { emision, conectarEmision } = __src_vistas_emision_js;
   const { clientes, productos } = __src_vistas_catalogo_js;
   const { formularioCliente, formularioProducto, conectarFormularios } = __src_vistas_formularios_js;
   const { configuracion, certificado, usuarios, puntosEmision } = __src_vistas_empresa_js;
-  const { adminEmpresas, adminAlta, adminFicha, adminAuditoria } = __src_vistas_admin_js;
+  const { adminEmpresas, adminAlta, adminFicha, adminAuditoria, conectarAlta } = __src_vistas_admin_js;
   const { pendiente } = __src_vistas_pendiente_js;
   const { planDeCuentas, libroDiario, libroMayor, balanceComprobacion } = __src_vistas_contabilidad_js;
   const { estadoResultados, balanceGeneral } = __src_vistas_estados_js;
   const { retenciones, notasCredito, guiasRemision } = __src_vistas_documentos_js;
   const { cuentasPorCobrar, cuentasPorPagar, bancos } = __src_vistas_finanzas_js;
   const { inventario, nomina, activosFijos } = __src_vistas_operaciones_js;
+  const { proveedores } = __src_vistas_proveedores_js;
+  const { proteccionDatos } = __src_vistas_proteccion_datos_js;
   const { declaracionIva, anexoTransaccional } = __src_vistas_impuestos_js;
   const { suscripciones, usoPlataforma, soporte, consultaLegal } = __src_vistas_plataforma_js;
   const { aviso, crudo, recogerRecado } = __src_ui_js;
+  const { empresaActiva } = __src_almacen_js;
 
 /**
  * El enrutador: mira la dirección del navegador y dibuja la pantalla que toca.
@@ -6546,6 +8691,9 @@ const __src_app_js = (function () {
 
 
 
+
+
+
 /**
  * La tabla de rutas.
  *
@@ -6555,7 +8703,6 @@ const __src_app_js = (function () {
  * base de datos, no aquí; esto solo evita que la aplicación se enseñe sola.
  */
 const RUTAS = [
-  { patron: /^#\/entrar\/?$/, vista: entrar, sinSesion: true },
   { patron: /^#\/empresas\/?$/, vista: seleccionEmpresa, sinMarco: true },
 
   { patron: /^#\/resumen\/?$/, vista: resumen },
@@ -6592,6 +8739,7 @@ const RUTAS = [
   { patron: /^#\/por-pagar\/?$/, vista: cuentasPorPagar },
   { patron: /^#\/bancos\/?$/, vista: bancos },
 
+  { patron: /^#\/proveedores\/?$/, vista: proveedores },
   { patron: /^#\/inventario\/?$/, vista: inventario },
   { patron: /^#\/nomina\/?$/, vista: nomina },
   { patron: /^#\/activos\/?$/, vista: activosFijos },
@@ -6601,12 +8749,14 @@ const RUTAS = [
   { patron: /^#\/consulta\/?$/, vista: consultaLegal },
 
   { patron: /^#\/admin\/empresas\/?$/, vista: adminEmpresas, admin: true },
-  { patron: /^#\/admin\/empresas\/nueva\/?$/, vista: adminAlta, admin: true },
+  { patron: /^#\/admin\/empresas\/nueva\/?$/, vista: adminAlta, admin: true,
+    alDibujar: conectarAlta },
   { patron: /^#\/admin\/empresas\/([\w-]+)\/?$/, vista: adminFicha, admin: true },
   { patron: /^#\/admin\/auditoria\/?$/, vista: adminAuditoria, admin: true },
   { patron: /^#\/admin\/suscripciones\/?$/, vista: suscripciones, admin: true },
   { patron: /^#\/admin\/uso\/?$/, vista: usoPlataforma, admin: true },
   { patron: /^#\/admin\/soporte\/?$/, vista: soporte, admin: true },
+  { patron: /^#\/admin\/datos\/?$/, vista: proteccionDatos, admin: true },
 ];
 
 /** Las que todavía no están hechas. Se dicen, no se disimulan. */
@@ -6617,6 +8767,24 @@ const PENDIENTES = {
 };
 
 const raiz = () => document.getElementById('raiz');
+const sitio = () => document.getElementById('portada');
+
+/**
+ * Alterna el sitio y el sistema.
+ *
+ * Los dos viven en la misma página: el sitio presenta y el sistema trabaja, y
+ * se turnan en el mismo hueco. Una sola dirección para todo —que es como
+ * funciona cualquier servicio de verdad— y así nadie guarda en favoritos una
+ * dirección que después no existe.
+ */
+function ensenar(que) {
+  const s = sitio();
+  const r = raiz();
+  if (s) s.hidden = (que !== 'sitio');
+  if (r) r.hidden = (que === 'sitio');
+  // Al salir no queda media pantalla dibujada detrás del sitio.
+  if (que === 'sitio' && r) r.innerHTML = '';
+}
 
 /** Decide qué dibujar, y corrige la dirección cuando no corresponde. */
 function resolver(hash) {
@@ -6624,13 +8792,14 @@ function resolver(hash) {
 
   if (ruta === '#/salir') { sesion.salir(); return { redirigir: '#/entrar' }; }
 
-  if (!sesion.activa()) {
-    return ruta === '#/entrar' ? { ruta, coincide: RUTAS[0], args: [] }
-                               : { redirigir: '#/entrar' };
-  }
+  // Sin sesión manda el sitio, que lleva el inicio de sesión dentro. No hay
+  // una pantalla de entrada aparte: sería una segunda puerta a la misma casa.
+  if (!sesion.activa()) return { sitio: true };
 
   const esSuper = sesion.esSuperAdmin();
-  if (ruta === '#/entrar') return { redirigir: esSuper ? '#/admin/empresas' : '#/resumen' };
+  if (ruta === '#/entrar' || ruta === '#/') {
+    return { redirigir: esSuper ? '#/admin/empresas' : '#/resumen' };
+  }
 
   const pendienteAqui = PENDIENTES[ruta];
   if (pendienteAqui) return { ruta, pendiente: pendienteAqui, admin: ruta.startsWith('#/admin') };
@@ -6653,8 +8822,21 @@ async function dibujar() {
 
   if (r.redirigir) { location.hash = r.redirigir; return; }
 
+  if (r.sitio) {
+    ensenar('sitio');
+    // Si la dirección era del sistema —acaba de cerrar sesión, o escribió a
+    // mano una pantalla de dentro— lo que toca enseñar es el ingreso, no la
+    // presentación: ya sabe lo que es Kontia, quiere entrar.
+    if (location.hash.startsWith('#/') && window.kontiaSitio) {
+      window.kontiaSitio.mostrar('ingresar');
+    }
+    return;
+  }
+  ensenar('sistema');
+
   let contenido;
-  let opciones = { ruta: r.ruta, admin: r.admin ?? sesion.esSuperAdmin() };
+  const admin = r.admin ?? sesion.esSuperAdmin();
+  let opciones = { ruta: r.ruta, admin, empresa: admin ? null : empresaActiva() };
   let alDibujar = null;
 
   if (r.pendiente) {
@@ -6668,7 +8850,7 @@ async function dibujar() {
   } else {
     contenido = await r.coincide.vista(...r.args);
     alDibujar = r.coincide.alDibujar ?? null;
-    if (r.coincide.sinSesion || r.coincide.sinMarco) {
+    if (r.coincide.sinMarco) {
       raiz().innerHTML = suelta(contenido);
       window.scrollTo(0, 0);
       if (alDibujar) alDibujar();

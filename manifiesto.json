@@ -1,0 +1,25 @@
+{
+  "name": "Kontia · facturación y contabilidad",
+  "short_name": "Kontia",
+  "description": "Facturación electrónica para el SRI y contabilidad, para empresas de Daule, Nobol y Samborondón.",
+  "lang": "es-EC",
+  "dir": "ltr",
+  "start_url": "app.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0C3A27",
+  "theme_color": "#0F7B4F",
+  "categories": ["business", "finance", "productivity"],
+  "icons": [
+    { "src": "iconos/icono-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "iconos/icono-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "iconos/icono-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "Nueva factura", "url": "app.html#/comprobantes/nuevo",
+      "icons": [{ "src": "iconos/icono-192.png", "sizes": "192x192" }] },
+    { "name": "Resumen", "url": "app.html#/resumen",
+      "icons": [{ "src": "iconos/icono-192.png", "sizes": "192x192" }] }
+  ]
+}
