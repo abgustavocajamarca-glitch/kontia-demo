@@ -305,6 +305,47 @@
   #portada .curso  { background: var(--ambar-suave); color: var(--ambar-p); }
   #portada .espera { background: rgba(92,102,96,.12); color: var(--suave); }
 
+  /* ═══════════════════════════════════════════════════════════════════
+     LA MARCA DE AGUA
+
+     `.grabado` pone las ondas sobre cualquier franja y, si además lleva
+     `.con-monograma`, la K grande en una esquina. Las dos capas van en
+     pseudo-elementos detrás del contenido, así que no hay un solo elemento
+     nuevo en el HTML ni nada que pueda taparse a un lector de pantalla.
+
+     Las franjas oscuras son las que lo lucen. En claro se usa con cuentagotas
+     —una cifra se lee mejor sobre papel liso— y de ahí que el sello sea uno
+     solo y esté donde no hay números.
+     ═══════════════════════════════════════════════════════════════════ */
+  #portada .grabado { position: relative; overflow: hidden; isolation: isolate; }
+  #portada .grabado > * { position: relative; z-index: 1; }
+  #portada .grabado::before {
+    content: ''; position: absolute; inset: 0; z-index: 0; pointer-events: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='80' height='80'%3E%3Cg fill='none' stroke='%23ffffff' stroke-width='.7'%3E%3Cpath d='M0 20 Q20 6 40 20 T80 20'/%3E%3Cpath d='M0 40 Q20 54 40 40 T80 40'/%3E%3Cpath d='M0 60 Q20 46 40 60 T80 60'/%3E%3C/g%3E%3C/svg%3E");
+    background-size: 80px 80px;
+    opacity: .07;
+  }
+  #portada .con-monograma::after {
+    content: ''; position: absolute; z-index: 0; pointer-events: none;
+    right: -3.5rem; bottom: -7rem; width: 28rem; height: 28rem;
+    background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23ffffff' stroke-width='1.9' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 4v16M6 13.5l10-8.5M10 10.5l8 9.5'/%3E%3C/svg%3E") no-repeat center / contain;
+    opacity: .05;
+  }
+  @media (max-width: 46rem) {
+    #portada .con-monograma::after { right: -6rem; bottom: -8rem; width: 20rem; height: 20rem; }
+  }
+
+  /* El sello del despacho. Va en la sección del respaldo legal, que es de lo
+     que habla, y en claro: ahí no hay ninguna cifra que defender. */
+  #portada .sellada { position: relative; overflow: hidden; }
+  #portada .sello {
+    position: absolute; top: 1rem; right: -2.5rem; width: 21rem; height: 21rem;
+    color: var(--verde-p); opacity: .085; transform: rotate(-8deg);
+    pointer-events: none; z-index: 0;
+  }
+  #portada .sellada > .centro { position: relative; z-index: 1; }
+  @media (max-width: 60rem) { #portada .sello { display: none; } }
+
   /* ═══════════════════════════════════════════ los planes */
   #portada .plan { display: flex; flex-direction: column; }
   #portada .plan .precio {
@@ -531,6 +572,31 @@
            radial-gradient(1100px 520px at 82% -8%, rgba(15, 123, 79, .055), transparent 62%),
            radial-gradient(760px 420px at 6% 4%, rgba(15, 123, 79, .035), transparent 58%);
          background-attachment: fixed; }
+  /* ═══════════════════════════════════════════════════════════════════
+     LA MARCA DE AGUA DEL SISTEMA
+
+     Aquí se trabaja, así que apenas se adivina: el mismo grabado del sitio al
+     tres por ciento, y la K de una esquina al dos. Las tarjetas y las tablas
+     van sobre blanco opaco, de modo que ninguna cifra se lee peor por esto.
+
+     Las dos capas van fijas: no se arrastran al desplazar la página, que es lo
+     que hace que se lean como papel y no como un adorno pegado al contenido.
+     ═══════════════════════════════════════════════════════════════════ */
+  .lienzo { position: relative; isolation: isolate; }
+  .lienzo::before, .lienzo::after { content: ''; position: fixed; pointer-events: none; z-index: -1; }
+  .lienzo::before {
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='80' height='80'%3E%3Cg fill='none' stroke='%230F7B4F' stroke-width='.7'%3E%3Cpath d='M0 20 Q20 6 40 20 T80 20'/%3E%3Cpath d='M0 40 Q20 54 40 40 T80 40'/%3E%3Cpath d='M0 60 Q20 46 40 60 T80 60'/%3E%3C/g%3E%3C/svg%3E");
+    background-size: 96px 96px;
+    opacity: .032;
+  }
+  .lienzo::after {
+    right: -5rem; bottom: -7rem; width: 30rem; height: 30rem;
+    background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%230F7B4F' stroke-width='1.9' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 4v16M6 13.5l10-8.5M10 10.5l8 9.5'/%3E%3C/svg%3E") no-repeat center / contain;
+    opacity: .022;
+  }
+  @media print { .lienzo::before, .lienzo::after { display: none; } }
+
   .ms { font-family: 'Material Symbols Outlined'; font-weight: normal; font-style: normal;
         line-height: 1; letter-spacing: normal; text-transform: none; display: inline-block;
         white-space: nowrap; direction: ltr; -webkit-font-feature-settings: 'liga';
@@ -712,7 +778,7 @@
 <!-- ══════════════════════════════════════════════════════════ 1 · inicio -->
 <div class="pantalla" id="pag-inicio">
 
-  <div class="hero franja">
+  <div class="hero franja grabado con-monograma">
     <div class="centro">
       <span class="insignia"><span class="punto"></span> En desarrollo · demostración abierta</span>
 
@@ -797,7 +863,30 @@
     </div>
   </section>
 
-  <section class="bloque franja" style="padding-top:0">
+  <section class="bloque franja sellada" style="padding-top:0">
+      <!--
+        El sello. Dibujado con dos circunferencias y texto sobre una curva, no
+        con una imagen: así se puede corregir una palabra sin volver a exportar
+        nada. Decorativo, y por eso oculto a los lectores de pantalla.
+      -->
+      <svg class="sello" viewBox="0 0 200 200" aria-hidden="true" focusable="false">
+        <defs>
+          <path id="aro-sello" d="M100,100 m-72,0 a72,72 0 1,1 144,0 a72,72 0 1,1 -144,0"/>
+        </defs>
+        <circle cx="100" cy="100" r="94" fill="none" stroke="currentColor" stroke-width="2.5"/>
+        <circle cx="100" cy="100" r="86" fill="none" stroke="currentColor" stroke-width="1"/>
+        <circle cx="100" cy="100" r="58" fill="none" stroke="currentColor" stroke-width="1"/>
+        <text font-size="12.5" font-weight="700" letter-spacing="3" fill="currentColor">
+          <textPath href="#aro-sello" startOffset="2%">
+            FACTURACIÓN ELECTRÓNICA · SRI ECUADOR ·
+          </textPath>
+        </text>
+        <text x="100" y="96" text-anchor="middle" font-size="25" font-weight="800"
+              letter-spacing="2" fill="currentColor">KONTIA</text>
+        <text x="100" y="120" text-anchor="middle" font-size="10.5" font-weight="600"
+              letter-spacing="3.5" fill="currentColor">DAULE · GUAYAS</text>
+      </svg>
+
     <div class="centro">
       <div class="encabeza">
         <span class="rotulo">Lo que no se copia</span>
@@ -826,7 +915,7 @@
     </div>
   </section>
 
-  <div class="cierre" id="instalar">
+  <div class="cierre grabado con-monograma" id="instalar">
     <h2>Véalo funcionando</h2>
     <p>
       La demostración abre sin cuenta ni contraseña. Entre como administrador de la empresa
@@ -846,7 +935,7 @@
 <!-- ══════════════════════════════════════════════════════════ 2 · qué hace -->
 <div class="pantalla" id="pag-funciones" hidden>
 
-  <div class="tapa franja">
+  <div class="tapa franja grabado">
     <div class="centro">
       <span class="rotulo">Qué hace</span>
       <h1>Los seis comprobantes, los libros y las declaraciones</h1>
@@ -972,7 +1061,7 @@
 <!-- ══════════════════════════════════════════════════════════ 3 · privacidad -->
 <div class="pantalla" id="pag-privacidad" hidden>
 
-  <div class="tapa franja">
+  <div class="tapa franja grabado">
     <div class="centro">
       <span class="rotulo">Privacidad</span>
       <h1>Ni nosotros vemos sus datos</h1>
@@ -983,7 +1072,7 @@
     </div>
   </div>
 
-  <div class="aparte">
+  <div class="aparte grabado con-monograma">
     <section class="bloque franja">
       <div class="centro">
         <div class="encabeza">
@@ -1089,7 +1178,7 @@
 <!-- ══════════════════════════════════════════════════════════ 4 · descargar -->
 <div class="pantalla" id="pag-descargar" hidden>
 
-  <div class="tapa franja">
+  <div class="tapa franja grabado">
     <div class="centro">
       <span class="rotulo">Descargar</span>
       <h1>Kontia en su teléfono y en su computadora</h1>
@@ -1207,7 +1296,7 @@
 <!-- ══════════════════════════════════════════════════════════ 5 · planes -->
 <div class="pantalla" id="pag-planes" hidden>
 
-  <div class="tapa franja">
+  <div class="tapa franja grabado">
     <div class="centro">
       <span class="rotulo">Planes</span>
       <h1>Lo que trae cada plan</h1>
@@ -1281,7 +1370,7 @@
 <!-- ══════════════════════════════════════════════════════════ 6 · estado -->
 <div class="pantalla" id="pag-estado" hidden>
 
-  <div class="tapa franja">
+  <div class="tapa franja grabado">
     <div class="centro">
       <span class="rotulo">Transparencia</span>
       <h1>Cómo va, sin adornos</h1>
@@ -1364,7 +1453,7 @@
 <!-- ══════════════════════════════════════════════════════════ 7 · contacto -->
 <div class="pantalla" id="pag-contacto" hidden>
 
-  <div class="tapa franja">
+  <div class="tapa franja grabado">
     <div class="centro">
       <span class="rotulo">Contacto</span>
       <h1>Quién responde</h1>
@@ -1428,7 +1517,7 @@
 <div class="pantalla" id="pag-ingresar" hidden>
   <div class="entrada">
 
-    <section class="entrada-marca">
+    <section class="entrada-marca grabado con-monograma">
       <a class="marca" href="#inicio">
         <img src="iconos/icono-192.png" alt="">
         <b>Kontia</b>
@@ -4043,7 +4132,7 @@ function marco(contenido, { ruta = '', admin = false, empresa = null } = {}) {
         <div class="py-4">${pie}</div>
       </aside>
 
-      <div class="flex-1 min-w-0 flex flex-col">
+      <div class="flex-1 min-w-0 flex flex-col lienzo">
         <header class="sticky top-0 z-20 bg-papel/85 backdrop-blur border-b border-papel-linea">
           <div class="px-5 sm:px-8 h-16 flex items-center justify-between gap-4">
             <div class="flex items-center gap-3 min-w-0">
