@@ -28,9 +28,16 @@
      etiqueta del cuerpo, para que la página se vea igual publicada como
      artefacto: allí esa etiqueta la pone el anfitrión y las clases que lleve
      este archivo se pierden. */
+  /* El fondo no es un gris plano: lleva dos luces muy tenues que hacen que las
+     tarjetas blancas se lean como objetos apoyados encima y no como recortes.
+     Es sutil a proposito — si se nota, esta mal calibrado. */
   body { font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
-         background: #F7F9F8; color: #1A1D1F; margin: 0;
-         -webkit-font-smoothing: antialiased; }
+         color: #1A1D1F; margin: 0; -webkit-font-smoothing: antialiased;
+         background-color: #F5F8F6;
+         background-image:
+           radial-gradient(1100px 520px at 82% -8%, rgba(15, 123, 79, .055), transparent 62%),
+           radial-gradient(760px 420px at 6% 4%, rgba(15, 123, 79, .035), transparent 58%);
+         background-attachment: fixed; }
   .ms { font-family: 'Material Symbols Outlined'; font-weight: normal; font-style: normal;
         line-height: 1; letter-spacing: normal; text-transform: none; display: inline-block;
         white-space: nowrap; direction: ltr; -webkit-font-feature-settings: 'liga';
@@ -65,6 +72,112 @@
   /* A quien le molesta el movimiento, no se le mueve nada. */
   @media (prefers-reduced-motion: reduce) {
     .lateral, .velo { transition: none; }
+  }
+
+  /* ---------------------------------------------------------------------
+     RELIEVE
+
+     Lo que hace que algo parezca un boton y no un rectangulo pintado es que
+     tenga volumen: una luz arriba, una sombra abajo, y que se HUNDA al
+     pulsarlo. Ese hundimiento es lo que confirma que el clic llego, antes de
+     que la pantalla cambie.
+
+     Se hace con sombras y degradados, no con perspectiva. La perspectiva se
+     reserva para los graficos, y ahi no se usa nunca: una barra en 3D hace
+     que la de adelante parezca mas alta que la de atras aunque valgan lo
+     mismo, y eso en cifras de dinero es mentir.
+     --------------------------------------------------------------------- */
+
+  /* Tarjetas: se despegan del fondo lo justo para leerse como objetos. */
+  .relieve {
+    box-shadow: 0 1px 2px rgba(26, 29, 31, .04), 0 2px 8px rgba(26, 29, 31, .045);
+    transition: box-shadow .18s ease, transform .18s ease;
+  }
+  .relieve:hover {
+    box-shadow: 0 2px 4px rgba(26, 29, 31, .05), 0 8px 24px rgba(26, 29, 31, .08);
+  }
+
+  /* Boton principal, el verde. */
+  .boton-3d {
+    position: relative;
+    background-image: linear-gradient(to bottom, rgba(255, 255, 255, .16), rgba(0, 0, 0, .04));
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, .28),
+                inset 0 -1px 0 rgba(0, 0, 0, .12),
+                0 1px 2px rgba(26, 29, 31, .16),
+                0 4px 10px rgba(15, 123, 79, .22);
+    transition: transform .1s ease, box-shadow .1s ease, filter .1s ease;
+  }
+  .boton-3d:hover {
+    transform: translateY(-1px);
+    filter: brightness(1.06);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, .32),
+                inset 0 -1px 0 rgba(0, 0, 0, .12),
+                0 2px 4px rgba(26, 29, 31, .16),
+                0 8px 18px rgba(15, 123, 79, .3);
+  }
+  .boton-3d:active {
+    transform: translateY(1px);
+    box-shadow: inset 0 2px 4px rgba(0, 0, 0, .22),
+                0 1px 1px rgba(26, 29, 31, .12);
+  }
+
+  /* Boton secundario, el blanco. Mismo comportamiento, menos peso. */
+  .boton-3d-claro {
+    background-image: linear-gradient(to bottom, #fff, #F4F7F5);
+    box-shadow: inset 0 1px 0 #fff,
+                0 1px 2px rgba(26, 29, 31, .08),
+                0 2px 6px rgba(26, 29, 31, .06);
+    transition: transform .1s ease, box-shadow .1s ease;
+  }
+  .boton-3d-claro:hover {
+    transform: translateY(-1px);
+    box-shadow: inset 0 1px 0 #fff,
+                0 2px 4px rgba(26, 29, 31, .1),
+                0 6px 14px rgba(26, 29, 31, .1);
+  }
+  .boton-3d-claro:active {
+    transform: translateY(1px);
+    background-image: linear-gradient(to bottom, #EFF3F0, #F7F9F8);
+    box-shadow: inset 0 2px 4px rgba(26, 29, 31, .12);
+  }
+
+  /* Pestanas: la activa esta hundida, las demas levantadas. */
+  .pestana {
+    background-image: linear-gradient(to bottom, #fff, #F4F7F5);
+    box-shadow: inset 0 1px 0 #fff, 0 1px 2px rgba(26, 29, 31, .08);
+    transition: transform .1s ease, box-shadow .1s ease, color .1s ease;
+  }
+  .pestana:hover { transform: translateY(-1px); box-shadow: inset 0 1px 0 #fff, 0 3px 8px rgba(26, 29, 31, .1); }
+  .pestana-activa {
+    background-image: linear-gradient(to bottom, #0B5C3B, #0F7B4F);
+    box-shadow: inset 0 2px 5px rgba(0, 0, 0, .28), 0 1px 0 rgba(255, 255, 255, .5);
+    transform: none;
+  }
+  .pestana-activa:hover { transform: none; }
+
+  /* Campos: hundidos, que es lo contrario de un boton. Si un rectangulo se
+     hunde, se escribe dentro; si sobresale, se pulsa. */
+  main input:not([type="checkbox"]), main select, main textarea {
+    box-shadow: inset 0 1px 3px rgba(26, 29, 31, .06);
+    transition: box-shadow .14s ease;
+  }
+  main input:focus, main select:focus, main textarea:focus {
+    outline: none;
+    box-shadow: inset 0 1px 3px rgba(26, 29, 31, .05),
+                0 0 0 3px rgba(15, 123, 79, .15);
+  }
+
+  /* La opcion abierta del menu lateral. */
+  .lateral a.activa-3d {
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, .7), 0 1px 2px rgba(26, 29, 31, .07);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .relieve, .boton-3d, .boton-3d-claro, .pestana { transition: none; }
+    .relieve:hover, .boton-3d:hover, .boton-3d-claro:hover, .pestana:hover { transform: none; }
+    /* Los graficos nacen en su sitio en lugar de entrar animados. Lo que se ve
+       al final es exactamente lo mismo: la animacion nunca oculta un dato. */
+    svg animate { display: none; }
   }
 
   ::-webkit-scrollbar { width: 10px; height: 10px; }
@@ -594,9 +707,9 @@ function cabecera({ titulo, descripcion = '', acciones = [] }) {
 
 const boton = (texto, { ruta = '#', tipo = 'principal', ico = null, id = null } = {}) => {
   const estilos = {
-    principal: 'bg-verde text-white hover:bg-verde-oscuro shadow-sm',
-    secundario: 'bg-white text-tinta border border-papel-linea hover:border-verde hover:text-verde',
-    peligro: 'bg-white text-rojo-texto border border-rojo-borde hover:bg-rojo-fondo',
+    principal: 'boton-3d bg-verde text-white',
+    secundario: 'boton-3d-claro text-tinta border border-papel-linea hover:text-verde',
+    peligro: 'boton-3d-claro text-rojo-texto border border-rojo-borde',
   };
   return crudo(
     `<a href="${esc(ruta)}"${id ? ` id="${esc(id)}"` : ''} class="inline-flex items-center gap-2 px-4 py-2.5 ` +
@@ -736,6 +849,16 @@ function topeBonito(max) {
   return 10 * magnitud;
 }
 
+/**
+ * Un identificador distinto para cada gráfico.
+ *
+ * Los degradados de SVG se referencian por id, y en una pantalla hay varios
+ * gráficos a la vez. Con un id fijo, el segundo gráfico usaría el degradado del
+ * primero —que puede tener otro color— y nadie entendería por qué.
+ */
+let cuenta = 0;
+const nuevoId = (prefijo) => `${prefijo}-${++cuenta}`;
+
 const corto = (n) => {
   const a = Math.abs(n);
   if (a >= 1000000) return (n / 1000000).toFixed(a >= 10000000 ? 0 : 1).replace('.', ',') + 'M';
@@ -763,10 +886,17 @@ function barras(datos, { alto = 200, moneda = true, titulo = '' } = {}) {
   const y = (v) => ARRIBA + util.y - (v / tope) * util.y;
 
   const marcas = [0, 0.25, 0.5, 0.75, 1].map((f) => tope * f);
+  const idBarra = nuevoId('barra');
 
   return crudo(`
     <svg viewBox="0 0 ${ANCHO} ${alto}" class="w-full" style="height:${alto}px"
          role="img" aria-label="${esc(titulo || 'Gráfico de barras')}">
+      <defs>
+        <linearGradient id="${idBarra}" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="#2E9D6C"/>
+          <stop offset="100%" stop-color="${VERDE}"/>
+        </linearGradient>
+      </defs>
       ${marcas.map((v) => `
         <line x1="${IZQ}" y1="${y(v).toFixed(1)}" x2="${ANCHO - DER}" y2="${y(v).toFixed(1)}"
               stroke="${LINEA}" stroke-width="1"/>
@@ -778,13 +908,21 @@ function barras(datos, { alto = 200, moneda = true, titulo = '' } = {}) {
         const cx = IZQ + paso * i + paso / 2;
         const altura = Math.max(2, ARRIBA + util.y - y(d.valor));
         const tono = d.tono ?? VERDE;
+        const base = ARRIBA + util.y;
         return `
-        <g>
+        <g class="barra">
           <rect x="${(cx - anchoBarra / 2).toFixed(1)}" y="${y(d.valor).toFixed(1)}"
                 width="${anchoBarra.toFixed(1)}" height="${altura.toFixed(1)}"
-                rx="4" fill="${tono}" opacity="0.9">
+                rx="4" fill="${d.tono ? tono : `url(#${idBarra})`}">
             <title>${esc(d.etiqueta)}: ${esc(moneda ? '$' + dinero(d.valor) : String(d.valor))}</title>
+            <animate attributeName="height" from="0" to="${altura.toFixed(1)}"
+                     dur="0.5s" begin="${(i * 0.045).toFixed(2)}s" fill="freeze"/>
+            <animate attributeName="y" from="${base.toFixed(1)}" to="${y(d.valor).toFixed(1)}"
+                     dur="0.5s" begin="${(i * 0.045).toFixed(2)}s" fill="freeze"/>
           </rect>
+          <rect x="${(cx - anchoBarra / 2).toFixed(1)}" y="${y(d.valor).toFixed(1)}"
+                width="${anchoBarra.toFixed(1)}" height="3" rx="1.5"
+                fill="#fff" opacity="0.28" pointer-events="none"/>
           <text x="${cx.toFixed(1)}" y="${alto - 10}" text-anchor="middle"
                 font-size="10.5" font-weight="600" fill="${TINTA_SUAVE}">${esc(d.etiqueta)}</text>
         </g>`;
@@ -812,13 +950,15 @@ function linea(datos, { alto = 200, moneda = true, titulo = '' } = {}) {
   const area = `${trazo} L${px(datos.length - 1).toFixed(1)},${(ARRIBA + util.y).toFixed(1)} ` +
                `L${px(0).toFixed(1)},${(ARRIBA + util.y).toFixed(1)} Z`;
   const ultimo = datos[datos.length - 1];
+  const idArea = nuevoId('area');
+  const largo = Math.round(ANCHO * 1.6);
 
   return crudo(`
     <svg viewBox="0 0 ${ANCHO} ${alto}" class="w-full" style="height:${alto}px"
          role="img" aria-label="${esc(titulo || 'Gráfico de líneas')}">
       <defs>
-        <linearGradient id="degradado-linea" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stop-color="${VERDE}" stop-opacity="0.22"/>
+        <linearGradient id="${idArea}" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="${VERDE}" stop-opacity="0.28"/>
           <stop offset="100%" stop-color="${VERDE}" stop-opacity="0"/>
         </linearGradient>
       </defs>
@@ -830,9 +970,15 @@ function linea(datos, { alto = 200, moneda = true, titulo = '' } = {}) {
               font-size="10" fill="${TINTA_SUAVE}"
               style="font-variant-numeric:tabular-nums">${esc(corto(tope * f))}</text>`).join('')}
 
-      <path d="${area}" fill="url(#degradado-linea)"/>
-      <path d="${trazo}" fill="none" stroke="${VERDE}" stroke-width="2.4"
-            stroke-linejoin="round" stroke-linecap="round"/>
+      <path d="${area}" fill="url(#${idArea})" opacity="0">
+        <animate attributeName="opacity" from="0" to="1" dur="0.7s" begin="0.25s" fill="freeze"/>
+      </path>
+      <path d="${trazo}" fill="none" stroke="${VERDE}" stroke-width="2.6"
+            stroke-linejoin="round" stroke-linecap="round"
+            stroke-dasharray="${largo}" stroke-dashoffset="${largo}">
+        <animate attributeName="stroke-dashoffset" from="${largo}" to="0"
+                 dur="0.9s" fill="freeze"/>
+      </path>
 
       ${datos.map((d, i) => `
         <circle cx="${px(i).toFixed(1)}" cy="${py(d.valor).toFixed(1)}" r="3.5"
@@ -840,8 +986,10 @@ function linea(datos, { alto = 200, moneda = true, titulo = '' } = {}) {
           <title>${esc(d.etiqueta)}: ${esc(moneda ? '$' + dinero(d.valor) : String(d.valor))}</title>
         </circle>`).join('')}
 
+      <circle cx="${px(datos.length - 1).toFixed(1)}" cy="${py(ultimo.valor).toFixed(1)}" r="9"
+              fill="${VERDE}" opacity="0.18"/>
       <circle cx="${px(datos.length - 1).toFixed(1)}" cy="${py(ultimo.valor).toFixed(1)}" r="5.5"
-              fill="${VERDE}" stroke="#fff" stroke-width="2"/>
+              fill="${VERDE}" stroke="#fff" stroke-width="2.2"/>
 
       ${datos.map((d, i) => (datos.length > 8 && i % 2 ? '' : `
         <text x="${px(i).toFixed(1)}" y="${alto - 10}" text-anchor="middle"
@@ -872,6 +1020,9 @@ function dona(datos, { tamano = 168, centro = '', subcentro = '' } = {}) {
               stroke-dashoffset="${desfase.toFixed(2)}"
               transform="rotate(-90 ${C} ${C})" stroke-linecap="butt">
               <title>${esc(d.etiqueta)}: ${esc(dinero(d.valor))} (${(fraccion * 100).toFixed(1)}%)</title>
+              <animate attributeName="stroke-dasharray" from="0 ${perimetro.toFixed(2)}"
+                       to="${tramo.toFixed(2)} ${(perimetro - tramo).toFixed(2)}"
+                       dur="0.7s" begin="${(i * 0.07).toFixed(2)}s" fill="freeze"/>
             </circle>`;
   }).join('');
 
@@ -2004,7 +2155,7 @@ const TEMA_EMPRESA = {
   aside: 'bg-white border-r border-papel-linea',
   marca: 'bg-verde text-white',
   grupo: 'text-tinta-suave/70',
-  activo: 'bg-verde-claro text-verde font-semibold',
+  activo: 'activa-3d bg-verde-claro text-verde font-semibold',
   inactivo: 'text-tinta-suave hover:bg-papel hover:text-tinta',
 };
 
@@ -2012,7 +2163,7 @@ const TEMA_ADMIN = {
   aside: 'bg-[#12211A] border-r border-white/10',
   marca: 'bg-white/10 text-white border border-white/20',
   grupo: 'text-white/40',
-  activo: 'bg-white/10 text-white font-semibold',
+  activo: 'activa-3d bg-white/10 text-white font-semibold',
   inactivo: 'text-white/60 hover:bg-white/5 hover:text-white',
 };
 
@@ -2387,7 +2538,7 @@ async function seleccionEmpresa() {
 
       <div class="mt-7 space-y-3">
         ${mias.map((e) => html`
-          <a href="#/resumen" class="flex items-center gap-4 p-5 bg-white border border-papel-linea rounded-2xl
+          <a href="#/resumen" class="flex items-center gap-4 p-5 bg-white border border-papel-linea rounded-2xl relieve
                                      hover:border-verde hover:shadow-sm transition">
             <span class="w-12 h-12 shrink-0 rounded-xl bg-verde-claro text-verde flex items-center justify-center text-sm font-extrabold">
               ${e.razonSocial.slice(0, 2).toUpperCase()}
@@ -2454,7 +2605,7 @@ const tarjetaCifra = ({ ico, etiqueta, valor, pie, tono = 'verde', serie = null 
   };
   const colorChispa = { verde: VERDE, ambar: AMBAR, rojo: ROJO }[tono];
   return html`
-    <div class="bg-white border border-papel-linea rounded-2xl p-5">
+    <div class="bg-white border border-papel-linea rounded-2xl relieve p-5">
       <div class="flex items-start justify-between">
         <p class="text-[11px] font-bold uppercase tracking-wide text-tinta-suave">${etiqueta}</p>
         <span class="w-9 h-9 rounded-xl flex items-center justify-center ${crudo(tonos[tono])}">
@@ -2528,7 +2679,7 @@ async function resumen() {
 
     <div class="mt-5 grid gap-5 lg:grid-cols-3">
 
-      <section class="lg:col-span-2 bg-white border border-papel-linea rounded-2xl p-5">
+      <section class="lg:col-span-2 bg-white border border-papel-linea rounded-2xl relieve p-5">
         <div class="flex items-end justify-between mb-6">
           <div>
             <h2 class="text-sm font-bold">Ingresos de 2026</h2>
@@ -2541,7 +2692,7 @@ async function resumen() {
                  { alto: 210, titulo: 'Ingresos por mes de 2026' })}
       </section>
 
-      <section class="bg-white border border-papel-linea rounded-2xl p-5">
+      <section class="bg-white border border-papel-linea rounded-2xl relieve p-5">
         <h2 class="text-sm font-bold">Estado de la firma</h2>
         <div class="mt-4 flex items-center gap-3">
           <span class="w-11 h-11 rounded-xl flex items-center justify-center
@@ -2573,7 +2724,7 @@ async function resumen() {
       </section>
     </div>
 
-    <section class="mt-5 bg-white border border-papel-linea rounded-2xl">
+    <section class="mt-5 bg-white border border-papel-linea rounded-2xl relieve">
       <div class="flex items-center justify-between p-5 border-b border-papel-linea">
         <h2 class="text-sm font-bold">Últimos comprobantes</h2>
         <a href="#/comprobantes" class="text-xs font-bold text-verde hover:underline">Ver todos</a>
@@ -2682,8 +2833,8 @@ async function comprobantes() {
 
     <div class="flex flex-wrap items-center gap-2 mb-5">
       ${FILTROS.map((f, i) => crudo(
-        `<button class="px-3.5 py-2 rounded-xl text-xs font-bold transition ${
-          i === 0 ? 'bg-tinta text-white' : 'bg-white border border-papel-linea text-tinta-suave hover:border-verde hover:text-verde'
+        `<button class="pestana px-3.5 py-2 rounded-xl text-xs font-bold ${
+          i === 0 ? 'pestana-activa text-white' : 'text-tinta-suave hover:text-verde'
         }">${esc(f.texto)}</button>`))}
       <div class="flex-1"></div>
       <div class="relative">
@@ -2694,7 +2845,7 @@ async function comprobantes() {
       </div>
     </div>
 
-    <section class="bg-white border border-papel-linea rounded-2xl overflow-hidden">${crudo(contenido)}</section>`;
+    <section class="bg-white border border-papel-linea rounded-2xl relieve overflow-hidden">${crudo(contenido)}</section>`;
 }
 
 // ===========================================================================
@@ -2737,7 +2888,7 @@ async function comprobante(numero) {
   const c = await cargar.comprobante(numero);
   if (!c) {
     return html`
-      <section class="bg-white border border-papel-linea rounded-2xl">
+      <section class="bg-white border border-papel-linea rounded-2xl relieve">
         ${crudo(vacio({
           ico: 'search_off', titulo: 'No encontramos ese comprobante',
           texto: `No hay ningún comprobante con el número ${numero} en esta empresa.`,
@@ -2821,7 +2972,7 @@ async function comprobante(numero) {
     <div class="grid gap-5 lg:grid-cols-3">
       <div class="lg:col-span-2 space-y-5">
 
-        <section class="bg-white border border-papel-linea rounded-2xl p-5">
+        <section class="bg-white border border-papel-linea rounded-2xl relieve p-5">
           <h2 class="text-sm font-bold mb-4">Cliente</h2>
           <dl class="grid gap-4 sm:grid-cols-2">
             ${dato('Razón social', c.cliente.razonSocial)}
@@ -2831,7 +2982,7 @@ async function comprobante(numero) {
           </dl>
         </section>
 
-        <section class="bg-white border border-papel-linea rounded-2xl overflow-hidden">
+        <section class="bg-white border border-papel-linea rounded-2xl relieve overflow-hidden">
           <h2 class="text-sm font-bold p-5 pb-4">Detalle</h2>
           ${crudo(tabla([
             { texto: 'Código' }, { texto: 'Descripción' }, { texto: 'Cant.', der: true },
@@ -2869,20 +3020,20 @@ async function comprobante(numero) {
       </div>
 
       <div class="space-y-5">
-        <section class="bg-white border border-papel-linea rounded-2xl p-5">
+        <section class="bg-white border border-papel-linea rounded-2xl relieve p-5">
           <h2 class="text-sm font-bold mb-4">Qué pasó con el SRI</h2>
           ${recorrido(c)}
         </section>
 
         ${!c.claveAcceso ? html`
-          <section class="bg-white border border-papel-linea rounded-2xl p-5">
+          <section class="bg-white border border-papel-linea rounded-2xl relieve p-5">
             <h2 class="text-sm font-bold">Clave de acceso</h2>
             <p class="mt-2 text-[12px] text-tinta-suave leading-relaxed">
               Se asigna al firmar, porque va dentro de lo que se firma. Todavía no hay
               ninguna para esta factura, y por eso no se muestra un número inventado.
             </p>
           </section>` : html`
-          <section class="bg-white border border-papel-linea rounded-2xl p-5">
+          <section class="bg-white border border-papel-linea rounded-2xl relieve p-5">
             <h2 class="text-sm font-bold">Clave de acceso</h2>
             <p class="mt-2 text-[11px] text-tinta-suave leading-relaxed">
               Identifica a esta factura y a ninguna otra en todo el Ecuador. Es lo que se
@@ -2893,7 +3044,7 @@ async function comprobante(numero) {
             </p>
           </section>`}
 
-        <section class="bg-white border border-papel-linea rounded-2xl p-5">
+        <section class="bg-white border border-papel-linea rounded-2xl relieve p-5">
           <h2 class="text-sm font-bold mb-4">Datos de emisión</h2>
           <dl class="space-y-4">
             ${dato('Forma de pago', c.formaPago)}
@@ -3091,7 +3242,7 @@ async function emision() {
   if (!clientes.length) {
     return html`
       ${crudo(cabecera({ titulo: 'Nueva factura' }))}
-      <section class="bg-white border border-papel-linea rounded-2xl p-10 text-center">
+      <section class="bg-white border border-papel-linea rounded-2xl relieve p-10 text-center">
         <h2 class="text-lg font-bold">Antes hace falta un cliente</h2>
         <p class="mt-2 text-sm text-tinta-suave max-w-md mx-auto leading-relaxed">
           Una factura necesita a quién va dirigida. Registre primero al cliente con su
@@ -3127,7 +3278,7 @@ async function emision() {
     <div class="grid gap-5 lg:grid-cols-3">
       <div class="lg:col-span-2 space-y-5">
 
-        <section class="bg-white border border-papel-linea rounded-2xl p-5">
+        <section class="bg-white border border-papel-linea rounded-2xl relieve p-5">
           <div class="flex items-center justify-between mb-4">
             <h2 class="text-sm font-bold">Cliente</h2>
             <a href="#/clientes/nuevo" class="text-xs font-bold text-verde hover:underline">
@@ -3156,7 +3307,7 @@ async function emision() {
           </div>
         </section>
 
-        <section class="bg-white border border-papel-linea rounded-2xl">
+        <section class="bg-white border border-papel-linea rounded-2xl relieve">
           <div class="p-5 pb-4">
             <div class="flex items-center justify-between">
               <h2 class="text-sm font-bold">Detalle</h2>
@@ -3202,12 +3353,12 @@ async function emision() {
       </div>
 
       <div class="space-y-5">
-        <section class="bg-white border border-papel-linea rounded-2xl p-5">
+        <section class="bg-white border border-papel-linea rounded-2xl relieve p-5">
           <h2 class="text-sm font-bold mb-4">Totales</h2>
           <div id="totales">${crudo(panelTotales())}</div>
         </section>
 
-        <section class="bg-white border border-papel-linea rounded-2xl p-5">
+        <section class="bg-white border border-papel-linea rounded-2xl relieve p-5">
           <h2 class="text-sm font-bold mb-4">Emisión</h2>
           <label class="block mb-4">
             <span class="text-[11px] font-bold uppercase tracking-wide text-tinta-suave">Punto de emisión</span>
@@ -3411,7 +3562,7 @@ async function clientes() {
       descripcion: 'A quién le factura esta empresa. El RUC guardado aquí es el que viaja en el XML.',
       acciones: boton('Registrar cliente', { ruta: '#/clientes/nuevo', ico: 'person_add' }),
     }))}
-    <section class="bg-white border border-papel-linea rounded-2xl overflow-hidden">${crudo(contenido)}</section>`;
+    <section class="bg-white border border-papel-linea rounded-2xl relieve overflow-hidden">${crudo(contenido)}</section>`;
 }
 
 async function productos() {
@@ -3454,7 +3605,7 @@ async function productos() {
       descripcion: 'Cada producto lleva su tarifa de IVA. Es una clasificación tributaria, no una preferencia.',
       acciones: boton('Añadir producto', { ruta: '#/productos/nuevo', ico: 'add' }),
     }))}
-    <section class="bg-white border border-papel-linea rounded-2xl overflow-hidden">${crudo(contenido)}</section>`;
+    <section class="bg-white border border-papel-linea rounded-2xl relieve overflow-hidden">${crudo(contenido)}</section>`;
 }
 
 
@@ -3536,7 +3687,7 @@ async function formularioCliente(id) {
     <div id="recado"></div>
 
     <form id="forma-cliente" class="grid gap-5 lg:grid-cols-3" onsubmit="return false">
-      <section class="lg:col-span-2 bg-white border border-papel-linea rounded-2xl p-5 space-y-4">
+      <section class="lg:col-span-2 bg-white border border-papel-linea rounded-2xl relieve p-5 space-y-4">
         <h2 class="text-sm font-bold">Identificación</h2>
         <div class="grid gap-4 sm:grid-cols-2">
           ${seleccion({
@@ -3580,7 +3731,7 @@ async function formularioCliente(id) {
         </div>
       </section>
 
-      <section class="bg-white border border-papel-linea rounded-2xl p-5 h-fit">
+      <section class="bg-white border border-papel-linea rounded-2xl relieve p-5 h-fit">
         <div class="flex items-center gap-2 mb-3">
           ${icono('info', 'text-[20px] text-verde')}
           <h2 class="text-sm font-bold">Por qué importa la identificación</h2>
@@ -3621,7 +3772,7 @@ async function formularioProducto(codigo) {
     <div id="recado"></div>
 
     <form id="forma-producto" class="grid gap-5 lg:grid-cols-3" onsubmit="return false">
-      <section class="lg:col-span-2 bg-white border border-papel-linea rounded-2xl p-5 space-y-4">
+      <section class="lg:col-span-2 bg-white border border-papel-linea rounded-2xl relieve p-5 space-y-4">
         <div class="grid gap-4 sm:grid-cols-2">
           ${campo({
             id: 'codigo', etiqueta: 'Código', valor: p?.codigo ?? '', marcador: 'FERT-UREA-01',
@@ -3663,7 +3814,7 @@ async function formularioProducto(codigo) {
         </div>
       </section>
 
-      <section class="bg-white border border-papel-linea rounded-2xl p-5 h-fit">
+      <section class="bg-white border border-papel-linea rounded-2xl relieve p-5 h-fit">
         <div class="flex items-center gap-2 mb-3">
           ${icono('percent', 'text-[20px] text-verde')}
           <h2 class="text-sm font-bold">La tarifa de IVA no es una preferencia</h2>
@@ -3817,7 +3968,7 @@ async function configuracion() {
 
     <div class="grid gap-5 lg:grid-cols-3">
       <div class="lg:col-span-2 space-y-5">
-        <section class="bg-white border border-papel-linea rounded-2xl p-5">
+        <section class="bg-white border border-papel-linea rounded-2xl relieve p-5">
           <h2 class="text-sm font-bold mb-4">Identificación</h2>
           <div class="grid gap-4 sm:grid-cols-2">
             ${campo('Razón social', e.razonSocial, 'Tal como consta en el RUC. No es el nombre comercial.')}
@@ -3830,7 +3981,7 @@ async function configuracion() {
           </div>
         </section>
 
-        <section class="bg-white border border-papel-linea rounded-2xl p-5">
+        <section class="bg-white border border-papel-linea rounded-2xl relieve p-5">
           <h2 class="text-sm font-bold mb-1">Condición tributaria</h2>
           <p class="text-[11px] text-tinta-suave mb-2">
             Estos tres datos cambian lo que se imprime en cada factura y lo que viaja en el
@@ -3847,7 +3998,7 @@ async function configuracion() {
       </div>
 
       <div class="space-y-5">
-        <section class="bg-white border border-papel-linea rounded-2xl p-5">
+        <section class="bg-white border border-papel-linea rounded-2xl relieve p-5">
           <h2 class="text-sm font-bold mb-4">Ambiente</h2>
           <div class="p-4 rounded-xl bg-ambar-fondo border border-ambar-borde">
             <div class="flex items-center gap-2 text-ambar-texto">
@@ -3869,7 +4020,7 @@ async function configuracion() {
           </button>
         </section>
 
-        <section class="bg-white border border-papel-linea rounded-2xl p-5">
+        <section class="bg-white border border-papel-linea rounded-2xl relieve p-5">
           <h2 class="text-sm font-bold mb-4">Plan contratado</h2>
           <dl class="space-y-4">
             ${dato('Plan', e.plan)}
@@ -3907,7 +4058,7 @@ async function certificado() {
     }))}
 
     <div class="grid gap-5 lg:grid-cols-3">
-      <section class="lg:col-span-2 bg-white border border-papel-linea rounded-2xl p-5">
+      <section class="lg:col-span-2 bg-white border border-papel-linea rounded-2xl relieve p-5">
         <h2 class="text-sm font-bold mb-4">Certificado instalado</h2>
         <div class="flex items-center gap-4 p-4 rounded-xl bg-papel mb-5">
           <span class="w-12 h-12 rounded-xl bg-verde-claro text-verde flex items-center justify-center">
@@ -3930,7 +4081,7 @@ async function certificado() {
         </div>
       </section>
 
-      <section class="bg-white border-2 border-ambar-borde rounded-2xl p-5">
+      <section class="bg-white border-2 border-ambar-borde rounded-2xl relieve p-5">
         <div class="flex items-center gap-2 text-ambar-texto mb-3">
           ${icono('gavel', 'text-[20px]')}
           <h2 class="text-sm font-bold">Lo que significa entregarnos su firma</h2>
@@ -4010,7 +4161,7 @@ async function usuarios() {
              'que pida datos de configuración recibe una respuesta vacía, no un error.',
     }))}
 
-    <section class="bg-white border border-papel-linea rounded-2xl overflow-hidden">
+    <section class="bg-white border border-papel-linea rounded-2xl relieve overflow-hidden">
       ${crudo(tabla([
         { texto: 'Usuario' }, { texto: 'Rol' }, { texto: 'Puntos de emisión' },
         { texto: 'Último acceso' }, { texto: 'Estado', der: true },
@@ -4052,7 +4203,7 @@ async function puntosEmision() {
              'en que se pide.',
     }))}
 
-    <section class="bg-white border border-papel-linea rounded-2xl overflow-hidden">
+    <section class="bg-white border border-papel-linea rounded-2xl relieve overflow-hidden">
       ${crudo(tabla([
         { texto: 'Código' }, { texto: 'Nombre' }, { texto: 'Ubicación' },
         { texto: 'Último emitido', der: true }, { texto: 'Siguiente', der: true },
@@ -4147,7 +4298,7 @@ async function adminEmpresas() {
 
     <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4 mb-5">
       ${resumen.map((r) => html`
-        <div class="bg-white border border-papel-linea rounded-2xl p-5">
+        <div class="bg-white border border-papel-linea rounded-2xl relieve p-5">
           <div class="flex items-start justify-between">
             <p class="text-[11px] font-bold uppercase tracking-wide text-tinta-suave">${r.etiqueta}</p>
             <span class="w-9 h-9 rounded-xl bg-papel text-tinta-suave flex items-center justify-center">
@@ -4168,7 +4319,7 @@ async function adminEmpresas() {
              'dura dos horas y queda anotado.',
     }))}
 
-    <section class="bg-white border border-papel-linea rounded-2xl overflow-hidden">
+    <section class="bg-white border border-papel-linea rounded-2xl relieve overflow-hidden">
       ${crudo(tabla([
         { texto: 'Empresa' }, { texto: 'Plan' }, { texto: 'Alta' },
         { texto: 'Usuarios', der: true }, { texto: 'Comprobantes/mes', der: true },
@@ -4184,7 +4335,7 @@ async function adminEmpresas() {
 async function adminFicha(id) {
   const e = await cargar.empresaAdmin(id);
   if (!e) {
-    return html`<section class="bg-white border border-papel-linea rounded-2xl">
+    return html`<section class="bg-white border border-papel-linea rounded-2xl relieve">
       ${crudo(vacio({
         ico: 'search_off', titulo: 'No existe esa empresa',
         texto: `No hay ninguna empresa con el identificador ${id}.`,
@@ -4224,7 +4375,7 @@ async function adminFicha(id) {
     <div class="grid gap-5 lg:grid-cols-3">
       <div class="lg:col-span-2 space-y-5">
 
-        <section class="bg-white border border-papel-linea rounded-2xl p-5">
+        <section class="bg-white border border-papel-linea rounded-2xl relieve p-5">
           <h2 class="text-sm font-bold mb-4">Contrato y servicio</h2>
           <dl class="grid gap-5 sm:grid-cols-3">
             ${dato('Plan', e.plan)}
@@ -4262,7 +4413,7 @@ async function adminFicha(id) {
       </div>
 
       <div class="space-y-5">
-        <section class="bg-white border border-papel-linea rounded-2xl p-5">
+        <section class="bg-white border border-papel-linea rounded-2xl relieve p-5">
           <div class="flex items-center gap-2 mb-3">
             ${icono('support_agent', 'text-[20px] text-verde')}
             <h2 class="text-sm font-bold">Acceso de soporte</h2>
@@ -4286,7 +4437,7 @@ async function adminFicha(id) {
           </button>
         </section>
 
-        <section class="bg-white border border-papel-linea rounded-2xl p-5">
+        <section class="bg-white border border-papel-linea rounded-2xl relieve p-5">
           <h2 class="text-sm font-bold mb-4">Contacto</h2>
           <dl class="space-y-4">
             ${dato('Representante', 'Dato del contrato')}
@@ -4343,7 +4494,7 @@ async function adminAlta() {
     </ol>
 
     <div class="grid gap-5 lg:grid-cols-3">
-      <section class="lg:col-span-2 bg-white border border-papel-linea rounded-2xl p-5">
+      <section class="lg:col-span-2 bg-white border border-papel-linea rounded-2xl relieve p-5">
         <h2 class="text-sm font-bold mb-4">Paso 1 · Datos de la empresa</h2>
         <div class="grid gap-4 sm:grid-cols-2">
           ${campo('RUC', '0912345678001', 'Trece dígitos. Es lo que identifica a la empresa ante el SRI.')}
@@ -4360,7 +4511,7 @@ async function adminAlta() {
         </div>
       </section>
 
-      <section class="bg-white border border-papel-linea rounded-2xl p-5">
+      <section class="bg-white border border-papel-linea rounded-2xl relieve p-5">
         <div class="flex items-center gap-2 mb-3">
           ${icono('gavel', 'text-[20px] text-verde')}
           <h2 class="text-sm font-bold">Antes de dar de alta</h2>
@@ -4425,7 +4576,7 @@ async function adminAuditoria() {
              'nada, y el sentido de esta pantalla es precisamente poder demostrar lo que pasó.',
     }))}
 
-    <section class="bg-white border border-papel-linea rounded-2xl overflow-hidden">
+    <section class="bg-white border border-papel-linea rounded-2xl relieve overflow-hidden">
       ${crudo(tabla([
         { texto: 'Cuándo' }, { texto: 'Acción' }, { texto: 'Quién' },
         { texto: 'Empresa' }, { texto: 'Detalle' },
@@ -4525,7 +4676,7 @@ async function planDeCuentas() {
              'rechace. Cada empresa puede abrir subcuentas de detalle debajo, nunca por encima.',
     }))}
 
-    <section class="bg-white border border-papel-linea rounded-2xl overflow-hidden">
+    <section class="bg-white border border-papel-linea rounded-2xl relieve overflow-hidden">
       ${crudo(tabla([
         { texto: 'Código' }, { texto: 'Cuenta' },
         { texto: 'Tipo', der: true }, { texto: 'Naturaleza', der: true },
@@ -4542,7 +4693,7 @@ async function libroDiario() {
   const generados = DIARIO.filter((a) => a.generado).length;
 
   const asientos = DIARIO.map((a) => html`
-    <article class="bg-white border border-papel-linea rounded-2xl overflow-hidden">
+    <article class="bg-white border border-papel-linea rounded-2xl relieve overflow-hidden">
       <header class="flex flex-wrap items-center gap-3 px-5 py-3.5 border-b border-papel-linea bg-papel/40">
         <span class="text-sm font-extrabold tabular">#${a.numero}</span>
         ${chipTipo(a.tipo)}
@@ -4597,7 +4748,7 @@ async function libroDiario() {
       ${[['Asientos del mes', String(DIARIO.length), 'receipt_long'],
          ['Movido en el mes', usd(totalDebe), 'swap_horiz'],
          ['Generados por el sistema', `${generados} de ${DIARIO.length}`, 'bolt']].map(([t, v, i]) => html`
-        <div class="bg-white border border-papel-linea rounded-2xl p-5">
+        <div class="bg-white border border-papel-linea rounded-2xl relieve p-5">
           <div class="flex items-start justify-between">
             <p class="text-[11px] font-bold uppercase tracking-wide text-tinta-suave">${t}</p>
             <span class="w-9 h-9 rounded-xl bg-verde-claro text-verde flex items-center justify-center">
@@ -4620,7 +4771,7 @@ async function libroMayor(codigo) {
   const elegida = codigo && conMovimiento.some((c) => c.codigo === codigo)
     ? codigo : conMovimiento[0]?.codigo;
   if (!elegida) {
-    return html`<section class="bg-white border border-papel-linea rounded-2xl">
+    return html`<section class="bg-white border border-papel-linea rounded-2xl relieve">
       ${crudo(vacio({ ico: 'menu_book', titulo: 'Todavía no hay movimientos',
         texto: 'El libro mayor se llena solo conforme se registran asientos.' }))}</section>`;
   }
@@ -4648,7 +4799,7 @@ async function libroMayor(codigo) {
     }))}
 
     <div class="grid gap-5 lg:grid-cols-4">
-      <nav class="lg:col-span-1 bg-white border border-papel-linea rounded-2xl overflow-hidden h-fit">
+      <nav class="lg:col-span-1 bg-white border border-papel-linea rounded-2xl relieve overflow-hidden h-fit">
         <p class="px-4 py-3 text-[11px] font-bold uppercase tracking-wide text-tinta-suave border-b border-papel-linea">
           Cuentas con movimiento
         </p>
@@ -4667,7 +4818,7 @@ async function libroMayor(codigo) {
         </ul>
       </nav>
 
-      <section class="lg:col-span-3 bg-white border border-papel-linea rounded-2xl overflow-hidden">
+      <section class="lg:col-span-3 bg-white border border-papel-linea rounded-2xl relieve overflow-hidden">
         <header class="px-5 py-4 border-b border-papel-linea flex flex-wrap items-center justify-between gap-3">
           <div class="min-w-0">
             <p class="text-xs font-bold tabular text-tinta-suave">${elegida}</p>
@@ -4746,7 +4897,7 @@ async function balanceComprobacion() {
          ['Sumas del haber', usd(totalHaber / 100), 'north_east', 'verde'],
          ['Diferencia', usd(Math.abs(totalDebe - totalHaber) / 100), cuadra ? 'check' : 'priority_high',
           cuadra ? 'verde' : 'rojo']].map(([t, v, i, tono]) => html`
-        <div class="bg-white border rounded-2xl p-5 ${crudo(
+        <div class="bg-white border rounded-2xl relieve p-5 ${crudo(
           tono === 'rojo' ? 'border-rojo-borde' : 'border-papel-linea')}">
           <div class="flex items-start justify-between">
             <p class="text-[11px] font-bold uppercase tracking-wide text-tinta-suave">${t}</p>
@@ -4759,7 +4910,7 @@ async function balanceComprobacion() {
         </div>`)}
     </div>
 
-    <section class="bg-white border border-papel-linea rounded-2xl overflow-hidden">
+    <section class="bg-white border border-papel-linea rounded-2xl relieve overflow-hidden">
       <div class="overflow-x-auto">
         <table class="w-full text-sm min-w-[680px]">
           <thead>
@@ -4792,7 +4943,7 @@ async function balanceComprobacion() {
       </div>
     </section>
 
-    <section class="mt-5 bg-white border border-papel-linea rounded-2xl p-5">
+    <section class="mt-5 bg-white border border-papel-linea rounded-2xl relieve p-5">
       <h2 class="text-sm font-bold mb-1">Las diez cuentas con más movimiento</h2>
       <p class="text-xs text-tinta-suave mb-5">Suma del debe y del haber del mes.</p>
       ${barras(filas
@@ -4915,7 +5066,7 @@ async function estadoResultados() {
          [resultado >= 0 ? 'Ganancia del mes' : 'Pérdida del mes', usd(Math.abs(resultado)),
           resultado >= 0 ? 'savings' : 'trending_down', resultado >= 0 ? 'verde' : 'rojo']]
         .map(([t, v, i, tono]) => html`
-        <div class="bg-white border border-papel-linea rounded-2xl p-5">
+        <div class="bg-white border border-papel-linea rounded-2xl relieve p-5">
           <div class="flex items-start justify-between">
             <p class="text-[11px] font-bold uppercase tracking-wide text-tinta-suave">${t}</p>
             <span class="w-9 h-9 rounded-xl flex items-center justify-center ${crudo({
@@ -4929,7 +5080,7 @@ async function estadoResultados() {
     </div>
 
     <div class="grid gap-5 lg:grid-cols-5">
-      <section class="lg:col-span-3 bg-white border border-papel-linea rounded-2xl p-5 sm:p-6">
+      <section class="lg:col-span-3 bg-white border border-papel-linea rounded-2xl relieve p-5 sm:p-6">
         <h2 class="text-sm font-bold mb-1">Del ingreso al resultado</h2>
         <p class="text-xs text-tinta-suave mb-4">Cada línea sale de las cuentas de los libros.</p>
 
@@ -4963,7 +5114,7 @@ async function estadoResultados() {
       </section>
 
       <div class="lg:col-span-2 space-y-5">
-        <section class="bg-white border border-papel-linea rounded-2xl p-5">
+        <section class="bg-white border border-papel-linea rounded-2xl relieve p-5">
           <h2 class="text-sm font-bold mb-1">En qué se va el dinero</h2>
           <p class="text-xs text-tinta-suave mb-4">Reparto de los gastos del mes.</p>
           <div class="flex justify-center mb-2">
@@ -4974,7 +5125,7 @@ async function estadoResultados() {
           </div>
         </section>
 
-        <section class="bg-white border border-papel-linea rounded-2xl p-5">
+        <section class="bg-white border border-papel-linea rounded-2xl relieve p-5">
           <h2 class="text-sm font-bold mb-3">Cómo se reparte cada dólar vendido</h2>
           ${barraCompuesta([
             { etiqueta: 'Costo', valor: costo, tono: '#7C93A6' },
@@ -5015,7 +5166,7 @@ async function balanceGeneral() {
   const cuadra = Math.abs(diferencia) < 0.005;
 
   const bloque = (titulo, grupo, filas, total) => html`
-    <section class="bg-white border border-papel-linea rounded-2xl p-5 sm:p-6">
+    <section class="bg-white border border-papel-linea rounded-2xl relieve p-5 sm:p-6">
       <div class="flex items-baseline justify-between mb-3">
         <h2 class="text-sm font-extrabold uppercase tracking-wide">${titulo}</h2>
         <span class="text-base font-extrabold tabular">${dinero(total)}</span>
@@ -5061,7 +5212,7 @@ async function balanceGeneral() {
       ${[['Activo', activo, 'account_balance_wallet', 'Lo que tiene'],
          ['Pasivo', pasivo, 'credit_card', 'Lo que debe'],
          ['Patrimonio', patrimonio, 'savings', 'Lo que es suyo']].map(([t, v, i, pie]) => html`
-        <div class="bg-white border border-papel-linea rounded-2xl p-5">
+        <div class="bg-white border border-papel-linea rounded-2xl relieve p-5">
           <div class="flex items-start justify-between">
             <p class="text-[11px] font-bold uppercase tracking-wide text-tinta-suave">${t}</p>
             <span class="w-9 h-9 rounded-xl bg-verde-claro text-verde flex items-center justify-center">
@@ -5084,7 +5235,7 @@ async function balanceGeneral() {
           { codigo: '3603', nombre: 'Resultado del ejercicio (aún sin trasladar)', neto: -resultado },
         ], patrimonio)}
 
-        <section class="bg-white border border-papel-linea rounded-2xl p-5">
+        <section class="bg-white border border-papel-linea rounded-2xl relieve p-5">
           <h2 class="text-sm font-bold mb-1">Con qué se financia lo que tiene</h2>
           <p class="text-xs text-tinta-suave mb-4">
             Cuánto del activo lo pusieron terceros y cuánto los socios.
@@ -5119,7 +5270,7 @@ const __src_vistas_documentos_js = (function () {
 
 
 const tarjetaCifra = (etiqueta, valor, ico, pie = '') => html`
-  <div class="bg-white border border-papel-linea rounded-2xl p-5">
+  <div class="bg-white border border-papel-linea rounded-2xl relieve p-5">
     <div class="flex items-start justify-between">
       <p class="text-[11px] font-bold uppercase tracking-wide text-tinta-suave">${etiqueta}</p>
       <span class="w-9 h-9 rounded-xl bg-verde-claro text-verde flex items-center justify-center">
@@ -5188,7 +5339,7 @@ async function retenciones() {
         'Dentro de los 5 días hábiles que exige la ley')}
     </div>
 
-    <section class="bg-white border border-papel-linea rounded-2xl overflow-hidden">
+    <section class="bg-white border border-papel-linea rounded-2xl relieve overflow-hidden">
       ${crudo(tabla([
         { texto: 'Número' }, { texto: 'Proveedor' }, { texto: 'Fecha' },
         { texto: 'Renta', der: true }, { texto: 'IVA', der: true },
@@ -5243,7 +5394,7 @@ async function notasCredito() {
         'Una proporción alta merece revisarse')}
     </div>
 
-    <section class="bg-white border border-papel-linea rounded-2xl overflow-hidden">
+    <section class="bg-white border border-papel-linea rounded-2xl relieve overflow-hidden">
       ${crudo(tabla([
         { texto: 'Número' }, { texto: 'Cliente' }, { texto: 'Modifica a' },
         { texto: 'Motivo' }, { texto: 'Valor', der: true }, { texto: 'Estado', der: true },
@@ -5293,7 +5444,7 @@ async function guiasRemision() {
              'problema es del transportista en la carretera.',
     }))}
 
-    <section class="bg-white border border-papel-linea rounded-2xl overflow-hidden">
+    <section class="bg-white border border-papel-linea rounded-2xl relieve overflow-hidden">
       ${GUIAS_REMISION.length ? crudo(tabla([
         { texto: 'Número' }, { texto: 'Destinatario' }, { texto: 'Ruta' },
         { texto: 'Transportista' }, { texto: 'Viaje' }, { texto: 'Estado', der: true },
@@ -5410,7 +5561,7 @@ function pantallaCartera({ lista, campo, titulo, descripcion, etiquetaContrapart
 
     <div class="grid gap-5 lg:grid-cols-3 mb-5">
       <div class="lg:col-span-2 grid gap-4 sm:grid-cols-2">
-        <div class="bg-white border border-papel-linea rounded-2xl p-5">
+        <div class="bg-white border border-papel-linea rounded-2xl relieve p-5">
           <div class="flex items-start justify-between">
             <p class="text-[11px] font-bold uppercase tracking-wide text-tinta-suave">
               ${cobrar ? 'Total por cobrar' : 'Total por pagar'}
@@ -5422,7 +5573,7 @@ function pantallaCartera({ lista, campo, titulo, descripcion, etiquetaContrapart
           <p class="mt-3 text-[30px] font-extrabold tracking-tight tabular">${usd(total)}</p>
           <p class="mt-1 text-xs text-tinta-suave">${filas.length} documentos</p>
         </div>
-        <div class="bg-white border border-papel-linea rounded-2xl p-5">
+        <div class="bg-white border border-papel-linea rounded-2xl relieve p-5">
           <div class="flex items-start justify-between">
             <p class="text-[11px] font-bold uppercase tracking-wide text-tinta-suave">Vencido</p>
             <span class="w-9 h-9 rounded-xl bg-ambar-fondo text-ambar-texto flex items-center justify-center">
@@ -5435,7 +5586,7 @@ function pantallaCartera({ lista, campo, titulo, descripcion, etiquetaContrapart
           </p>
         </div>
 
-        <div class="sm:col-span-2 bg-white border border-papel-linea rounded-2xl p-5">
+        <div class="sm:col-span-2 bg-white border border-papel-linea rounded-2xl relieve p-5">
           <h2 class="text-sm font-bold mb-1">Antigüedad del saldo</h2>
           <p class="text-xs text-tinta-suave mb-4">Cuánto lleva esperando cada dólar.</p>
           ${barraCompuesta(porTramo, { alto: 14 })}
@@ -5443,7 +5594,7 @@ function pantallaCartera({ lista, campo, titulo, descripcion, etiquetaContrapart
         </div>
       </div>
 
-      <section class="bg-white border border-papel-linea rounded-2xl p-5">
+      <section class="bg-white border border-papel-linea rounded-2xl relieve p-5">
         <h2 class="text-sm font-bold mb-1">Concentración</h2>
         <p class="text-xs text-tinta-suave mb-4">
           ${cobrar ? 'Depender de un solo cliente es un riesgo.' : 'Reparto por proveedor.'}
@@ -5455,7 +5606,7 @@ function pantallaCartera({ lista, campo, titulo, descripcion, etiquetaContrapart
       </section>
     </div>
 
-    <section class="bg-white border border-papel-linea rounded-2xl overflow-hidden">
+    <section class="bg-white border border-papel-linea rounded-2xl relieve overflow-hidden">
       ${crudo(tabla([
         { texto: etiquetaContraparte }, { texto: 'Vence' }, { texto: 'Antigüedad' },
         { texto: 'Monto', der: true }, { texto: 'Abonado', der: true }, { texto: 'Saldo', der: true },
@@ -5506,7 +5657,7 @@ async function bancos() {
       ${[['Saldo en libros', usd(libros), 'menu_book'],
          ['Saldo en el banco', usd(banco), 'account_balance'],
          ['Diferencia por conciliar', usd(Math.abs(diferencia)), 'compare_arrows']].map(([t, v, i]) => html`
-        <div class="bg-white border border-papel-linea rounded-2xl p-5">
+        <div class="bg-white border border-papel-linea rounded-2xl relieve p-5">
           <div class="flex items-start justify-between">
             <p class="text-[11px] font-bold uppercase tracking-wide text-tinta-suave">${t}</p>
             <span class="w-9 h-9 rounded-xl bg-verde-claro text-verde flex items-center justify-center">
@@ -5519,7 +5670,7 @@ async function bancos() {
 
     <div class="space-y-5">
       ${BANCOS.map((b) => html`
-        <section class="bg-white border border-papel-linea rounded-2xl overflow-hidden">
+        <section class="bg-white border border-papel-linea rounded-2xl relieve overflow-hidden">
           <header class="flex flex-wrap items-center gap-4 px-5 py-4 border-b border-papel-linea">
             <span class="w-11 h-11 rounded-xl bg-verde-claro text-verde flex items-center justify-center">
               ${icono('account_balance', 'text-[22px]')}
@@ -5577,7 +5728,7 @@ const __src_vistas_operaciones_js = (function () {
 
 
 const cifra = (etiqueta, valor, ico, pie = '', tono = 'verde') => html`
-  <div class="bg-white border border-papel-linea rounded-2xl p-5">
+  <div class="bg-white border border-papel-linea rounded-2xl relieve p-5">
     <div class="flex items-start justify-between">
       <p class="text-[11px] font-bold uppercase tracking-wide text-tinta-suave">${etiqueta}</p>
       <span class="w-9 h-9 rounded-xl flex items-center justify-center ${crudo({
@@ -5644,13 +5795,13 @@ async function inventario() {
     </div>
 
     <div class="grid gap-5 lg:grid-cols-3 mb-5">
-      <section class="lg:col-span-2 bg-white border border-papel-linea rounded-2xl p-5">
+      <section class="lg:col-span-2 bg-white border border-papel-linea rounded-2xl relieve p-5">
         <h2 class="text-sm font-bold mb-1">Dónde está el dinero de la bodega</h2>
         <p class="text-xs text-tinta-suave mb-5">Valor al costo de cada producto.</p>
         ${barras(filas.map((f) => ({ etiqueta: f.codigo.split('-')[0], valor: f.valor })),
                  { alto: 180, titulo: 'Valor por producto' })}
       </section>
-      <section class="bg-white border border-papel-linea rounded-2xl p-5">
+      <section class="bg-white border border-papel-linea rounded-2xl relieve p-5">
         <h2 class="text-sm font-bold mb-4">Reparto del valor</h2>
         <div class="flex justify-center mb-2">
           ${dona(filas.map((f) => ({ etiqueta: f.descripcion, valor: f.valor })),
@@ -5662,7 +5813,7 @@ async function inventario() {
       </section>
     </div>
 
-    <section class="bg-white border border-papel-linea rounded-2xl overflow-hidden">
+    <section class="bg-white border border-papel-linea rounded-2xl relieve overflow-hidden">
       ${crudo(tabla([
         { texto: 'Código' }, { texto: 'Producto' }, { texto: 'Existencia', der: true },
         { texto: 'Mínimo', der: true }, { texto: 'Costo', der: true }, { texto: 'Precio', der: true },
@@ -5738,13 +5889,13 @@ async function nomina() {
     </div>
 
     <div class="grid gap-5 lg:grid-cols-3 mb-5">
-      <section class="lg:col-span-2 bg-white border border-papel-linea rounded-2xl p-5">
+      <section class="lg:col-span-2 bg-white border border-papel-linea rounded-2xl relieve p-5">
         <h2 class="text-sm font-bold mb-1">Costo por persona</h2>
         <p class="text-xs text-tinta-suave mb-5">Sueldo más aporte patronal.</p>
         ${barras(filas.map((f) => ({ etiqueta: f.nombre.split(' ')[0], valor: f.costoEmpresa })),
                  { alto: 180, titulo: 'Costo por empleado' })}
       </section>
-      <section class="bg-white border border-papel-linea rounded-2xl p-5">
+      <section class="bg-white border border-papel-linea rounded-2xl relieve p-5">
         <h2 class="text-sm font-bold mb-3">A dónde va cada dólar de nómina</h2>
         ${barraCompuesta([
           { etiqueta: 'Líquido al empleado', valor: suma('liquido'), tono: VERDE },
@@ -5759,7 +5910,7 @@ async function nomina() {
       </section>
     </div>
 
-    <section class="bg-white border border-papel-linea rounded-2xl overflow-hidden">
+    <section class="bg-white border border-papel-linea rounded-2xl relieve overflow-hidden">
       ${crudo(tabla([
         { texto: 'Empleado' }, { texto: 'Cargo' }, { texto: 'Ingreso' },
         { texto: 'Sueldo', der: true }, { texto: 'Aporte 9,45%', der: true },
@@ -5832,13 +5983,13 @@ async function activosFijos() {
     </div>
 
     <div class="grid gap-5 lg:grid-cols-3 mb-5">
-      <section class="lg:col-span-2 bg-white border border-papel-linea rounded-2xl p-5">
+      <section class="lg:col-span-2 bg-white border border-papel-linea rounded-2xl relieve p-5">
         <h2 class="text-sm font-bold mb-1">Costo frente a valor en libros</h2>
         <p class="text-xs text-tinta-suave mb-5">Lo que costó y lo que queda sin depreciar.</p>
         ${barras(filas.map((f) => ({ etiqueta: f.codigo, valor: f.neto })),
                  { alto: 180, titulo: 'Valor en libros por activo' })}
       </section>
-      <section class="bg-white border border-papel-linea rounded-2xl p-5">
+      <section class="bg-white border border-papel-linea rounded-2xl relieve p-5">
         <h2 class="text-sm font-bold mb-3">Cuánto se ha consumido</h2>
         ${barraCompuesta([
           { etiqueta: 'Depreciado', valor: depreciado, tono: '#7C93A6' },
@@ -5853,7 +6004,7 @@ async function activosFijos() {
       </section>
     </div>
 
-    <section class="bg-white border border-papel-linea rounded-2xl overflow-hidden">
+    <section class="bg-white border border-papel-linea rounded-2xl relieve overflow-hidden">
       ${crudo(tabla([
         { texto: 'Código' }, { texto: 'Activo' }, { texto: 'Compra' },
         { texto: 'Costo', der: true }, { texto: 'Depreciado', der: true },
@@ -5910,7 +6061,7 @@ async function declaracionIva() {
     }))}
 
     <div class="grid gap-5 lg:grid-cols-3">
-      <section class="lg:col-span-2 bg-white border border-papel-linea rounded-2xl overflow-hidden">
+      <section class="lg:col-span-2 bg-white border border-papel-linea rounded-2xl relieve overflow-hidden">
         <header class="px-5 py-4 border-b border-papel-linea">
           <h2 class="text-sm font-bold">Casillas del formulario</h2>
           <p class="text-[11px] text-tinta-suave mt-0.5">
@@ -5939,7 +6090,7 @@ async function declaracionIva() {
       </section>
 
       <div class="space-y-5">
-        <section class="bg-white border border-papel-linea rounded-2xl p-5">
+        <section class="bg-white border border-papel-linea rounded-2xl relieve p-5">
           <h2 class="text-sm font-bold mb-1">Cómo sale lo que hay que pagar</h2>
           <p class="text-xs text-tinta-suave mb-4">
             El IVA que cobró menos el que pagó en sus compras.
@@ -5972,7 +6123,7 @@ async function declaracionIva() {
           </div>
         </section>
 
-        <section class="bg-white border-2 border-ambar-borde rounded-2xl p-5">
+        <section class="bg-white border-2 border-ambar-borde rounded-2xl relieve p-5">
           <div class="flex items-center gap-2 text-ambar-texto mb-3">
             ${icono('science', 'text-[20px]')}
             <h2 class="text-sm font-bold">Todavía no se envía</h2>
@@ -6022,7 +6173,7 @@ async function anexoTransaccional() {
 
     <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4 mb-5">
       ${bloques.map((b) => html`
-        <div class="bg-white border border-papel-linea rounded-2xl p-5">
+        <div class="bg-white border border-papel-linea rounded-2xl relieve p-5">
           <div class="flex items-start justify-between">
             <p class="text-[11px] font-bold uppercase tracking-wide text-tinta-suave">${b.nombre}</p>
             <span class="w-9 h-9 rounded-xl bg-verde-claro text-verde flex items-center justify-center">
@@ -6034,7 +6185,7 @@ async function anexoTransaccional() {
         </div>`)}
     </div>
 
-    <section class="bg-white border border-papel-linea rounded-2xl p-5 sm:p-6">
+    <section class="bg-white border border-papel-linea rounded-2xl relieve p-5 sm:p-6">
       <h2 class="text-sm font-bold mb-1">Qué se va a generar</h2>
       <p class="text-xs text-tinta-suave mb-5">
         ${total} registros en un solo archivo XML, con la estructura de la ficha técnica del SRI.
@@ -6082,7 +6233,7 @@ const __src_vistas_plataforma_js = (function () {
 
 
 const cifra = (etiqueta, valor, ico, pie = '', tono = 'verde') => html`
-  <div class="bg-white border border-papel-linea rounded-2xl p-5">
+  <div class="bg-white border border-papel-linea rounded-2xl relieve p-5">
     <div class="flex items-start justify-between">
       <p class="text-[11px] font-bold uppercase tracking-wide text-tinta-suave">${etiqueta}</p>
       <span class="w-9 h-9 rounded-xl flex items-center justify-center ${crudo({
@@ -6158,7 +6309,7 @@ async function suscripciones() {
         'Aún no generan ingreso', 'ambar')}
     </div>
 
-    <section class="bg-white border border-papel-linea rounded-2xl overflow-hidden">
+    <section class="bg-white border border-papel-linea rounded-2xl relieve overflow-hidden">
       ${crudo(tabla([
         { texto: 'Empresa' }, { texto: 'Plan' }, { texto: 'Ciclo' },
         { texto: 'Próximo cobro' }, { texto: 'Valor', der: true }, { texto: 'Estado', der: true },
@@ -6199,13 +6350,13 @@ async function usoPlataforma() {
     </div>
 
     <div class="grid gap-5 lg:grid-cols-2">
-      <section class="bg-white border border-papel-linea rounded-2xl p-5">
+      <section class="bg-white border border-papel-linea rounded-2xl relieve p-5">
         <h2 class="text-sm font-bold mb-1">Comprobantes por mes</h2>
         <p class="text-xs text-tinta-suave mb-5">Suma de todas las empresas.</p>
         ${barras(USO_MENSUAL.map((m) => ({ etiqueta: m.mes, valor: m.comprobantes })),
                  { alto: 200, moneda: false, titulo: 'Comprobantes por mes' })}
       </section>
-      <section class="bg-white border border-papel-linea rounded-2xl p-5">
+      <section class="bg-white border border-papel-linea rounded-2xl relieve p-5">
         <h2 class="text-sm font-bold mb-1">Tendencia</h2>
         <p class="text-xs text-tinta-suave mb-5">La misma cifra, vista como curva.</p>
         ${linea(USO_MENSUAL.map((m) => ({ etiqueta: m.mes, valor: m.comprobantes })),
@@ -6246,7 +6397,7 @@ async function soporte() {
 
     <div class="space-y-4">
       ${SOPORTE.map((s) => html`
-        <article class="bg-white border rounded-2xl p-5 ${crudo(
+        <article class="bg-white border rounded-2xl relieve p-5 ${crudo(
           s.estado === 'ACCESO ABIERTO' ? 'border-ambar-borde' : 'border-papel-linea')}">
           <div class="flex flex-wrap items-start justify-between gap-3">
             <div class="min-w-0">
@@ -6293,7 +6444,7 @@ async function consultaLegal() {
     <div class="grid gap-5 lg:grid-cols-3">
       <div class="lg:col-span-2 space-y-4">
         ${CONSULTAS.map((c) => html`
-          <article class="bg-white border border-papel-linea rounded-2xl p-5">
+          <article class="bg-white border border-papel-linea rounded-2xl relieve p-5">
             <div class="flex flex-wrap items-start justify-between gap-3">
               <p class="text-sm font-bold flex-1 min-w-0">${c.asunto}</p>
               <span class="text-[11px] font-bold px-2.5 py-1 rounded-full whitespace-nowrap ${crudo(
