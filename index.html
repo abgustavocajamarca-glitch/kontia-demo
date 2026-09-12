@@ -36,6 +36,37 @@
         white-space: nowrap; direction: ltr; -webkit-font-feature-settings: 'liga';
         -webkit-font-smoothing: antialiased; font-variation-settings: 'opsz' 24; }
   .tabular { font-variant-numeric: tabular-nums; }
+  /* ---------------------------------------------------------------------
+     El menu en el telefono.
+     En pantalla ancha la barra lateral es una columna mas y esto no se aplica.
+     Por debajo de 1024px se convierte en un cajon que entra desde la izquierda
+     con un velo detras. Se hace con CSS y una clase, y no dibujando un menu
+     distinto, para que los enlaces sean LOS MISMOS: dos menus separados
+     acaban diciendo cosas distintas en cuanto uno cambia.
+     --------------------------------------------------------------------- */
+  .velo { display: none; }
+
+  @media (max-width: 1023px) {
+    .lateral {
+      position: fixed; top: 0; bottom: 0; left: 0; z-index: 40; width: 282px;
+      transform: translateX(-100%); transition: transform .22s ease;
+      box-shadow: 0 0 40px rgba(0, 0, 0, .22);
+    }
+    .menu-abierto .lateral { transform: translateX(0); }
+
+    .velo {
+      display: block; position: fixed; inset: 0; z-index: 30;
+      background: rgba(12, 26, 19, .5);
+      opacity: 0; pointer-events: none; transition: opacity .22s ease;
+    }
+    .menu-abierto .velo { opacity: 1; pointer-events: auto; }
+  }
+
+  /* A quien le molesta el movimiento, no se le mueve nada. */
+  @media (prefers-reduced-motion: reduce) {
+    .lateral, .velo { transition: none; }
+  }
+
   ::-webkit-scrollbar { width: 10px; height: 10px; }
   ::-webkit-scrollbar-thumb { background: #CFD8D2; border-radius: 6px; border: 3px solid transparent;
                               background-clip: padding-box; }
@@ -1274,12 +1305,18 @@ function marco(contenido, { ruta = '', admin = false } = {}) {
     </div>`;
 
   return html`
-    <div class="flex min-h-screen">
-      <aside class="hidden lg:flex w-[268px] shrink-0 flex-col ${crudo(tema.aside)}">
+    <div id="marco" class="flex min-h-screen">
+      <div class="velo" data-cerrar-menu aria-hidden="true"></div>
+      <aside class="lateral flex w-[268px] shrink-0 flex-col ${crudo(tema.aside)}">
         <div class="p-5 flex items-center gap-3">
           <div class="w-10 h-10 rounded-xl flex items-center justify-center ${crudo(tema.marca)}">
             ${crudo(LOGO)}
           </div>
+          <button data-cerrar-menu aria-label="Cerrar el menú"
+                  class="lg:hidden order-last ml-auto w-9 h-9 rounded-lg flex items-center justify-center
+                         ${crudo(admin ? 'text-white/60 hover:bg-white/10' : 'text-tinta-suave hover:bg-papel')}">
+            ${icono('close', 'text-[20px]')}
+          </button>
           <div class="min-w-0">
             <p class="text-lg font-extrabold tracking-tight ${crudo(admin ? 'text-white' : 'text-tinta')}">Kontia</p>
             <p class="text-[10px] font-bold uppercase tracking-widest ${crudo(admin ? 'text-white/40' : 'text-tinta-suave/70')}">
@@ -1295,9 +1332,11 @@ function marco(contenido, { ruta = '', admin = false } = {}) {
         <header class="sticky top-0 z-20 bg-papel/85 backdrop-blur border-b border-papel-linea">
           <div class="px-5 sm:px-8 h-16 flex items-center justify-between gap-4">
             <div class="flex items-center gap-3 min-w-0">
-              <a href="#/menu" class="lg:hidden w-9 h-9 rounded-lg border border-papel-linea bg-white flex items-center justify-center">
-                ${icono('menu', 'text-[20px]')}
-              </a>
+              <button id="boton-menu" aria-label="Abrir el menú" aria-expanded="false"
+                      class="lg:hidden shrink-0 w-10 h-10 rounded-lg border border-papel-linea bg-white
+                             flex items-center justify-center text-tinta">
+                ${icono('menu', 'text-[22px]')}
+              </button>
               <div class="min-w-0">
                 <p class="text-sm font-bold truncate">${admin ? 'Plataforma Kontia' : u.empresa}</p>
                 <p class="text-[11px] text-tinta-suave truncate">
@@ -1335,7 +1374,52 @@ function marco(contenido, { ruta = '', admin = false } = {}) {
 const suelta = (contenido) => html`<div class="min-h-screen">${crudo(contenido)}</div>`;
 
 
-  return { MENU_EMPRESA, MENU_ADMIN, marco, suelta };
+// ===========================================================================
+//  Abrir y cerrar el menú en el teléfono
+// ===========================================================================
+
+/**
+ * El cajón se abre y se cierra poniendo y quitando una clase.
+ *
+ * No hace falta recordar si está abierto entre pantallas: al navegar, el marco
+ * se vuelve a dibujar entero y nace cerrado. Que es justo lo que se espera —
+ * se toca una opción del menú, el menú desaparece y queda la pantalla.
+ */
+let enchufado = false;
+
+function conectarMenu() {
+  if (enchufado) return;
+  enchufado = true;
+
+  const marco = () => document.getElementById('marco');
+
+  const abrir = (si) => {
+    const m = marco();
+    if (!m) return;
+    m.classList.toggle('menu-abierto', si);
+    document.getElementById('boton-menu')?.setAttribute('aria-expanded', String(si));
+    // Sin esto, el fondo sigue desplazándose por debajo del cajón abierto.
+    document.body.style.overflow = si ? 'hidden' : '';
+  };
+
+  document.addEventListener('click', (ev) => {
+    if (ev.target.closest('#boton-menu')) {
+      abrir(!marco()?.classList.contains('menu-abierto'));
+      return;
+    }
+    if (ev.target.closest('[data-cerrar-menu]')) { abrir(false); return; }
+    // Tocar una opción del menú lo cierra aunque lleve a la pantalla en la que
+    // ya se está, que es cuando no hay redibujado que lo cierre solo.
+    if (ev.target.closest('.lateral a')) abrir(false);
+  });
+
+  document.addEventListener('keydown', (ev) => {
+    if (ev.key === 'Escape') abrir(false);
+  });
+}
+
+
+  return { MENU_EMPRESA, MENU_ADMIN, marco, suelta, conectarMenu };
 })();
 
 // ---- src/vistas/pendiente.js -------------------------------------
@@ -1416,7 +1500,15 @@ async function entrar() {
   return html`
   <main class="min-h-screen flex flex-col lg:flex-row">
 
-    <section class="relative lg:w-1/2 bg-verde text-white flex flex-col justify-between p-8 sm:p-12 lg:p-16 overflow-hidden">
+    <!--
+      En pantalla ancha esta columna ocupa media pantalla y puede permitirse el
+      cartel entero. En el telefono no: cada linea que se anade aqui es una
+      linea mas que hay que bajar antes de encontrar por donde entrar. Asi que
+      en pequenio se queda en lo imprescindible —quien es y que hace— y el
+      resto aparece a partir de tableta.
+    -->
+    <section class="relative lg:w-1/2 bg-verde text-white flex flex-col justify-between
+                    px-6 py-7 sm:p-12 lg:p-16 overflow-hidden">
       <div class="pointer-events-none absolute -top-48 -left-48 w-96 h-96 rounded-full bg-white/5 blur-3xl"></div>
       <div class="pointer-events-none absolute -bottom-32 -right-32 w-80 h-80 rounded-full bg-emerald-400/10 blur-3xl"></div>
 
@@ -1430,18 +1522,18 @@ async function entrar() {
         </span>
       </header>
 
-      <div class="relative z-10 my-12 lg:my-auto max-w-lg">
-        <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 border border-white/10 text-emerald-100 text-xs font-medium mb-6">
+      <div class="relative z-10 mt-6 sm:my-12 lg:my-auto max-w-lg">
+        <div class="hidden sm:inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 border border-white/10 text-emerald-100 text-xs font-medium mb-6">
           <span class="w-2 h-2 rounded-full bg-emerald-300"></span>
           Facturación electrónica · ficha técnica 2.34
         </div>
-        <h1 class="text-3xl sm:text-4xl lg:text-[42px] font-semibold leading-[1.15] tracking-tight">
+        <h1 class="text-[26px] sm:text-4xl lg:text-[42px] font-semibold leading-[1.15] tracking-tight">
           Tu facturación electrónica, en orden
         </h1>
-        <p class="mt-5 text-base sm:text-lg text-emerald-100/90 leading-relaxed">
+        <p class="mt-3 sm:mt-5 text-sm sm:text-lg text-emerald-100/90 leading-relaxed">
           Software contable con respaldo legal para empresas de Daule, Nobol y Samborondón.
         </p>
-        <div class="mt-8 pt-8 border-t border-white/15 grid grid-cols-2 gap-4 text-xs text-emerald-100/80">
+        <div class="hidden sm:grid mt-8 pt-8 border-t border-white/15 grid-cols-2 gap-4 text-xs text-emerald-100/80">
           ${['Firma electrónica .p12', 'IVA 15% y retenciones', 'Los seis comprobantes', 'Asesoría legal incluida']
             .map((t) => html`
               <div class="flex items-center gap-2">
@@ -1451,19 +1543,27 @@ async function entrar() {
         </div>
       </div>
 
-      <footer class="relative z-10 text-[11px] text-emerald-100/60">
+      <footer class="hidden sm:block relative z-10 text-[11px] text-emerald-100/60">
         Kontia es un nombre de trabajo. Pendiente de verificación en SCVS y SENADI.
       </footer>
     </section>
 
     <section class="lg:w-1/2 flex items-center justify-center p-6 sm:p-10 lg:p-16 bg-white">
-      <div class="w-full max-w-md">
-        <h2 class="text-2xl font-bold tracking-tight">Iniciar sesión</h2>
-        <p class="mt-2 text-sm text-tinta-suave">
+      <!--
+        El orden cambia segun el tamanio, y no por gusto. En pantalla ancha
+        manda el formulario de verdad y la demostracion queda debajo, como una
+        nota. En el telefono se invierte: lo primero que se ve tiene que ser
+        por donde se entra, porque el formulario esta apagado y no lleva a
+        ninguna parte todavia.
+      -->
+      <div class="w-full max-w-md flex flex-col">
+        <div class="order-2 lg:order-1">
+        <h2 class="hidden lg:block text-2xl font-bold tracking-tight">Iniciar sesión</h2>
+        <p class="hidden lg:block mt-2 text-sm text-tinta-suave">
           Entre con el correo con el que le dieron de alta.
         </p>
 
-        <form class="mt-8 space-y-4" onsubmit="return false">
+        <form class="mt-6 lg:mt-8 space-y-4" onsubmit="return false">
           <label class="block">
             <span class="text-xs font-bold uppercase tracking-wide text-tinta-suave">Correo</span>
             <input type="email" placeholder="usted@suempresa.com.ec" disabled
@@ -1481,15 +1581,20 @@ async function entrar() {
           </button>
         </form>
 
-        <div class="mt-8 flex items-center gap-3">
+        </div>
+
+        <div class="order-1 lg:order-2">
+        <div class="hidden lg:flex mt-8 items-center gap-3">
           <span class="h-px flex-1 bg-papel-linea"></span>
           <span class="text-[11px] font-bold uppercase tracking-widest text-tinta-suave">Demostración</span>
           <span class="h-px flex-1 bg-papel-linea"></span>
         </div>
 
-        <p class="mt-4 text-sm text-tinta-suave leading-relaxed">
-          Todavía no hay usuarios de verdad: la base de datos existe pero la aplicación no
-          está conectada. Elija un papel para ver el sistema desde sus ojos.
+        <h2 class="lg:hidden text-xl font-bold tracking-tight">Entrar a la demostración</h2>
+
+        <p class="mt-2 lg:mt-4 text-sm text-tinta-suave leading-relaxed">
+          Todavía no hay usuarios de verdad ni contraseñas: la base de datos existe pero
+          la aplicación no está conectada. Toque un papel para ver el sistema desde sus ojos.
         </p>
 
         <div class="mt-4 space-y-2.5">
@@ -1506,6 +1611,7 @@ async function entrar() {
                 <span class="block mt-1 text-[11px] text-tinta-suave leading-relaxed">${p.que}</span>
               </span>
             </button>`)}
+        </div>
         </div>
       </div>
     </section>
@@ -3595,7 +3701,7 @@ async function adminAuditoria() {
 // ---- src/app.js --------------------------------------------------
 const __src_app_js = (function () {
   const { sesion } = __src_sesion_js;
-  const { marco, suelta } = __src_disposicion_js;
+  const { marco, suelta, conectarMenu } = __src_disposicion_js;
   const { entrar, seleccionEmpresa } = __src_vistas_acceso_js;
   const { resumen } = __src_vistas_resumen_js;
   const { comprobantes, comprobante, conectarComprobante } = __src_vistas_comprobantes_js;
@@ -3756,7 +3862,11 @@ async function dibujar() {
   if (recado) contenido = crudo(String(aviso(recado)) + String(contenido));
 
   raiz().innerHTML = marco(contenido, opciones);
+  // El marco se dibujo de nuevo, asi que el cajon del menu nace cerrado: hay
+  // que devolverle al fondo la capacidad de desplazarse.
+  document.body.style.overflow = '';
   window.scrollTo(0, 0);
+  conectarMenu();
   if (alDibujar) alDibujar();
 }
 
