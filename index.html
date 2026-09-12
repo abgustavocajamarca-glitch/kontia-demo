@@ -1748,9 +1748,32 @@
       });
     }
 
-    contesta('forma-ingreso', 'recado-ingreso',
-      'Todavía no hay cuentas de usuario activas: la base de datos y el aislamiento ya ' +
-      'existen, falta conectar la aplicación. Entre por la demostración, aquí abajo.');
+    /*
+     * El ingreso.
+     *
+     * Si la aplicación está cargada y conectada a la base de datos, ella se
+     * hace cargo: deja una función en `window.kontiaAcceso` y este guion se
+     * aparta. Si no hay nadie, contesta la verdad de hoy.
+     *
+     * Se hace así y no al revés para que sitio.html siga abriéndose suelto,
+     * sin la aplicación, mientras se trabaja en el diseño.
+     */
+    var formaIngreso = document.getElementById('forma-ingreso');
+    var recadoIngreso = document.getElementById('recado-ingreso');
+    if (formaIngreso && recadoIngreso) {
+      formaIngreso.addEventListener('submit', function (ev) {
+        ev.preventDefault();
+        if (typeof window.kontiaAcceso === 'function') {
+          window.kontiaAcceso(formaIngreso, recadoIngreso);
+          return;
+        }
+        recadoIngreso.hidden = false;
+        recadoIngreso.textContent =
+          'Todavía no hay cuentas de usuario activas en este sitio: la base de datos y ' +
+          'el aislamiento ya existen, falta conectar la aplicación. Entre por la ' +
+          'demostración, aquí abajo.';
+      });
+    }
 
     contesta('forma-contacto', 'recado-contacto',
       'El canal de contacto se habilita junto con el dominio propio. Este formulario ' +
@@ -2771,9 +2794,328 @@ function barraCompuesta(datos, { alto = 10 } = {}) {
   return { VERDE, VERDE_CLARO, TINTA_SUAVE, AMBAR, ROJO, PALETA, barras, linea, dona, leyenda, chispa, barraCompuesta };
 })();
 
+// ---- src/nube.js -------------------------------------------------
+const __src_nube_js = (function () {
+
+
+/**
+ * La nube: lo único que sabe hablar con Supabase.
+ *
+ * POR QUÉ ESTÁ ESCRITO A MANO Y NO SE USA LA LIBRERÍA OFICIAL. Porque este
+ * proyecto no tiene paso de compilación: el navegador carga los archivos tal
+ * como están. Traer la librería oficial significaría empaquetar, y empaquetar
+ * significa que lo que se publica ya no es lo que está escrito. Lo que se usa
+ * de Supabase aquí son dos cosas —entrar y consultar— y las dos son peticiones
+ * HTTP corrientes. Ciento cincuenta líneas contra un paso de compilación: gana
+ * esto.
+ *
+ * DÓNDE VIVEN LAS CLAVES. En `configuracion.json`, al lado del index.html, que
+ * NO está en el repositorio. La aplicación lo pide al arrancar; si no está, todo
+ * sigue funcionando en el navegador como hasta ahora. Así el código fuente nunca
+ * lleva una clave dentro.
+ *
+ * LA CLAVE PUBLICABLE VIAJA AL NAVEGADOR, Y ESO ES CORRECTO. No es un descuido
+ * ni un atajo: en Supabase esa clave solo dice «este es el proyecto». Lo que
+ * decide qué puede ver cada quien son las políticas de la base de datos —el
+ * aislamiento de la migración 0004—, que se aplican del lado del servidor y no
+ * se pueden burlar desde el navegador. Está comprobado: con esa clave y sin
+ * sesión, la base no entrega ni una fila (scripts/comprobar-nube.py).
+ *
+ * LA CLAVE SECRETA NO APARECE EN ESTE ARCHIVO NI EN NINGUNO DE LA APLICACIÓN.
+ * Esa se queda en .env, en la computadora de quien desarrolla, y solo la usan
+ * los guiones de mantenimiento. Si algún día se cuela en el navegador, el
+ * aislamiento entero deja de servir para nada.
+ */
+
+const CLAVE_SESION = 'kontia.nube.sesion';
+
+let ajustes = null;      // { url, clave } una vez leído configuracion.json
+let sesion = null;       // { access_token, refresh_token, expira, usuario }
+let leido = false;
+
+// ===========================================================================
+//  Arranque
+// ===========================================================================
+
+/**
+ * Lee la configuración, si la hay.
+ *
+ * Se llama una vez al arrancar y nunca falla: un proyecto sin configurar es un
+ * estado legítimo —es la demostración— y no un error que haya que gritar.
+ */
+async function arrancar() {
+  if (leido) return configurada();
+  leido = true;
+
+  try {
+    const r = await fetch('configuracion.json', { cache: 'no-store' });
+    if (r.ok) {
+      const j = await r.json();
+      if (j && typeof j.url === 'string' && /^https:\/\/.+/.test(j.url)
+          && typeof j.clave === 'string' && j.clave.length > 20) {
+        ajustes = { url: j.url.replace(/\/$/, ''), clave: j.clave };
+      }
+    }
+  } catch {
+    // Sin archivo, o servido desde un doble clic donde `fetch` no llega: la
+    // aplicación trabaja contra el navegador y ya está.
+  }
+
+  recuperarSesion();
+  return configurada();
+}
+
+const configurada = () => ajustes !== null;
+
+/** Quién entró, o null. */
+const usuario = () => sesion?.usuario ?? null;
+const haySesion = () => !!sesion?.access_token;
+
+function recuperarSesion() {
+  try {
+    const guardada = JSON.parse(localStorage.getItem(CLAVE_SESION) ?? 'null');
+    // Una sesión caducada no se usa: se pide de nuevo. Se guarda el momento de
+    // caducidad y no la duración, porque el navegador pudo estar cerrado
+    // semanas.
+    if (guardada?.access_token && guardada.expira > Date.now()) sesion = guardada;
+  } catch { /* sin almacenamiento: se entra otra vez, nada más */ }
+}
+
+function guardarSesion(datos) {
+  sesion = datos;
+  try {
+    if (datos) localStorage.setItem(CLAVE_SESION, JSON.stringify(datos));
+    else localStorage.removeItem(CLAVE_SESION);
+  } catch { /* la sesión vivirá en memoria hasta recargar */ }
+}
+
+// ===========================================================================
+//  Peticiones
+// ===========================================================================
+
+function cabeceras(extra = {}) {
+  return {
+    apikey: ajustes.clave,
+    Authorization: `Bearer ${sesion?.access_token ?? ajustes.clave}`,
+    'Content-Type': 'application/json',
+    ...extra,
+  };
+}
+
+/**
+ * Traduce el error de la base a algo que una persona pueda leer.
+ *
+ * Los mensajes de PostgREST son para quien programa. Aquí interesan dos cosas:
+ * que el usuario entienda qué pasó, y que quien programa pueda encontrarlo, por
+ * eso se conserva el código original.
+ */
+function explicar(estado, cuerpo) {
+  const codigo = cuerpo?.code ?? '';
+  const detalle = cuerpo?.message ?? cuerpo?.error_description ?? cuerpo?.msg ?? '';
+
+  if (estado === 401 || estado === 403) {
+    return 'La base de datos no autoriza esa operación. Si acaba de entrar, '
+      + 'vuelva a iniciar sesión; si no, esa empresa no es suya.';
+  }
+  if (codigo === '23505' || /duplicate key/i.test(detalle)) {
+    return 'Ya existe un registro con ese dato. No se guardó nada.';
+  }
+  if (codigo === 'PGRST205' || /Could not find the table/i.test(detalle)) {
+    return 'Esa tabla todavía no existe en la base de datos: falta correr una migración.';
+  }
+  if (codigo === '42501' || /permission denied/i.test(detalle)) {
+    return 'La base de datos niega el permiso sobre esa tabla.';
+  }
+  return detalle || `La base de datos respondió ${estado}.`;
+}
+
+async function pedir(camino, opciones = {}, base = 'rest/v1') {
+  if (!configurada()) throw new Error('La nube no está configurada.');
+
+  const r = await fetch(`${ajustes.url}/${base}/${camino}`, {
+    ...opciones,
+    headers: cabeceras(opciones.headers),
+  });
+
+  const texto = await r.text();
+  let cuerpo = null;
+  try { cuerpo = texto ? JSON.parse(texto) : null; } catch { cuerpo = texto; }
+
+  if (!r.ok) {
+    const error = new Error(explicar(r.status, cuerpo));
+    error.estado = r.status;
+    error.codigo = cuerpo?.code ?? null;
+    throw error;
+  }
+  return cuerpo;
+}
+
+// ===========================================================================
+//  Entrar y salir
+// ===========================================================================
+
+/**
+ * Entrar con correo y contraseña.
+ *
+ * La contraseña va a Supabase por HTTPS y no se guarda en ningún sitio: lo que
+ * se conserva es el permiso temporal que devuelve. Este archivo no la escribe
+ * en el almacenamiento del navegador ni en un registro.
+ */
+async function entrar(correo, contrasena) {
+  const datos = await pedir('token?grant_type=password', {
+    method: 'POST',
+    body: JSON.stringify({ email: correo, password: contrasena }),
+  }, 'auth/v1');
+
+  guardarSesion({
+    access_token: datos.access_token,
+    refresh_token: datos.refresh_token,
+    // Un minuto de margen: pedir con un permiso que caduca en tres segundos es
+    // pedir un fallo intermitente, de los que no se reproducen nunca.
+    expira: Date.now() + (datos.expires_in ?? 3600) * 1000 - 60000,
+    usuario: {
+      id: datos.user?.id ?? null,
+      correo: datos.user?.email ?? correo,
+      nombre: datos.user?.user_metadata?.nombre ?? null,
+    },
+  });
+  return usuario();
+}
+
+/**
+ * Olvida la sesion aqui mismo, sin esperar a nadie.
+ *
+ * Hace falta que sea sincrono: cuando alguien pulsa «Salir», el enrutador
+ * pregunta si hay sesion en el instante siguiente. Si eso tarda lo que tarda
+ * una peticion, el enrutador todavia cree que hay sesion y devuelve al usuario
+ * adentro. Paso, y es la clase de fallo que en un sistema con datos de
+ * terceros no se puede dejar pasar: pulsar salir tiene que dejar fuera.
+ */
+function olvidar() {
+  guardarSesion(null);
+}
+
+async function salir() {
+  if (sesion?.access_token) {
+    try {
+      await pedir('logout', { method: 'POST' }, 'auth/v1');
+    } catch { /* si el servidor no contesta, la sesión se olvida igual aquí */ }
+  }
+  guardarSesion(null);
+}
+
+/** Renueva el permiso antes de que caduque. Devuelve si sigue habiendo sesión. */
+async function renovar() {
+  if (!sesion?.refresh_token) return false;
+  if (sesion.expira > Date.now()) return true;
+  try {
+    const datos = await pedir('token?grant_type=refresh_token', {
+      method: 'POST',
+      body: JSON.stringify({ refresh_token: sesion.refresh_token }),
+    }, 'auth/v1');
+    guardarSesion({
+      ...sesion,
+      access_token: datos.access_token,
+      refresh_token: datos.refresh_token ?? sesion.refresh_token,
+      expira: Date.now() + (datos.expires_in ?? 3600) * 1000 - 60000,
+    });
+    return true;
+  } catch {
+    guardarSesion(null);
+    return false;
+  }
+}
+
+// ===========================================================================
+//  Datos
+// ===========================================================================
+
+const consulta = (filtros = {}) => {
+  const p = new URLSearchParams();
+  for (const [k, v] of Object.entries(filtros)) p.append(k, v);
+  const s = p.toString();
+  return s ? `?${s}` : '';
+};
+
+/**
+ * Las cuatro operaciones sobre una tabla.
+ *
+ * No hay `borrar`, y falta a propósito: un comprobante emitido no se borra
+ * —la migración 0007 lo impide y el SRI también—, y lo demás se da de baja con
+ * una marca para que quede el rastro. Una función de borrado aquí sería una
+ * puerta que nadie debería poder abrir por descuido.
+ */
+const tabla = (nombre) => ({
+  async leer(filtros = {}) {
+    await renovar();
+    return pedir(`${nombre}${consulta({ select: '*', ...filtros })}`);
+  },
+
+  async uno(filtros = {}) {
+    const filas = await this.leer({ limit: 1, ...filtros });
+    return Array.isArray(filas) ? (filas[0] ?? null) : null;
+  },
+
+  async insertar(fila) {
+    await renovar();
+    const filas = await pedir(nombre, {
+      method: 'POST',
+      headers: { Prefer: 'return=representation' },
+      body: JSON.stringify(fila),
+    });
+    return Array.isArray(filas) ? filas[0] : filas;
+  },
+
+  async actualizar(filtros, cambios) {
+    await renovar();
+    const filas = await pedir(`${nombre}${consulta(filtros)}`, {
+      method: 'PATCH',
+      headers: { Prefer: 'return=representation' },
+      body: JSON.stringify(cambios),
+    });
+    return Array.isArray(filas) ? filas[0] : filas;
+  },
+});
+
+/** Llama a una función de la base de datos. */
+async function funcion(nombre, argumentos = {}) {
+  await renovar();
+  return pedir(`rpc/${nombre}`, {
+    method: 'POST',
+    body: JSON.stringify(argumentos),
+  });
+}
+
+/**
+ * Un diagnóstico corto, para la pantalla de configuración.
+ *
+ * Sirve para contestar «¿está conectado?» sin que nadie tenga que abrir la
+ * consola del navegador.
+ */
+async function estado() {
+  if (!configurada()) {
+    return { conectado: false, porque: 'Sin configurar: los datos viven en este navegador.' };
+  }
+  try {
+    await pedir('empresas?select=id&limit=1');
+    return { conectado: true, sesion: haySesion(), usuario: usuario() };
+  } catch (e) {
+    // Que la base niegue el acceso sin sesión no es un fallo: es el aislamiento
+    // haciendo su trabajo, y conviene decirlo así.
+    if (e.estado === 401 || e.estado === 403) {
+      return { conectado: true, sesion: false, porque: 'Conectado. Hace falta iniciar sesión.' };
+    }
+    return { conectado: false, porque: e.message };
+  }
+}
+
+
+  return { arrancar, configurada, usuario, haySesion, entrar, olvidar, salir, renovar, tabla, funcion, estado };
+})();
+
 // ---- src/sesion.js -----------------------------------------------
 const __src_sesion_js = (function () {
-
+  const { haySesion: haySesionEnLaNube, usuario: usuarioDeLaNube, olvidar: olvidarLaNube, salir: salirDeLaNube } = __src_nube_js;
 
 /**
  * Quién está usando la aplicación ahora mismo.
@@ -2791,6 +3133,8 @@ const __src_sesion_js = (function () {
  * única defensa fuera este archivo, bastaría con abrir la consola del
  * navegador para saltársela.
  */
+
+
 
 const CLAVE = 'kontia.sesion';
 
@@ -2838,19 +3182,75 @@ function leer() {
   return null;
 }
 
+/**
+ * El usuario de verdad, con la forma que esperan las pantallas.
+ *
+ * Lo que viene de la base de datos es un correo y poco mas. El rol y la
+ * empresa saldran de `usuarios_empresas` cuando esa parte este conectada;
+ * mientras tanto se dice lo que se sabe y no se inventa lo que no: el rol
+ * queda en blanco y la empresa tambien.
+ */
+function deLaNube() {
+  const u = usuarioDeLaNube();
+  if (!u) return null;
+  const correo = u.correo ?? '';
+  const nombre = u.nombre || correo.split('@')[0];
+  return {
+    nombre,
+    iniciales: nombre.slice(0, 2).toUpperCase(),
+    rol: 'Usuario',
+    correo,
+    admin: false,
+    empresa: '—',
+    ruc: '—',
+    ambiente: 'PRUEBAS',
+    deLaNube: true,
+  };
+}
+
 const sesion = {
   papeles: PAPELES,
-  activa: () => leer() !== null,
+  /*
+   * Dos origenes, y el de verdad manda. Una sesion de la base de datos es una
+   * sesion aunque no haya ningun papel de demostracion elegido; si se mirara
+   * solo el papel, quien entra con su cuenta acabaria fuera del sistema en el
+   * primer cambio de pantalla.
+   */
+  activa: () => leer() !== null || haySesionEnLaNube(),
   esSuperAdmin: () => leer() === 'super',
-  usuario: () => PAPELES[leer() ?? 'administrador'],
+  usuario: () => deLaNube() ?? PAPELES[leer() ?? 'administrador'],
   entrar(papel) {
     if (!PAPELES[papel]) throw new Error(`Papel desconocido: ${papel}`);
     enMemoria = papel;
     try { localStorage.setItem(CLAVE, papel); } catch { /* se perderá al recargar, nada más */ }
   },
+  /**
+   * Suelta el papel de la demostracion, sin tocar la sesion de verdad.
+   *
+   * Hace falta separarlo de `salir` porque se usa justo despues de entrar con
+   * una cuenta real: si ahi se llamara a `salir`, entrar cerraria la sesion que
+   * se acaba de abrir. Paso, y tardo en verse porque el sintoma era una
+   * pantalla en blanco, no un error.
+   */
+  olvidarPapel() {
+    enMemoria = null;
+    try { localStorage.removeItem(CLAVE); } catch { /* nada que limpiar */ }
+  },
+
   salir() {
     enMemoria = null;
     try { localStorage.removeItem(CLAVE); } catch { /* nada que limpiar */ }
+
+    /*
+     * Y la de la base de datos, que es la que importa.
+     *
+     * Primero se olvida aqui —eso es inmediato— y despues se le dice al
+     * servidor que invalide el permiso. En ese orden y no al reves: si se
+     * esperara la respuesta del servidor, quien pulsa salir seguiria dentro
+     * mientras dure la peticion, y si la red falla se quedaria dentro del todo.
+     */
+    olvidarLaNube();
+    salirDeLaNube().catch(() => { /* el permiso caduca solo; aqui ya se olvido */ });
   },
 };
 
@@ -4092,6 +4492,7 @@ const MENU_EMPRESA = [
     { ico: 'settings', texto: 'Configuración', ruta: '#/configuracion' },
     { ico: 'verified', texto: 'Certificado de firma', ruta: '#/certificado' },
     { ico: 'manage_accounts', texto: 'Usuarios', ruta: '#/usuarios' },
+    { ico: 'cloud', texto: 'Conexión', ruta: '#/conexion' },
   ] },
   /*
    * Lo que no es contabilidad, al final y aparte.
@@ -9207,6 +9608,148 @@ async function compras() {
   return { compras };
 })();
 
+// ---- src/vistas/conexion.js --------------------------------------
+const __src_vistas_conexion_js = (function () {
+  const { html, crudo, icono, cabecera, aviso, boton, tabla } = __src_ui_js;
+  const { estado: estadoDeLaNube, usuario, haySesion } = __src_nube_js;
+
+/**
+ * El estado de la conexión, dicho sin adornos.
+ *
+ * PARA QUÉ SIRVE ESTA PANTALLA. Kontia está a medio camino entre dos mundos:
+ * hoy los datos viven en el navegador de cada quien y mañana viven en la base
+ * de datos. Durante ese camino, la pregunta «¿esto que veo está guardado de
+ * verdad?» tiene que tener una respuesta visible, y no depender de que alguien
+ * abra la consola del navegador.
+ *
+ * Así que aquí se dice qué está conectado, qué no, y qué significa cada cosa.
+ * Cuando todo esté conectado, esta pantalla se queda igual y contesta «todo»,
+ * que sigue siendo información útil el día que algo se caiga.
+ */
+
+
+
+
+/**
+ * Lo que hay conectado y lo que no.
+ *
+ * Esta lista se actualiza a mano conforme se conecta cada cosa, y eso es
+ * deliberado: una lista que se genera sola diría que todo está bien mientras
+ * las pantallas siguen leyendo del navegador. Lo que importa aquí es la
+ * verdad, no la comodidad de mantenerla.
+ */
+const PARTES = [
+  ['Entrar con correo y contraseña', 'nube', 'Supabase Auth. La contraseña no pasa por Kontia ni se guarda aquí.'],
+  ['Qué empresas ve cada usuario', 'navegador',
+    'La política ya está en la base y está comprobada; la pantalla todavía lee del equipo.'],
+  ['Alta de empresas', 'navegador',
+    'La base rechaza el alta si quien la intenta no es super administrador —comprobado, no supuesto—. La pantalla aún guarda aquí.'],
+  ['Comprobantes emitidos', 'navegador', 'Las tablas ya existen en la base. Falta mover las pantallas.'],
+  ['Clientes y productos', 'navegador', 'Igual: tabla creada, pantalla por mover.'],
+  ['Compras del buzón', 'navegador', 'El lector de XML funciona; lo que lee se guarda todavía en el equipo.'],
+  ['Contabilidad y libros', 'navegador', 'Se calculan de lo anterior, así que se mueven cuando se mueva aquello.'],
+];
+
+const SELLOS = {
+  nube: ['bg-verde-claro text-verde', 'cloud_done', 'En la base de datos'],
+  navegador: ['bg-ambar-fondo text-ambar-texto', 'computer', 'En este equipo'],
+};
+
+async function conexion() {
+  const estado = await estadoDeLaNube();
+  const u = usuario();
+
+  const sello = (donde) => {
+    const [clases, ico, texto] = SELLOS[donde];
+    return html`<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-bold ${crudo(clases)}">
+      ${icono(ico, 'text-[14px]')}${texto}</span>`;
+  };
+
+  return html`
+    ${cabecera({
+      titulo: 'Conexión',
+      descripcion: 'Dónde están guardados los datos que está viendo. Sin rodeos.',
+    })}
+
+    ${!estado.conectado ? aviso({
+      tono: 'ambar', ico: 'computer',
+      titulo: 'Trabajando en este equipo, sin base de datos',
+      texto: estado.porque + ' Todo lo que haga se guarda en este navegador y '
+        + 'nadie más lo ve — tampoco usted desde otro equipo. Es lo correcto para una '
+        + 'demostración, y no sirve para llevar la contabilidad de una empresa.',
+    }) : aviso({
+      tono: 'exito', ico: 'cloud_done',
+      titulo: haySesion() ? 'Conectado, con sesión abierta' : 'Conectado, sin sesión',
+      texto: haySesion()
+        ? `Entró como ${u?.correo}. Lo que la base le entregue depende de las políticas `
+          + 'de aislamiento, no de esta pantalla.'
+        : 'Se llega a la base de datos, pero hace falta iniciar sesión para que entregue algo. '
+          + 'Que no entregue nada sin sesión es justamente lo que se buscó.',
+    })}
+
+    <div class="mt-6 bg-white border border-papel-linea rounded-2xl relieve overflow-hidden">
+      <div class="px-5 py-4 border-b border-papel-linea">
+        <p class="text-sm font-bold">Qué está conectado</p>
+        <p class="text-xs text-tinta-suave">
+          Se conecta por partes y en este orden: primero quién es usted y a qué empresa
+          pertenece, porque de eso depende todo lo demás.
+        </p>
+      </div>
+      ${tabla([{ texto: 'Parte' }, { texto: 'Dónde vive' }, { texto: 'Nota' }],
+        PARTES.map(([parte, donde, nota]) => html`
+          <tr>
+            <td class="px-5 py-3 text-sm font-medium">${parte}</td>
+            <td class="px-5 py-3">${sello(donde)}</td>
+            <td class="px-5 py-3 text-[13px] text-tinta-suave">${nota}</td>
+          </tr>`))}
+    </div>
+
+    <div class="mt-6 grid gap-4 lg:grid-cols-2">
+      <div class="bg-white border border-papel-linea rounded-2xl relieve p-5">
+        <div class="flex items-start gap-3">
+          ${icono('key', 'text-[20px] text-verde')}
+          <div>
+            <h3 class="text-sm font-bold">Sobre la clave que viaja al navegador</h3>
+            <p class="mt-1.5 text-[13px] text-tinta-suave leading-relaxed">
+              Para hablar con la base de datos, el navegador lleva una clave
+              <strong class="text-tinta">publicable</strong>. Se llama así porque puede
+              publicarse: lo único que dice es de qué proyecto se trata. Quién puede ver
+              qué lo decide la base de datos, del lado del servidor, y eso no se puede
+              cambiar desde aquí. La clave <strong class="text-tinta">secreta</strong> no
+              está en esta aplicación ni debe estarlo nunca: vive en la computadora de
+              quien desarrolla, y con ella sí se vería todo.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div class="bg-white border border-papel-linea rounded-2xl relieve p-5">
+        <div class="flex items-start gap-3">
+          ${icono('shield_person', 'text-[20px] text-verde')}
+          <div>
+            <h3 class="text-sm font-bold">Nadie se hace super administrador solo</h3>
+            <p class="mt-1.5 text-[13px] text-tinta-suave leading-relaxed">
+              La base de datos rechaza que un usuario se conceda esa condición a sí
+              mismo, incluso si consigue mandar la orden. El primero se crea escribiendo
+              una línea directamente en la base, que es un sitio al que solo llega quien
+              tiene las llaves del proyecto. Por eso dar de alta una empresa falla si
+              quien lo intenta no lo es — comprobado, no supuesto.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    ${!estado.conectado ? html`
+      <div class="mt-6 flex flex-wrap items-center gap-3">
+        ${boton('Ver el estado del desarrollo', { ruta: '#estado', tipo: 'secundario', ico: 'timeline' })}
+      </div>` : ''}`;
+}
+
+
+  return { conexion };
+})();
+
 // ---- src/vistas/proteccion-datos.js ------------------------------
 const __src_vistas_proteccion_datos_js = (function () {
   const { html, crudo, icono, cabecera, aviso, boton } = __src_ui_js;
@@ -9976,6 +10519,8 @@ const __src_app_js = (function () {
   const { suscripciones, usoPlataforma, soporte, consultaLegal, consultasRecibidas } = __src_vistas_plataforma_js;
   const { aviso, crudo, recogerRecado } = __src_ui_js;
   const { empresaActiva } = __src_almacen_js;
+  const { conexion } = __src_vistas_conexion_js;
+  const { arrancar: arrancarNube, entrar: entrarEnLaNube } = __src_nube_js;
 
 /**
  * El enrutador: mira la dirección del navegador y dibuja la pantalla que toca.
@@ -9985,6 +10530,8 @@ const __src_app_js = (function () {
  * dato, se dibuja. Es la forma más aburrida de hacerlo, y por eso se puede leer
  * entera en una tarde.
  */
+
+
 
 
 
@@ -10038,6 +10585,7 @@ const RUTAS = [
   { patron: /^#\/usuarios\/?$/, vista: usuarios },
   { patron: /^#\/configuracion\/?$/, vista: configuracion },
   { patron: /^#\/certificado\/?$/, vista: certificado },
+  { patron: /^#\/conexion\/?$/, vista: conexion },
   { patron: /^#\/puntos-emision\/?$/, vista: puntosEmision },
 
   { patron: /^#\/retenciones\/?$/, vista: retenciones },
@@ -10233,9 +10781,69 @@ async function dibujar() {
   if (alDibujar) alDibujar();
 }
 
+/**
+ * El ingreso de verdad, cuando hay base de datos.
+ *
+ * Se deja en `window` porque quien tiene el formulario es el sitio, que no es
+ * un modulo y no puede importar nada. Es la unica puerta entre las dos mitades
+ * de esta pagina, y esta escrita a la vista para que se sepa que existe.
+ */
+function ofrecerIngresoReal() {
+  window.kontiaAcceso = async (forma, recado) => {
+    const correo = forma.querySelector('[name="correo"]')?.value?.trim() ?? '';
+    const clave = forma.querySelector('[name="clave"]')?.value ?? '';
+    const boton = forma.querySelector('button[type="submit"]');
+
+    const decir = (texto) => { recado.hidden = false; recado.textContent = texto; };
+
+    if (!correo || !clave) return decir('Escriba su correo y su contraseña.');
+
+    if (boton) { boton.disabled = true; boton.textContent = 'Entrando…'; }
+    try {
+      const usuario = await entrarEnLaNube(correo, clave);
+      recado.hidden = true;
+      // El papel de la demostracion se suelta —no se mezcla un usuario de
+      // verdad con uno de ejemplo—, pero la sesion que se acaba de abrir se
+      // queda: `salir()` cerraria las dos.
+      sesion.olvidarPapel();
+      // A la pantalla de conexion y no al sistema: entro de verdad, y lo
+      // primero honesto que se le puede ensenar es que esta conectado y que
+      // parte de las pantallas todavia leen del navegador.
+      location.hash = '#/conexion';
+      window.dispatchEvent(new CustomEvent('kontia:redibujar'));
+      return usuario;
+    } catch (e) {
+      // El mensaje de Supabase para una contrasena equivocada es
+      // «Invalid login credentials», y no ayuda a nadie.
+      decir(/invalid login/i.test(e.message)
+        ? 'Ese correo y esa contraseña no coinciden con ninguna cuenta.'
+        : e.message);
+    } finally {
+      if (boton) { boton.disabled = false; boton.textContent = 'Entrar'; }
+    }
+    return null;
+  };
+}
+
 window.addEventListener('hashchange', dibujar);
-window.addEventListener('DOMContentLoaded', dibujar);
-if (document.readyState !== 'loading') dibujar();
+
+/*
+ * Se pregunta por la base de datos ANTES de dibujar nada. Si se dibujara
+ * primero, la pantalla de ingreso apareceria diciendo que no hay cuentas y se
+ * corregiria sola medio segundo despues, que es la clase de parpadeo que hace
+ * dudar de un sistema.
+ */
+async function arrancar() {
+  try {
+    if (await arrancarNube()) ofrecerIngresoReal();
+  } catch {
+    // Sin nube se trabaja en el navegador, que es el comportamiento de siempre.
+  }
+  dibujar();
+}
+
+window.addEventListener('DOMContentLoaded', arrancar);
+if (document.readyState !== 'loading') arrancar();
 
 // Permite que las vistas pidan un redibujado sin conocer el enrutador.
 window.addEventListener('kontia:redibujar', dibujar);
