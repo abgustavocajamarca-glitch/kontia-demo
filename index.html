@@ -4231,6 +4231,17 @@ function marco(contenido, { ruta = '', admin = false, empresa = null } = {}) {
   const u = sesion.usuario();
   empresa = empresa ?? { razonSocial: u.empresa, ruc: u.ruc, ambiente: u.ambiente };
 
+  /*
+   * El pie del menu.
+   *
+   * Al administrador de la plataforma se le recuerda ahi mismo el limite de lo
+   * que puede ver, porque es el unico sitio donde ese recordatorio esta siempre
+   * a la vista.
+   *
+   * A la empresa no se le pone nada: la consulta legal ya tiene su entrada en
+   * «Servicios externos» y tenerla tambien aqui era decir dos veces lo mismo en
+   * la misma columna.
+   */
   const pie = admin ? html`
     <div class="mx-3 p-3 rounded-xl bg-white/5 border border-white/10">
       <p class="text-[11px] font-bold text-white/90">Usted no ve los datos de las empresas</p>
@@ -4238,19 +4249,7 @@ function marco(contenido, { ruta = '', admin = false, empresa = null } = {}) {
         Administra el servicio: planes, estados y consumo. Para entrar a los datos de
         una empresa hace falta que ella lo autorice.
       </p>
-    </div>` : html`
-    <div class="mx-3 p-3 rounded-xl bg-white/8 border border-white/12">
-      <div class="flex items-center gap-2 text-white">
-        ${icono('gavel', 'text-[18px]')}
-        <p class="text-[11px] font-bold">Consulta legal-tributaria</p>
-      </div>
-      <p class="mt-1.5 text-[11px] leading-relaxed text-white/55">
-        ¿Dudas sobre una glosa o un trámite? Hable con un abogado.
-      </p>
-      <a href="#/consulta" class="mt-2.5 inline-flex items-center gap-1 text-[11px] font-bold text-white hover:underline">
-        Consultar ${icono('arrow_forward', 'text-[14px]')}
-      </a>
-    </div>`;
+    </div>` : '';
 
   return html`
     <div id="marco" class="flex min-h-screen">
@@ -8662,6 +8661,69 @@ function proponerCuenta(nombreProveedor) {
 }
 
 // ===========================================================================
+//  Tres comprobantes de ejemplo
+// ===========================================================================
+
+/**
+ * Para poder probar el buzón sin ir a buscar archivos.
+ *
+ * Se arman con el RUC de la empresa que está abierta, así que funcionan igual
+ * en Agroquímicos Pérez que en una empresa recién dada de alta. Y llevan la
+ * misma forma que los del SRI —la autorización por fuera, el comprobante dentro
+ * en un CDATA—, porque de nada sirve probar con algo más fácil de lo real.
+ *
+ * Los tres están elegidos para que se vea lo que hace el buzón: uno propone
+ * combustibles, otro mantenimiento, y el tercero no es de esta empresa y tiene
+ * que rebotar.
+ */
+const EJEMPLOS = [
+  { archivo: 'factura-primax.xml', emisor: 'PRIMAX COMERCIAL DEL ECUADOR S.A.',
+    ruc: '0990123456001', sec: '000000123', fecha: '05/09/2026',
+    base: '150.00', iva: '22.50', total: '172.50', mio: true },
+  { archivo: 'factura-ferreteria.xml', emisor: 'FERRETERIA EL TORNILLO · MANTENIMIENTO',
+    ruc: '0991234567001', sec: '000000777', fecha: '08/09/2026',
+    base: '80.00', iva: '12.00', total: '92.00', mio: true },
+  { archivo: 'factura-de-otra-empresa.xml', emisor: 'DISTRIBUIDORA DEL GUAYAS S.A.',
+    ruc: '0993333333001', sec: '000000999', fecha: '09/09/2026',
+    base: '500.00', iva: '75.00', total: '575.00', mio: false },
+];
+
+/** Arma el XML de un ejemplo, con su clave de acceso de 49 dígitos. */
+function xmlDeEjemplo(e, rucPropio) {
+  const dia = e.fecha.slice(0, 2), mes = e.fecha.slice(3, 5), anio = e.fecha.slice(6);
+  // Los 49 dígitos, por tramos: fecha, tipo, RUC, ambiente, serie, secuencial,
+  // código, tipo de emisión y verificador. El último dígito de un ejemplo no
+  // pretende pasar el módulo 11: aquí lo que se prueba es la lectura.
+  const clave = `${dia}${mes}${anio}01${e.ruc}2001001${e.sec}123456781`.padEnd(49, '0').slice(0, 49);
+  const receptor = e.mio ? rucPropio : '0999999999001';
+
+  return '<?xml version="1.0" encoding="UTF-8"?>'
+    + '<autorizacion><estado>AUTORIZADO</estado>'
+    + `<numeroAutorizacion>${clave}</numeroAutorizacion>`
+    + '<fechaAutorizacion>2026-09-10T09:12:44-05:00</fechaAutorizacion>'
+    + '<comprobante><![CDATA[<?xml version="1.0" encoding="UTF-8"?>'
+    + '<factura id="comprobante" version="2.1.0"><infoTributaria>'
+    + '<ambiente>2</ambiente><tipoEmision>1</tipoEmision>'
+    + `<razonSocial>${e.emisor}</razonSocial><ruc>${e.ruc}</ruc>`
+    + `<claveAcceso>${clave}</claveAcceso><codDoc>01</codDoc>`
+    + `<estab>001</estab><ptoEmi>001</ptoEmi><secuencial>${e.sec}</secuencial>`
+    + `</infoTributaria><infoFactura><fechaEmision>${e.fecha}</fechaEmision>`
+    + `<identificacionComprador>${receptor}</identificacionComprador>`
+    + `<totalSinImpuestos>${e.base}</totalSinImpuestos>`
+    + '<totalConImpuestos><totalImpuesto><codigo>2</codigo>'
+    + `<codigoPorcentaje>4</codigoPorcentaje><baseImponible>${e.base}</baseImponible>`
+    + `<valor>${e.iva}</valor></totalImpuesto></totalConImpuestos>`
+    + `<importeTotal>${e.total}</importeTotal></infoFactura></factura>]]>`
+    + '</comprobante></autorizacion>';
+}
+
+/** Los tres ejemplos, como archivos, listos para pasar por el mismo camino. */
+function archivosDeEjemplo() {
+  const ruc = empresaActiva().ruc;
+  return EJEMPLOS.map((e) => new File([xmlDeEjemplo(e, ruc)], e.archivo, { type: 'text/xml' }));
+}
+
+// ===========================================================================
 //  El lote que está sobre la mesa
 // ===========================================================================
 
@@ -8808,6 +8870,19 @@ const zona = () => html`
     <p class="mt-3 text-[11px] text-tinta-suave">
       Se leen en su propio equipo. Nada se envía a ningún sitio.
     </p>
+  </div>
+
+  <!--
+    Fuera de la zona de soltado, porque ahi dentro cualquier clic abre el
+    selector de archivos y este boton no quiere eso.
+  -->
+  <div class="mt-3 flex flex-wrap items-center gap-2 text-[12px] text-tinta-suave">
+    ${icono('science', 'text-[16px]')}
+    <span>¿No tiene archivos a mano?</span>
+    <button type="button" id="probar-ejemplos"
+            class="font-bold text-verde hover:underline">
+      Probar con tres comprobantes de ejemplo
+    </button>
   </div>`;
 
 async function buzon() {
@@ -8973,6 +9048,11 @@ function conectarBuzon() {
     caja.addEventListener('drop', (ev) => trabajar(ev.dataTransfer?.files));
   }
 
+  document.getElementById('probar-ejemplos')?.addEventListener('click', (ev) => {
+    ev.preventDefault();
+    trabajar(archivosDeEjemplo());
+  });
+
   document.getElementById('descartar-lote')?.addEventListener('click', (ev) => {
     ev.preventDefault();
     vaciarLote();
@@ -8997,7 +9077,7 @@ function conectarBuzon() {
 }
 
 
-  return { leerXml, CUENTAS_DE_COMPRA, proponerCuenta, vaciarLote, analizar, cambiarCuenta, registrarLote, buzon, conectarBuzon };
+  return { leerXml, CUENTAS_DE_COMPRA, proponerCuenta, archivosDeEjemplo, vaciarLote, analizar, cambiarCuenta, registrarLote, buzon, conectarBuzon };
 })();
 
 // ---- src/vistas/compras.js ---------------------------------------
