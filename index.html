@@ -547,6 +547,96 @@
     #portada .mapa-ec .galapagos text { font-size: 13px; }
   }
 
+  /* ═══════════════════════════════════════════════════════════════════
+     EL ESTILO DE LA LIGA
+
+     Tres recursos copiados del proyecto de la Liga Deportiva Cantonal, que ya
+     probaron que funcionan: la foto real con un velo que deja leer, la frase
+     clave del titular en oro, y una barra con los colores del Ecuador.
+     ═══════════════════════════════════════════════════════════════════ */
+  #portada .texto-oro {
+    background: linear-gradient(100deg, #F6D77A 0%, #E0A93B 45%, #F3C659 100%);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+    font-style: normal;
+  }
+  /* Amarillo, azul y rojo de la bandera, en ese orden y con la proporcion de
+     la bandera: el amarillo ocupa la mitad. */
+  #portada .barra-tricolor {
+    display: block; height: 6px; width: 11rem; border-radius: 99px; margin-top: 1.4rem;
+    background: linear-gradient(90deg, #FFD100 0 50%, #034EA2 50% 75%, #ED1C24 75% 100%);
+  }
+
+  /* Entrada escalonada: cada bloque aparece un poco despues del anterior.
+     Parte de visible si el navegador no anima, asi nunca queda nada oculto. */
+  @keyframes entra-kontia {
+    from { opacity: 0; transform: translateY(14px); }
+    to   { opacity: 1; transform: none; }
+  }
+  #portada .entra { animation: entra-kontia .7s cubic-bezier(.2,.7,.2,1) both; animation-delay: var(--retraso, 0ms); }
+  @media (prefers-reduced-motion: reduce) { #portada .entra { animation: none; } }
+
+  /* ── el titular con foto ── */
+  #portada .hero-rejilla { display: grid; gap: 2.5rem; align-items: center; }
+  @media (min-width: 62rem) { #portada .hero-rejilla { grid-template-columns: 1.15fr .85fr; gap: 3.5rem; } }
+  #portada .hero-foto { position: relative; margin: 0; max-width: 30rem; justify-self: center; width: 100%; }
+  #portada .hero-foto img {
+    display: block; width: 100%; aspect-ratio: 4 / 5; object-fit: cover; border-radius: 22px;
+    box-shadow: 0 30px 60px -20px rgba(0,0,0,.55), 0 0 0 1px rgba(255,255,255,.08);
+  }
+  /* La insignia flotante sobre la foto: lo que Kontia hace, dicho encima de a
+     quien se lo hace. */
+  #portada .hero-chip {
+    position: absolute; left: -1.2rem; bottom: 1.6rem;
+    display: flex; align-items: center; gap: .7rem;
+    background: rgba(255,255,255,.96); color: var(--tinta-p);
+    border-radius: 14px; padding: .75rem 1rem .75rem .8rem;
+    box-shadow: 0 14px 30px -10px rgba(0,0,0,.45);
+  }
+  #portada .hero-chip b { display: block; font-size: .9rem; }
+  #portada .hero-chip span { display: block; font-size: .74rem; color: var(--suave); }
+  #portada .hero-chip i {
+    flex: 0 0 auto; width: 2.2rem; height: 2.2rem; border-radius: 10px;
+    background: var(--verde-p); color: #fff; font-style: normal; font-weight: 800;
+    display: flex; align-items: center; justify-content: center; font-size: 1.1rem;
+  }
+  @media (max-width: 62rem) { #portada .hero-chip { left: .8rem; } }
+  #portada .clave { margin-top: 2.8rem; }
+
+  /* ── cabeceras y franjas con foto de fondo ── */
+  #portada .con-foto { position: relative; overflow: hidden; isolation: isolate; }
+  #portada .con-foto > .foto-fondo {
+    position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; z-index: -2;
+  }
+  /* El velo: oscuro a la izquierda, donde va el texto, y abierto a la derecha,
+     donde se ve la foto. Es el mismo gesto de la liga. */
+  #portada .con-foto::after {
+    content: ''; position: absolute; inset: 0; z-index: -1; pointer-events: none;
+    background: linear-gradient(90deg, rgba(7,42,28,.95) 0%, rgba(12,58,39,.78) 45%, rgba(12,58,39,.25) 100%);
+  }
+  #portada .con-foto.velo-centro::after {
+    background: linear-gradient(180deg, rgba(7,42,28,.55) 0%, rgba(7,42,28,.82) 100%);
+  }
+  #portada .tapa.con-foto { padding: 4.2rem 0 4.4rem; }
+  /* Donde hay foto sobra el grabado y la K: compiten con ella. */
+  #portada .con-foto.grabado::before, #portada .con-foto.con-monograma::after { display: none; }
+  #portada .con-foto.grabado.con-monograma::after,
+  #portada .con-foto.grabado::after {
+    display: block; content: ''; position: absolute; inset: 0; z-index: -1;
+    right: auto; bottom: auto; width: 100%; height: 100%;
+    background: linear-gradient(90deg, rgba(7,42,28,.95) 0%, rgba(12,58,39,.78) 45%, rgba(12,58,39,.25) 100%);
+    opacity: 1;
+  }
+  #portada .cierre.con-foto::after {
+    background: linear-gradient(180deg, rgba(7,42,28,.45) 0%, rgba(7,42,28,.85) 100%) !important;
+  }
+
+  /* ── el respaldo legal con foto ── */
+  #portada .firma-foto {
+    display: block; width: 100%; aspect-ratio: 16 / 10; object-fit: cover;
+    border-radius: 16px; margin-bottom: 1.2rem;
+    box-shadow: 0 18px 40px -18px rgba(20,32,26,.35);
+  }
+
   /* ═══════════════════════════════════════════ el aviso de franja */
   #portada .nota {
     margin-top: 2rem; background: var(--ambar-suave); border: 1px solid #F0DFC0;
@@ -924,20 +1014,35 @@
 
   <div class="hero franja grabado con-monograma">
     <div class="centro">
-      <span class="insignia"><span class="punto"></span> Ficha técnica 2.34 del SRI · los seis comprobantes</span>
+      <div class="hero-rejilla">
+      <div>
+      <span class="insignia entra"><span class="punto"></span> Ficha técnica 2.34 del SRI · los seis comprobantes</span>
 
-      <h1>La facturación electrónica del Ecuador, con <em>respaldo legal</em>.</h1>
+      <h1 class="entra" style="--retraso:120ms">La facturación electrónica del Ecuador, con <em class="texto-oro">respaldo legal</em>.</h1>
+      <span class="barra-tricolor entra" style="--retraso:240ms" aria-hidden="true"></span>
 
-      <p class="sub">
+      <p class="sub entra" style="--retraso:320ms">
         Los seis comprobantes, la contabilidad y las declaraciones, para empresas de las
         <strong>24 provincias</strong> — de Tulcán a Huaquillas, de Galápagos a la Amazonía.
         Con asesoría legal-tributaria incluida, porque una glosa del SRI no se contesta con
         un mensaje de error.
       </p>
 
-      <div class="botones">
+      <div class="botones entra" style="--retraso:420ms">
         <a class="btn btn-1" href="#ingresar">Entrar al sistema</a>
         <button class="btn btn-2" type="button" data-instalar>Instalar la aplicación</button>
+      </div>
+      </div>
+
+      <figure class="hero-foto entra" style="--retraso:300ms">
+        <img src="imagenes/kontia-hero-movil.webp" width="1080" height="1350"
+             alt="Dueña de una tienda de insumos agrícolas revisando su facturación en una laptop"
+             fetchpriority="high">
+        <figcaption class="hero-chip">
+          <i aria-hidden="true">✓</i>
+          <span><b>Factura autorizada</b><span>Clave de acceso de 49 dígitos</span></span>
+        </figcaption>
+      </figure>
       </div>
 
       <!-- La anatomía de una clave de acceso: 49 dígitos que identifican a una
@@ -1127,6 +1232,8 @@
           jurídico en ejercicio.</span>
         </blockquote>
         <div class="credencial">
+          <img class="firma-foto" src="imagenes/banner-contacto.webp" width="1920" height="600"
+               alt="Abogado atendiendo a una empresaria en su oficina" loading="lazy">
           <strong>Asesoría legal-tributaria incluida</strong>
           <p>
             Se pregunta desde dentro del sistema, sobre el caso que se tiene delante, y
@@ -1142,7 +1249,8 @@
     </div>
   </section>
 
-  <div class="cierre grabado con-monograma" id="instalar">
+  <div class="cierre grabado con-monograma con-foto" id="instalar">
+    <img class="foto-fondo" src="imagenes/cierre-prueba.webp" alt="" loading="lazy">
     <h2>Pruébelo ahora mismo</h2>
     <p>
       Sin instalar nada y sin dar una tarjeta. Entre, emita una factura, mire los libros y
@@ -1161,7 +1269,8 @@
 <!-- ══════════════════════════════════════════════════════════ 2 · qué hace -->
 <div class="pantalla" id="pag-funciones" hidden>
 
-  <div class="tapa franja grabado">
+  <div class="tapa franja grabado con-foto">
+    <img class="foto-fondo" src="imagenes/banner-funciones.webp" alt="" loading="lazy">
     <div class="centro">
       <span class="rotulo">Qué hace</span>
       <h1>Los seis comprobantes, los libros y las declaraciones</h1>
@@ -1632,7 +1741,8 @@
 <!-- ══════════════════════════════════════════════════════════ 6 · contacto -->
 <div class="pantalla" id="pag-contacto" hidden>
 
-  <div class="tapa franja grabado">
+  <div class="tapa franja grabado con-foto">
+    <img class="foto-fondo" src="imagenes/banner-contacto.webp" alt="" loading="lazy">
     <div class="centro">
       <span class="rotulo">Contacto</span>
       <h1>Hablemos</h1>
@@ -1741,7 +1851,8 @@
 <div class="pantalla" id="pag-ingresar" hidden>
   <div class="entrada">
 
-    <section class="entrada-marca grabado con-monograma">
+    <section class="entrada-marca grabado con-monograma con-foto">
+      <img class="foto-fondo" src="imagenes/acceso-kontia.webp" alt="" loading="lazy">
       <a class="marca" href="#inicio">
         <img src="iconos/icono-192.png" alt="">
         <b>Kontia</b>
