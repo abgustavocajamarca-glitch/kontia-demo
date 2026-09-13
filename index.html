@@ -400,7 +400,57 @@
   #portada .pasos { margin-top: .9rem; padding-left: 1.35rem; list-style: decimal; }
   #portada .pasos li { margin-top: .5rem; font-size: .92rem; line-height: 1.5; color: var(--suave); }
   #portada .pasos li strong { color: var(--tinta-p); }
-  #portada .equipo > p:last-child { margin-top: 1rem; font-size: .88rem; }
+  #portada .equipo { display: flex; flex-direction: column; }
+  #portada .equipo > p.nota-equipo { margin-top: 1rem; font-size: .88rem; }
+
+  /* El boton va abajo del todo en las tres tarjetas, alineado, aunque los pasos
+     de una ocupen mas que los de otra. */
+  #portada .equipo-accion { margin-top: auto; padding-top: 1.3rem; }
+  #portada .boton-equipo {
+    display: flex; align-items: center; gap: .8rem; width: 100%;
+    padding: .75rem 1rem; border-radius: 12px; cursor: pointer; font: inherit;
+    background: var(--tinta-p); color: #fff; border: 1px solid var(--tinta-p);
+    text-align: left; transition: transform .12s ease, background .12s ease;
+  }
+  #portada .boton-equipo:hover { transform: translateY(-1px); background: #000; }
+  #portada .boton-equipo:active { transform: translateY(1px); }
+  #portada .boton-equipo svg {
+    width: 26px; height: 26px; flex: 0 0 auto;
+    fill: none; stroke: currentColor; stroke-width: 1.7;
+    stroke-linecap: round; stroke-linejoin: round;
+  }
+  #portada .boton-equipo span { display: flex; flex-direction: column; line-height: 1.15; }
+  #portada .boton-equipo small {
+    font-size: .68rem; font-weight: 600; letter-spacing: .03em; opacity: .75;
+  }
+  #portada .boton-equipo span { font-size: 1rem; font-weight: 700; }
+  /* El del equipo de uno, en verde: es el que hace algo de verdad aqui. */
+  #portada .equipo.suyo .boton-equipo {
+    background: var(--verde-p); border-color: var(--verde-p);
+    box-shadow: 0 1px 2px rgba(11,92,59,.3), 0 6px 16px rgba(11,92,59,.2);
+  }
+  #portada .equipo.suyo .boton-equipo:hover { background: #0B5C3B; }
+
+  #portada .equipo-qr, #portada .equipo-enlace {
+    margin-top: .9rem; padding: .9rem; border-radius: 10px;
+    background: var(--papel-p); border: 1px solid var(--linea); text-align: center;
+  }
+  #portada .equipo-qr[hidden], #portada .equipo-enlace[hidden] { display: none; }
+  #portada .qr-codigo {
+    width: 148px; height: 148px; display: block; margin: 0 auto; color: var(--tinta-p);
+    background: #fff; padding: 4px; border-radius: 6px;
+  }
+  #portada .equipo-qr p, #portada .equipo-enlace p {
+    margin-top: .6rem; font-size: .8rem; color: var(--suave); line-height: 1.45;
+  }
+  #portada .equipo-enlace code {
+    display: block; margin-top: .4rem; font-size: .78rem; word-break: break-all;
+    color: var(--tinta-p);
+  }
+  #portada .copiar-enlace {
+    margin-top: .6rem; font: inherit; font-size: .82rem; font-weight: 700;
+    color: var(--verde-p); background: none; border: 0; cursor: pointer;
+  }
 
   /* La tarjeta del equipo que uno tiene delante, cuando se llega aquí desde
      el botón de instalar: se ilumina un momento y se apaga sola. */
@@ -1404,7 +1454,19 @@
             <li>Toque el menú de <strong>tres puntos</strong>, arriba a la derecha.</li>
             <li>Toque <strong>«Instalar aplicación»</strong> o «Añadir a pantalla de inicio».</li>
           </ol>
-          <p>Queda en la pantalla de inicio, junto a las demás aplicaciones.</p>
+          <p class="nota-equipo">Queda en la pantalla de inicio, junto a las demás aplicaciones.</p>
+
+          <div class="equipo-accion">
+            <button type="button" class="boton-equipo" data-instalar-equipo="android">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6.5" y="2.5" width="11" height="19" rx="2.4"/><path d="M11 18.5h2"/></svg>
+              <span><small>Instalar en</small>Android</span>
+            </button>
+          <div class="equipo-qr" hidden>
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 41 41" class="qr-codigo" role="img" aria-label="Código QR de la página de descarga"><path class="qrline" stroke="currentColor" d="M2 2.5h7m2 0h1m1 0h2m5 0h2m1 0h6m3 0h7m-37 1h1m5 0h1m1 0h1m2 0h1m2 0h2m1 0h1m1 0h1m1 0h1m2 0h3m3 0h1m5 0h1m-37 1h1m1 0h3m1 0h1m1 0h1m1 0h2m1 0h2m3 0h5m1 0h1m2 0h2m1 0h1m1 0h3m1 0h1m-37 1h1m1 0h3m1 0h1m1 0h1m1 0h2m1 0h1m1 0h3m1 0h3m2 0h2m4 0h1m1 0h3m1 0h1m-37 1h1m1 0h3m1 0h1m3 0h3m1 0h1m1 0h1m1 0h2m3 0h1m4 0h1m1 0h1m1 0h3m1 0h1m-37 1h1m5 0h1m2 0h2m2 0h1m1 0h1m2 0h1m2 0h2m1 0h1m1 0h1m1 0h1m1 0h1m5 0h1m-37 1h7m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h7m-29 1h2m2 0h1m2 0h2m4 0h1m1 0h2m1 0h1m-27 1h1m5 0h1m1 0h2m3 0h3m2 0h5m1 0h4m1 0h2m2 0h3m-36 1h1m2 0h1m1 0h1m1 0h2m2 0h1m1 0h1m6 0h1m1 0h1m1 0h2m1 0h1m3 0h2m2 0h1m-35 1h3m1 0h4m2 0h3m3 0h1m2 0h2m2 0h5m1 0h2m2 0h3m-35 1h3m2 0h2m1 0h1m2 0h1m1 0h2m5 0h3m1 0h2m1 0h5m2 0h1m-36 1h4m1 0h3m3 0h3m1 0h1m2 0h2m1 0h2m3 0h2m1 0h2m1 0h1m2 0h1m-36 1h1m1 0h1m1 0h1m3 0h1m1 0h3m1 0h6m2 0h1m3 0h2m2 0h1m1 0h1m-32 1h1m2 0h3m2 0h1m1 0h4m1 0h1m2 0h2m3 0h1m1 0h1m1 0h5m1 0h2m-32 1h1m1 0h3m4 0h2m1 0h4m3 0h1m5 0h2m1 0h3m-36 1h1m2 0h1m2 0h3m7 0h1m4 0h1m3 0h3m1 0h2m1 0h1m1 0h2m-36 1h1m1 0h4m1 0h2m1 0h2m1 0h1m3 0h2m1 0h4m3 0h1m5 0h3m-32 1h3m1 0h1m3 0h1m1 0h2m1 0h2m1 0h2m1 0h1m2 0h2m1 0h2m1 0h1m3 0h1m-34 1h1m4 0h2m1 0h3m5 0h2m1 0h1m1 0h1m1 0h3m4 0h1m2 0h1m-34 1h2m1 0h2m2 0h1m1 0h2m1 0h1m1 0h1m1 0h1m2 0h1m1 0h3m1 0h3m1 0h3m-35 1h1m1 0h1m1 0h1m3 0h3m1 0h1m1 0h3m2 0h1m1 0h3m2 0h2m4 0h1m1 0h1m-33 1h1m3 0h2m1 0h2m1 0h2m1 0h1m2 0h1m3 0h1m2 0h1m1 0h7m2 0h1m-36 1h2m1 0h1m6 0h2m2 0h1m4 0h2m4 0h2m1 0h5m1 0h1m-36 1h5m1 0h3m2 0h3m1 0h5m1 0h1m2 0h1m2 0h2m1 0h2m-32 1h1m3 0h2m1 0h3m3 0h2m1 0h1m6 0h1m3 0h1m3 0h1m1 0h2m-35 1h1m2 0h1m1 0h3m4 0h2m6 0h1m1 0h1m4 0h5m1 0h4m-37 1h1m1 0h1m4 0h3m2 0h1m2 0h1m2 0h1m1 0h1m2 0h1m3 0h1m1 0h1m3 0h2m-35 1h1m1 0h5m2 0h6m2 0h1m2 0h1m1 0h1m1 0h3m1 0h5m1 0h1m1 0h1m-29 1h1m2 0h1m2 0h7m2 0h1m3 0h2m3 0h1m-33 1h7m4 0h1m2 0h2m3 0h1m1 0h3m1 0h2m1 0h1m1 0h1m1 0h1m3 0h1m-37 1h1m5 0h1m3 0h4m2 0h3m3 0h1m1 0h1m1 0h3m3 0h1m2 0h2m-37 1h1m1 0h3m1 0h1m2 0h1m4 0h3m2 0h1m1 0h1m2 0h9m1 0h1m-35 1h1m1 0h3m1 0h1m3 0h3m3 0h3m2 0h1m1 0h1m1 0h1m1 0h4m2 0h2m1 0h1m-37 1h1m1 0h3m1 0h1m2 0h4m1 0h3m1 0h2m1 0h2m1 0h2m3 0h1m3 0h1m1 0h2m-37 1h1m5 0h1m2 0h3m2 0h1m3 0h3m2 0h2m3 0h2m2 0h2m2 0h1m-37 1h7m1 0h3m4 0h1m4 0h1m2 0h2m3 0h1m1 0h2m1 0h1m2 0h1"/></svg>
+            <p>Escanéelo con la cámara del teléfono. Se abre esta misma página, y ahí toque
+            el botón de instalar.</p>
+          </div>
+          </div>
         </div>
 
         <div class="carta equipo" data-equipo="ios">
@@ -1415,10 +1477,22 @@
             <li>Toque el botón de <strong>compartir</strong> (el cuadrado con la flecha).</li>
             <li>Baje y toque <strong>«Añadir a pantalla de inicio»</strong>.</li>
           </ol>
-          <p>
+          <p class="nota-equipo">
             En iPhone hay que hacerlo a mano: Apple no permite que una página lo ofrezca
             sola. Son dos toques.
           </p>
+
+          <div class="equipo-accion">
+            <button type="button" class="boton-equipo" data-instalar-equipo="ios">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v11"/><path d="M8 7l4-4 4 4"/><path d="M6.5 11h-1a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h13a1 1 0 0 0 1-1v-8a1 1 0 0 0-1-1h-1"/></svg>
+              <span><small>Añadir al</small>iPhone o iPad</span>
+            </button>
+          <div class="equipo-qr" hidden>
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 41 41" class="qr-codigo" role="img" aria-label="Código QR de la página de descarga"><path class="qrline" stroke="currentColor" d="M2 2.5h7m2 0h1m1 0h2m5 0h2m1 0h6m3 0h7m-37 1h1m5 0h1m1 0h1m2 0h1m2 0h2m1 0h1m1 0h1m1 0h1m2 0h3m3 0h1m5 0h1m-37 1h1m1 0h3m1 0h1m1 0h1m1 0h2m1 0h2m3 0h5m1 0h1m2 0h2m1 0h1m1 0h3m1 0h1m-37 1h1m1 0h3m1 0h1m1 0h1m1 0h2m1 0h1m1 0h3m1 0h3m2 0h2m4 0h1m1 0h3m1 0h1m-37 1h1m1 0h3m1 0h1m3 0h3m1 0h1m1 0h1m1 0h2m3 0h1m4 0h1m1 0h1m1 0h3m1 0h1m-37 1h1m5 0h1m2 0h2m2 0h1m1 0h1m2 0h1m2 0h2m1 0h1m1 0h1m1 0h1m1 0h1m5 0h1m-37 1h7m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h7m-29 1h2m2 0h1m2 0h2m4 0h1m1 0h2m1 0h1m-27 1h1m5 0h1m1 0h2m3 0h3m2 0h5m1 0h4m1 0h2m2 0h3m-36 1h1m2 0h1m1 0h1m1 0h2m2 0h1m1 0h1m6 0h1m1 0h1m1 0h2m1 0h1m3 0h2m2 0h1m-35 1h3m1 0h4m2 0h3m3 0h1m2 0h2m2 0h5m1 0h2m2 0h3m-35 1h3m2 0h2m1 0h1m2 0h1m1 0h2m5 0h3m1 0h2m1 0h5m2 0h1m-36 1h4m1 0h3m3 0h3m1 0h1m2 0h2m1 0h2m3 0h2m1 0h2m1 0h1m2 0h1m-36 1h1m1 0h1m1 0h1m3 0h1m1 0h3m1 0h6m2 0h1m3 0h2m2 0h1m1 0h1m-32 1h1m2 0h3m2 0h1m1 0h4m1 0h1m2 0h2m3 0h1m1 0h1m1 0h5m1 0h2m-32 1h1m1 0h3m4 0h2m1 0h4m3 0h1m5 0h2m1 0h3m-36 1h1m2 0h1m2 0h3m7 0h1m4 0h1m3 0h3m1 0h2m1 0h1m1 0h2m-36 1h1m1 0h4m1 0h2m1 0h2m1 0h1m3 0h2m1 0h4m3 0h1m5 0h3m-32 1h3m1 0h1m3 0h1m1 0h2m1 0h2m1 0h2m1 0h1m2 0h2m1 0h2m1 0h1m3 0h1m-34 1h1m4 0h2m1 0h3m5 0h2m1 0h1m1 0h1m1 0h3m4 0h1m2 0h1m-34 1h2m1 0h2m2 0h1m1 0h2m1 0h1m1 0h1m1 0h1m2 0h1m1 0h3m1 0h3m1 0h3m-35 1h1m1 0h1m1 0h1m3 0h3m1 0h1m1 0h3m2 0h1m1 0h3m2 0h2m4 0h1m1 0h1m-33 1h1m3 0h2m1 0h2m1 0h2m1 0h1m2 0h1m3 0h1m2 0h1m1 0h7m2 0h1m-36 1h2m1 0h1m6 0h2m2 0h1m4 0h2m4 0h2m1 0h5m1 0h1m-36 1h5m1 0h3m2 0h3m1 0h5m1 0h1m2 0h1m2 0h2m1 0h2m-32 1h1m3 0h2m1 0h3m3 0h2m1 0h1m6 0h1m3 0h1m3 0h1m1 0h2m-35 1h1m2 0h1m1 0h3m4 0h2m6 0h1m1 0h1m4 0h5m1 0h4m-37 1h1m1 0h1m4 0h3m2 0h1m2 0h1m2 0h1m1 0h1m2 0h1m3 0h1m1 0h1m3 0h2m-35 1h1m1 0h5m2 0h6m2 0h1m2 0h1m1 0h1m1 0h3m1 0h5m1 0h1m1 0h1m-29 1h1m2 0h1m2 0h7m2 0h1m3 0h2m3 0h1m-33 1h7m4 0h1m2 0h2m3 0h1m1 0h3m1 0h2m1 0h1m1 0h1m1 0h1m3 0h1m-37 1h1m5 0h1m3 0h4m2 0h3m3 0h1m1 0h1m1 0h3m3 0h1m2 0h2m-37 1h1m1 0h3m1 0h1m2 0h1m4 0h3m2 0h1m1 0h1m2 0h9m1 0h1m-35 1h1m1 0h3m1 0h1m3 0h3m3 0h3m2 0h1m1 0h1m1 0h1m1 0h4m2 0h2m1 0h1m-37 1h1m1 0h3m1 0h1m2 0h4m1 0h3m1 0h2m1 0h2m1 0h2m3 0h1m3 0h1m1 0h2m-37 1h1m5 0h1m2 0h3m2 0h1m3 0h3m2 0h2m3 0h2m2 0h2m2 0h1m-37 1h7m1 0h3m4 0h1m4 0h1m2 0h2m3 0h1m1 0h2m1 0h1m2 0h1"/></svg>
+            <p>Escanéelo con la cámara del teléfono. Se abre esta misma página, y ahí toque
+            el botón de instalar.</p>
+          </div>
+          </div>
         </div>
 
         <div class="carta equipo" data-equipo="escritorio">
@@ -1429,7 +1503,19 @@
             <li>Busque el <strong>icono de instalar</strong> a la derecha de la barra de direcciones.</li>
             <li>Pulse <strong>«Instalar»</strong>.</li>
           </ol>
-          <p>Queda con su icono en el escritorio y se abre en su propia ventana, sin barra de navegador.</p>
+          <p class="nota-equipo">Queda con su icono en el escritorio y se abre en su propia ventana, sin barra de navegador.</p>
+
+          <div class="equipo-accion">
+            <button type="button" class="boton-equipo" data-instalar-equipo="escritorio">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="4.5" width="17" height="11.5" rx="1.6"/><path d="M1.5 19.5h21"/></svg>
+              <span><small>Instalar en</small>Windows o Mac</span>
+            </button>
+            <div class="equipo-enlace" hidden>
+              <p>Abra esta dirección en su computadora:</p>
+              <code>abgustavocajamarca-glitch.github.io/kontia-demo</code>
+              <button type="button" class="copiar-enlace">Copiar el enlace</button>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -2061,6 +2147,63 @@
         setTimeout(function () { suyo.classList.remove('destacado'); }, 2800);
       }, 140);
     }
+
+    /*
+     * Los botones de cada tarjeta de equipo.
+     *
+     * El de su propio equipo instala. Los de los demas no pueden —desde una
+     * computadora no se instala nada en un telefono— y en su lugar ensenan el
+     * camino: un QR para el telefono, o el enlace para la computadora.
+     */
+    var equipoPropio = /iPhone|iPad|iPod/.test(navigator.userAgent) ? 'ios'
+                     : /Android/.test(navigator.userAgent) ? 'android'
+                     : 'escritorio';
+
+    [].slice.call(document.querySelectorAll('[data-instalar-equipo]')).forEach(function (b) {
+      var equipo = b.getAttribute('data-instalar-equipo');
+      var tarjeta = b.closest('.equipo');
+      var esElPropio = equipo === equipoPropio;
+
+      // Lo que dice el boton depende de si sirve aqui o no.
+      var pequeno = b.querySelector('small');
+      if (!esElPropio && pequeno) {
+        pequeno.textContent = equipo === 'escritorio' ? 'Para su computadora' : 'Para su teléfono';
+      }
+
+      b.addEventListener('click', function () {
+        if (esElPropio) {
+          if (invitacion) {
+            invitacion.prompt();
+            invitacion = null;
+            return;
+          }
+          // Sin instalacion de un toque: se iluminan los pasos de esta tarjeta.
+          if (tarjeta) {
+            tarjeta.classList.remove('destacado');
+            void tarjeta.offsetWidth;          // reinicia la animacion
+            tarjeta.classList.add('destacado');
+            setTimeout(function () { tarjeta.classList.remove('destacado'); }, 2800);
+          }
+          return;
+        }
+
+        var panel = tarjeta && (tarjeta.querySelector('.equipo-qr') || tarjeta.querySelector('.equipo-enlace'));
+        if (panel) panel.hidden = !panel.hidden;
+      });
+    });
+
+    [].slice.call(document.querySelectorAll('.copiar-enlace')).forEach(function (b) {
+      b.addEventListener('click', function () {
+        var direccion = 'https://abgustavocajamarca-glitch.github.io/kontia-demo/';
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(direccion).then(function () {
+            b.textContent = 'Enlace copiado';
+          }).catch(function () { b.textContent = direccion; });
+        } else {
+          b.textContent = direccion;
+        }
+      });
+    });
 
     botones.forEach(function (b) {
       b.addEventListener('click', function (ev) {
