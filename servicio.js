@@ -13,11 +13,13 @@
  */
 
 /*
- * El nombre lleva version, y subirla es lo que borra lo guardado: al activarse
- * una version nueva, las anteriores se eliminan (mas abajo). Si alguna vez algo
- * se ve viejo despues de publicar, suba este numero.
+ * La version la escribe el empaquetador en cada publicacion, en lugar de la
+ * marca de abajo. Asi este archivo cambia cada vez que se publica, el navegador
+ * instala el trabajador nuevo solo, y al activarse borra lo guardado por el
+ * anterior (mas abajo). Ya no hay que acordarse de subir un numero a mano.
  */
-const CACHE = 'kontia-v2';
+const VERSION = '66524c4f9ce1';
+const CACHE = 'kontia-' + VERSION;
 const PROPIOS = ['./', './index.html', './manifiesto.json',
                  './iconos/icono-192.png', './iconos/icono-512.png'];
 

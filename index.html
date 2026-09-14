@@ -3,6 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- La version publicada: la pone el empaquetador y la pagina la compara con la del servidor. -->
+<meta name="kontia-version" content="66524c4f9ce1">
 <title>Kontia</title>
 <meta name="theme-color" content="#0F7B4F">
 <link rel="manifest" href="manifiesto.json">
@@ -2414,11 +2416,80 @@
     });
 
 
-    // El trabajador de servicio es lo que permite la instalación. Si falla, la
-    // página sigue funcionando igual: solo se pierde el botón.
+    /*
+     * El trabajador de servicio, y la actualizacion sola.
+     *
+     * Registrarlo es lo que permite instalar la aplicacion. Ademas, la pagina
+     * se pregunta a si misma si ya hay una version nueva: cada diez minutos, al
+     * volver a la pestaña o a la aplicacion, y al recuperar internet. Sin esto,
+     * una aplicacion instalada que se deja abierta nunca vuelve a pedir nada al
+     * servidor y sigue mostrando la version vieja por horas.
+     *
+     * Para saberlo compara su marca de version con la de index.html pedido sin
+     * memoria. Si cambio, recarga una sola vez. Pero no a mitad de un
+     * formulario: si la persona ya escribio algo, espera a que cambie de
+     * pantalla. Perder una factura a medio llenar por una actualizacion seria
+     * peor que ver la version vieja cinco minutos mas.
+     */
     if ('serviceWorker' in navigator) {
+      var marca = document.querySelector('meta[name="kontia-version"]');
+      var VERSION = marca ? marca.getAttribute('content') : '';
+      // En desarrollo la marca queda sin poner: ahi no hay nada que comparar.
+      var publicada = !!VERSION && VERSION.indexOf('__') !== 0;
+      var DIEZ_MINUTOS = 10 * 60 * 1000;
+      var registro = null;
+      var nueva = '';
+      var escribio = false;
+      var recargando = false;
+
+      document.addEventListener('input', function () { escribio = true; }, true);
+
+      var recargar = function () {
+        if (recargando || !nueva) return;
+        // Contra los bucles: si ya se recargo una vez por esta misma version y
+        // el servidor todavia entrega la vieja, no se insiste hasta la proxima.
+        try {
+          if (sessionStorage.getItem('kontia-recargada-por') === nueva) { nueva = ''; return; }
+          sessionStorage.setItem('kontia-recargada-por', nueva);
+        } catch (e) { /* sin memoria de sesion: se recarga igual, una vez */ }
+        recargando = true;
+        location.reload();
+      };
+
+      var revisar = function () {
+        if (!navigator.onLine) return;
+        if (registro) registro.update().catch(function () {});
+        if (!publicada) return;
+        fetch('index.html', { cache: 'no-store' })
+          .then(function (r) { return r.ok ? r.text() : ''; })
+          .then(function (texto) {
+            var m = /<meta name="kontia-version" content="([^"]+)"/.exec(texto);
+            if (m && m[1] !== VERSION && m[1].indexOf('__') !== 0) {
+              nueva = m[1];
+              if (!escribio) recargar();
+            }
+          })
+          .catch(function () { /* sin red: se vuelve a intentar despues */ });
+      };
+
+      // Cuando un trabajador de servicio nuevo toma el control, se comprueba si
+      // la pagina que se esta viendo quedo vieja. Si ya es la nueva, no recarga.
+      navigator.serviceWorker.addEventListener('controllerchange', revisar);
+
+      window.addEventListener('hashchange', function () {
+        if (nueva) recargar();
+        else escribio = false;
+      });
+      document.addEventListener('visibilitychange', function () {
+        if (document.visibilityState === 'visible') revisar();
+      });
+      window.addEventListener('online', revisar);
+      setInterval(revisar, DIEZ_MINUTOS);
+
       window.addEventListener('load', function () {
-        navigator.serviceWorker.register('servicio.js').catch(function () { /* sin instalador */ });
+        navigator.serviceWorker.register('servicio.js', { updateViaCache: 'none' })
+          .then(function (r) { registro = r; })
+          .catch(function () { /* sin instalador: la pagina funciona igual */ });
       });
     }
   })();
