@@ -155,8 +155,13 @@
     font-size: .78rem; font-weight: 600; color: #CFEBDC;
   }
   #portada .insignia span.punto { width: .45rem; height: .45rem; border-radius: 50%; background: var(--verde-viv); }
-  #portada .hero h1 { font-size: clamp(2.05rem, 6vw, 3.8rem); font-weight: 800; margin: 1.5rem 0 0; max-width: 34ch; }
-  #portada .hero h1 em { font-style: normal; color: var(--verde-tenue); }
+  #portada .hero h1 {
+    font-size: clamp(1.9rem, 5.4vw, 3.5rem); font-weight: 800; margin: 1.5rem 0 0; max-width: 22ch;
+    text-transform: uppercase; line-height: 1.02; letter-spacing: -.02em; text-wrap: balance;
+    filter: drop-shadow(0 4px 18px rgba(0,0,0,.45));
+  }
+  #portada .hero h1 > span { display: block; }
+  #portada .hero h1 em { font-style: normal; }
   #portada .hero p.sub {
     margin-top: 1.3rem; font-size: clamp(1rem, 2.4vw, 1.18rem);
     color: rgba(255,255,255,.78); max-width: 52ch;
@@ -554,11 +559,17 @@
      probaron que funcionan: la foto real con un velo que deja leer, la frase
      clave del titular en oro, y una barra con los colores del Ecuador.
      ═══════════════════════════════════════════════════════════════════ */
+  /* El mismo oro de la liga: un degradado el doble de ancho que el texto, que
+     se desliza despacio y deja pasar un brillo. */
   #portada .texto-oro {
-    background: linear-gradient(100deg, #F6D77A 0%, #E0A93B 45%, #F3C659 100%);
+    background: linear-gradient(90deg, #fbbf24 0%, #fef3c7 22%, #f59e0b 45%, #fde68a 70%, #fbbf24 100%);
+    background-size: 200% auto;
     -webkit-background-clip: text; background-clip: text; color: transparent;
     font-style: normal;
+    animation: brillo-oro 4s linear infinite;
   }
+  @keyframes brillo-oro { to { background-position: 200% center; } }
+  @media (prefers-reduced-motion: reduce) { #portada .texto-oro { animation: none; } }
   /* Amarillo, azul y rojo de la bandera, en ese orden y con la proporcion de
      la bandera: el amarillo ocupa la mitad. */
   #portada .barra-tricolor {
@@ -1059,7 +1070,10 @@
       <div>
       <span class="insignia entra"><span class="punto"></span> Ficha técnica 2.34 del SRI · los seis comprobantes</span>
 
-      <h1 class="entra" style="--retraso:120ms">La facturación electrónica del Ecuador, con <em class="texto-oro">respaldo legal</em>.</h1>
+      <h1>
+        <span class="entra" style="--retraso:120ms">La facturación electrónica del Ecuador,</span>
+        <span class="entra" style="--retraso:260ms">con <em class="texto-oro">respaldo legal</em></span>
+      </h1>
       <span class="barra-tricolor entra" style="--retraso:240ms" aria-hidden="true"></span>
 
       <p class="sub entra" style="--retraso:320ms">
