@@ -637,6 +637,47 @@
     box-shadow: 0 18px 40px -18px rgba(20,32,26,.35);
   }
 
+  /* ── tarjetas con foto arriba ── */
+  #portada .carta.con-imagen { overflow: hidden; }
+  #portada .carta-foto {
+    display: block; margin: -1.4rem -1.5rem 1.15rem; aspect-ratio: 3 / 2; overflow: hidden;
+    background: var(--hondo);
+  }
+  #portada .carta-foto img { display: block; width: 100%; height: 100%; object-fit: cover; transition: transform .6s ease; }
+  #portada a.carta:hover .carta-foto img { transform: scale(1.045); }
+  @media (prefers-reduced-motion: reduce) { #portada a.carta:hover .carta-foto img { transform: none; } }
+
+  /* ── la ilustración de cada comprobante ── */
+  #portada .carta-ilus {
+    display: block; width: 5.5rem; height: 5.5rem; object-fit: cover;
+    border-radius: 18px; margin-bottom: 1rem;
+    box-shadow: 0 10px 22px -12px rgba(20,32,26,.35);
+  }
+
+  /* ── encabezado con ilustración al lado ── */
+  #portada .encabeza-ilus { display: grid; gap: 1.5rem; align-items: center; }
+  @media (min-width: 48rem) { #portada .encabeza-ilus { grid-template-columns: 1fr 13rem; gap: 3rem; } }
+  #portada .ilus-lado {
+    display: block; width: 100%; max-width: 13rem; aspect-ratio: 1; object-fit: cover;
+    border-radius: 24px; justify-self: center;
+    box-shadow: 0 18px 36px -18px rgba(20,32,26,.4);
+  }
+
+  /* ── las tres regiones, debajo del mapa ── */
+  #portada .regiones { display: grid; gap: 1rem; margin-top: 3.2rem; }
+  @media (min-width: 44rem) { #portada .regiones { grid-template-columns: repeat(3, 1fr); } }
+  #portada .region {
+    position: relative; margin: 0; aspect-ratio: 3 / 2; border-radius: 16px; overflow: hidden;
+    box-shadow: 0 0 0 1px rgba(255,255,255,.1);
+  }
+  #portada .region img { display: block; width: 100%; height: 100%; object-fit: cover; }
+  #portada .region figcaption {
+    position: absolute; inset: auto 0 0 0; padding: 2.6rem 1.1rem 1rem;
+    background: linear-gradient(180deg, rgba(7,42,28,0) 0%, rgba(7,42,28,.9) 100%);
+  }
+  #portada .region b { display: block; font-size: 1.15rem; font-weight: 800; color: #fff; }
+  #portada .region span { display: block; margin-top: .15rem; font-size: .8rem; color: rgba(255,255,255,.78); }
+
   /* ═══════════════════════════════════════════ el aviso de franja */
   #portada .nota {
     margin-top: 2rem; background: var(--ambar-suave); border: 1px solid #F0DFC0;
@@ -1081,7 +1122,8 @@
       </div>
 
       <div class="rejilla col-3">
-        <a class="carta" href="#funciones">
+        <a class="carta con-imagen" href="#funciones">
+          <span class="carta-foto"><img src="imagenes/tarjeta-facturacion.webp" width="1200" height="800" alt="Impresora de comprobantes y laptop en un mostrador de la costa" loading="lazy"></span>
           <span class="cod">6 comprobantes</span>
           <h3>Facturación electrónica</h3>
           <p>
@@ -1091,7 +1133,8 @@
           </p>
           <span class="ir">Ver qué hace →</span>
         </a>
-        <a class="carta" href="#funciones">
+        <a class="carta con-imagen" href="#funciones">
+          <span class="carta-foto"><img src="imagenes/tarjeta-contabilidad.webp" width="1200" height="800" alt="Libro contable abierto junto a una laptop con gráficos" loading="lazy"></span>
           <span class="cod">371 cuentas</span>
           <h3>Contabilidad</h3>
           <p>
@@ -1100,7 +1143,8 @@
           </p>
           <span class="ir">Ver los libros →</span>
         </a>
-        <a class="carta" href="#privacidad">
+        <a class="carta con-imagen" href="#privacidad">
+          <span class="carta-foto"><img src="imagenes/tarjeta-respaldo.webp" width="1200" height="800" alt="Escritorio de un estudio jurídico con balanza y libros de derecho" loading="lazy"></span>
           <span class="cod">Aislamiento</span>
           <h3>Sus datos, suyos</h3>
           <p>
@@ -1191,6 +1235,21 @@
           </figcaption>
         </figure>
       </div>
+
+      <div class="centro regiones">
+        <figure class="region">
+          <img src="imagenes/pais-costa.webp" width="1200" height="800" alt="Pueblo de la costa ecuatoriana" loading="lazy">
+          <figcaption><b>Costa</b><span>De Esmeraldas a El Oro</span></figcaption>
+        </figure>
+        <figure class="region">
+          <img src="imagenes/pais-sierra.webp" width="1200" height="800" alt="Plaza de un pueblo andino con el Cotopaxi al fondo" loading="lazy">
+          <figcaption><b>Sierra</b><span>De Carchi a Loja</span></figcaption>
+        </figure>
+        <figure class="region">
+          <img src="imagenes/pais-amazonia.webp" width="1200" height="800" alt="Muelle de un pueblo a orillas de un río amazónico" loading="lazy">
+          <figcaption><b>Amazonía</b><span>De Sucumbíos a Zamora Chinchipe</span></figcaption>
+        </figure>
+      </div>
     </section>
   </div>
 
@@ -1232,8 +1291,8 @@
           jurídico en ejercicio.</span>
         </blockquote>
         <div class="credencial">
-          <img class="firma-foto" src="imagenes/banner-contacto.webp" width="1920" height="600"
-               alt="Abogado atendiendo a una empresaria en su oficina" loading="lazy">
+          <img class="firma-foto" src="imagenes/respaldo-legal.webp" width="1600" height="1000"
+               alt="Abogado revisando documentos con una empresaria" loading="lazy">
           <strong>Asesoría legal-tributaria incluida</strong>
           <p>
             Se pregunta desde dentro del sistema, sobre el caso que se tiene delante, y
@@ -1290,17 +1349,17 @@
       </div>
 
       <div class="rejilla col-3">
-        <div class="carta"><span class="cod">01 · v2.1.0</span>
+        <div class="carta"><img class="carta-ilus" src="imagenes/ilus-factura.webp" width="800" height="800" alt="" loading="lazy"><span class="cod">01 · v2.1.0</span>
           <h3>Factura</h3><p>La venta. Con sus impuestos, formas de pago e información adicional.</p></div>
-        <div class="carta"><span class="cod">04 · v1.1.0</span>
+        <div class="carta"><img class="carta-ilus" src="imagenes/ilus-nota-credito.webp" width="800" height="800" alt="" loading="lazy"><span class="cod">04 · v1.1.0</span>
           <h3>Nota de crédito</h3><p>Para corregir o anular una factura autorizada. Una factura emitida no se borra nunca.</p></div>
-        <div class="carta"><span class="cod">05 · v1.0.0</span>
+        <div class="carta"><img class="carta-ilus" src="imagenes/ilus-nota-debito.webp" width="800" height="800" alt="" loading="lazy"><span class="cod">05 · v1.0.0</span>
           <h3>Nota de débito</h3><p>Para cobrar algo que quedó fuera. Sus motivos tienen que sumar el subtotal.</p></div>
-        <div class="carta"><span class="cod">07 · v2.0.0</span>
+        <div class="carta"><img class="carta-ilus" src="imagenes/ilus-retencion.webp" width="800" height="800" alt="" loading="lazy"><span class="cod">07 · v2.0.0</span>
           <h3>Comprobante de retención</h3><p>Lo que se retiene al pagar a un proveedor, y se entrega al SRI.</p></div>
-        <div class="carta"><span class="cod">06 · v1.1.0</span>
+        <div class="carta"><img class="carta-ilus" src="imagenes/ilus-guia-remision.webp" width="800" height="800" alt="" loading="lazy"><span class="cod">06 · v1.1.0</span>
           <h3>Guía de remisión</h3><p>Ampara el traslado de la mercadería. Sin precios: no vende, acompaña.</p></div>
-        <div class="carta"><span class="cod">03 · v1.1.0</span>
+        <div class="carta"><img class="carta-ilus" src="imagenes/ilus-liquidacion.webp" width="800" height="800" alt="" loading="lazy"><span class="cod">03 · v1.1.0</span>
           <h3>Liquidación de compra</h3><p>Para comprar a quien no puede facturar. Se niega a emitirse si el proveedor tiene RUC.</p></div>
       </div>
     </div>
@@ -1308,6 +1367,7 @@
 
   <section class="bloque franja" style="padding-top:0">
     <div class="centro">
+      <div class="encabeza-ilus">
       <div class="encabeza">
         <span class="rotulo">Contabilidad</span>
         <h2>Libros que se comprueban solos</h2>
@@ -1316,6 +1376,8 @@
           comprobación dice en grande si cuadra o no, porque un asiento equivocado no se
           queja: cuadra igual y el error aparece meses después en una glosa.
         </p>
+      </div>
+      <img class="ilus-lado" src="imagenes/ilus-libros.webp" width="800" height="800" alt="" loading="lazy">
       </div>
 
       <div class="rejilla col-3">
@@ -1396,7 +1458,8 @@
 <!-- ══════════════════════════════════════════════════════════ 3 · privacidad -->
 <div class="pantalla" id="pag-privacidad" hidden>
 
-  <div class="tapa franja grabado">
+  <div class="tapa franja grabado con-foto">
+    <img class="foto-fondo" src="imagenes/banner-privacidad.webp" alt="" loading="lazy">
     <div class="centro">
       <span class="rotulo">Privacidad</span>
       <h1>Ni nosotros vemos sus datos</h1>
@@ -1513,7 +1576,8 @@
 <!-- ══════════════════════════════════════════════════════════ 4 · descargar -->
 <div class="pantalla" id="pag-descargar" hidden>
 
-  <div class="tapa franja grabado">
+  <div class="tapa franja grabado con-foto">
+    <img class="foto-fondo" src="imagenes/banner-descargar.webp" alt="" loading="lazy">
     <div class="centro">
       <span class="rotulo">Descargar</span>
       <h1>Kontia en su teléfono y en su computadora</h1>
@@ -1667,7 +1731,8 @@
 <!-- ══════════════════════════════════════════════════════════ 5 · planes -->
 <div class="pantalla" id="pag-planes" hidden>
 
-  <div class="tapa franja grabado">
+  <div class="tapa franja grabado con-foto">
+    <img class="foto-fondo" src="imagenes/banner-planes.webp" alt="" loading="lazy">
     <div class="centro">
       <span class="rotulo">Planes</span>
       <h1>Lo que trae cada plan</h1>
@@ -2884,11 +2949,14 @@ const boton = (texto, { ruta = '#', tipo = 'principal', ico = null, id = null } 
  * qué todavía no hay nada y cuál es el siguiente paso, que es lo que necesita
  * alguien que abre el sistema por primera vez.
  */
-const vacio = ({ ico, titulo, texto, accion = '' }) => html`
-  <div class="flex flex-col items-center justify-center text-center py-20 px-6">
-    <div class="w-16 h-16 rounded-2xl bg-verde-claro flex items-center justify-center mb-5">
-      ${icono(ico, 'text-[30px] text-verde')}
-    </div>
+const vacio = ({ ico, titulo, texto, accion = '', imagen = '' }) => html`
+  <div class="flex flex-col items-center justify-center text-center py-16 px-6">
+    ${imagen ? html`
+      <img src="${imagen}" alt="" width="800" height="800" loading="lazy"
+           class="w-40 h-40 object-cover rounded-3xl mb-6 shadow-lg shadow-black/10">` : html`
+      <div class="w-16 h-16 rounded-2xl bg-verde-claro flex items-center justify-center mb-5">
+        ${icono(ico, 'text-[30px] text-verde')}
+      </div>`}
     <h3 class="text-lg font-bold">${titulo}</h3>
     <p class="mt-2 text-sm text-tinta-suave max-w-md leading-relaxed">${texto}</p>
     <div class="mt-6">${accion}</div>
@@ -5296,16 +5364,20 @@ const __src_vistas_pendiente_js = (function () {
 
 
 
-function pendiente({ titulo, ico, texto }) {
+function pendiente({ titulo, ico, texto, imagen = '', etiqueta = 'Todavía no está hecha' }) {
   return html`
     <div class="flex items-center justify-center min-h-[60vh]">
       <div class="max-w-lg text-center">
-        <div class="w-16 h-16 mx-auto rounded-2xl bg-white border border-papel-linea flex items-center justify-center mb-5">
-          ${icono(ico, 'text-[30px] text-tinta-suave')}
-        </div>
-        <span class="inline-block text-[10px] font-bold uppercase tracking-widest px-2.5 py-1 rounded-full bg-papel-linea text-tinta-suave mb-3">
-          Todavía no está hecha
-        </span>
+        ${imagen ? html`
+          <img src="${imagen}" alt="" width="800" height="800"
+               class="w-44 h-44 mx-auto object-cover rounded-3xl mb-6 shadow-lg shadow-black/10">` : html`
+          <div class="w-16 h-16 mx-auto rounded-2xl bg-white border border-papel-linea flex items-center justify-center mb-5">
+            ${icono(ico, 'text-[30px] text-tinta-suave')}
+          </div>`}
+        ${etiqueta ? html`
+          <span class="inline-block text-[10px] font-bold uppercase tracking-widest px-2.5 py-1 rounded-full bg-papel-linea text-tinta-suave mb-3">
+            ${etiqueta}
+          </span>` : ''}
         <h1 class="text-xl font-bold tracking-tight">${titulo}</h1>
         <p class="mt-3 text-sm text-tinta-suave leading-relaxed">${texto}</p>
         <div class="mt-6 flex justify-center gap-2">
@@ -5511,9 +5583,14 @@ async function resumen() {
   }) : '';
 
   return html`
-    <header class="mb-6">
-      <h1 class="text-2xl font-bold tracking-tight">Resumen</h1>
-      <p class="mt-1 text-sm text-tinta-suave">Septiembre de 2026 · Agroquímicos Pérez S.A.</p>
+    <header class="relative mb-6 rounded-2xl overflow-hidden relieve bg-[#0C3A27]">
+      <img src="imagenes/panel-empresa.webp" alt="" width="1600" height="500"
+           class="absolute inset-0 w-full h-full object-cover">
+      <span class="absolute inset-0" style="background:linear-gradient(90deg,rgba(7,42,28,.93) 0%,rgba(12,58,39,.72) 50%,rgba(12,58,39,.12) 100%)"></span>
+      <div class="relative px-6 py-8 sm:py-10 text-white">
+        <h1 class="text-2xl font-bold tracking-tight">Resumen</h1>
+        <p class="mt-1 text-sm text-white/75">Septiembre de 2026 · Agroquímicos Pérez S.A.</p>
+      </div>
     </header>
 
     ${crudo(avisoCertificado)}
@@ -5690,7 +5767,7 @@ async function comprobantes() {
     { texto: 'Número' }, { texto: 'Cliente' }, { texto: 'Fecha' },
     { texto: 'Total', der: true }, { texto: 'Estado', der: true },
   ], cuerpo) : vacio({
-    ico: 'receipt_long',
+    ico: 'receipt_long', imagen: 'imagenes/estado-sin-comprobantes.webp',
     titulo: 'Todavía no ha emitido ningún comprobante',
     texto: 'Aquí van a aparecer sus facturas, notas de crédito y retenciones, con el ' +
            'estado en que las dejó el SRI. La primera factura se emite desde el botón de arriba.',
@@ -7223,6 +7300,16 @@ async function adminEmpresas() {
     </tr>`);
 
   return html`
+    <div class="relative mb-6 rounded-2xl overflow-hidden relieve bg-[#0C3A27]">
+      <img src="imagenes/panel-plataforma.webp" alt="" width="1600" height="500"
+           class="absolute inset-0 w-full h-full object-cover">
+      <span class="absolute inset-0" style="background:linear-gradient(90deg,rgba(7,42,28,.93) 0%,rgba(12,58,39,.72) 50%,rgba(12,58,39,.12) 100%)"></span>
+      <div class="relative px-6 py-7 sm:py-9 text-white">
+        <p class="text-[11px] font-bold uppercase tracking-widest text-white/70">Administración de la plataforma</p>
+        <p class="mt-1.5 text-xl font-bold tracking-tight max-w-xl">Se administra el servicio, no la contabilidad de nadie.</p>
+      </div>
+    </div>
+
     ${crudo(cabecera({
       titulo: 'Empresas',
       descripcion: 'Las empresas con contrato activo en Kontia. Se administra el servicio: ' +
@@ -9890,9 +9977,8 @@ const zona = () => html`
     <input type="file" id="archivos-buzon" multiple accept=".xml,text/xml,application/xml"
            class="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
            aria-label="Elegir archivos XML">
-    <div class="w-14 h-14 mx-auto rounded-2xl bg-verde-claro flex items-center justify-center">
-      ${icono('cloud_upload', 'text-[28px] text-verde')}
-    </div>
+    <img src="imagenes/ilus-buzon.webp" alt="" width="800" height="800"
+         class="pointer-events-none w-28 h-28 mx-auto object-cover rounded-3xl">
     <p class="mt-4 text-sm font-bold">Suelte aquí los XML de sus compras</p>
     <p class="mt-1.5 text-sm text-tinta-suave max-w-lg mx-auto leading-relaxed">
       O toque para elegirlos. Puede soltar muchos a la vez: el lote entero que descargó
@@ -10021,7 +10107,16 @@ async function buzon() {
            'Comprobante sin autorización, pago en efectivo sobre el umbral de bancarización, ' +
            'gasto de otro ejercicio, totales que no cuadran. Eso normalmente se descubre un ' +
            'año después, cuando ya no se puede corregir.'],
-        ].map(([ico, titulo, texto]) => html`
+        ].map(([ico, titulo, texto], i) => i === 3 ? html`
+          <div class="lg:col-span-3 bg-white border border-papel-linea rounded-2xl p-5 relieve
+                      flex flex-col sm:flex-row sm:items-center gap-5">
+            <img src="imagenes/ilus-semaforo.webp" alt="" width="800" height="800" loading="lazy"
+                 class="w-28 h-28 object-cover rounded-2xl shrink-0">
+            <div>
+              <h3 class="text-sm font-bold">${titulo}</h3>
+              <p class="mt-1.5 text-[13px] text-tinta-suave leading-relaxed max-w-3xl">${texto}</p>
+            </div>
+          </div>` : html`
           <div class="bg-white border border-papel-linea rounded-2xl p-5 relieve">
             <div class="w-10 h-10 rounded-xl bg-verde-claro flex items-center justify-center">
               ${icono(ico, 'text-[20px] text-verde')}
@@ -10154,7 +10249,7 @@ async function compras() {
     return html`
       ${cabecera({ titulo: 'Compras', descripcion: 'Lo que la empresa compró, con su IVA y su asiento.' })}
       ${vacio({
-        ico: 'cloud_upload',
+        ico: 'cloud_upload', imagen: 'imagenes/estado-sin-compras.webp',
         titulo: 'Todavía no hay compras registradas',
         texto: 'No hace falta digitarlas. Suelte en el buzón los XML que le enviaron sus ' +
                'proveedores o el lote que descargó del portal del SRI, y aparecen aquí con su ' +
@@ -11400,6 +11495,7 @@ async function dibujar() {
   } else if (r.noEncontrada) {
     contenido = pendiente({
       titulo: 'Esa pantalla no existe', ico: 'help',
+      imagen: 'imagenes/estado-404.webp', etiqueta: '',
       texto: `La dirección ${r.ruta} no corresponde a ninguna pantalla de Kontia.`,
     });
   } else {
