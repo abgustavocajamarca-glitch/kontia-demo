@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <!-- La version publicada: la pone el empaquetador y la pagina la compara con la del servidor. -->
-<meta name="kontia-version" content="66524c4f9ce1">
+<meta name="kontia-version" content="221683d0f153">
 <title>Kontia</title>
 <meta name="theme-color" content="#0F7B4F">
 <link rel="manifest" href="manifiesto.json">
@@ -10643,11 +10643,14 @@ const COMPROMISOS = [
            'según lo que ella decida.',
     hecho: 'Con una excepción que manda la ley tributaria: los comprobantes electrónicos se ' +
            'conservan siete años aunque el contrato termine antes.' },
-  { ico: 'travel_explore', titulo: 'Dónde están los datos',
-    texto: 'Los servidores están en Sao Paulo, Brasil. Sacar datos del país exige que el ' +
-           'destino tenga protección adecuada o garantías contractuales.',
-    hecho: 'Es un dato que tiene que constar en el contrato con cada empresa, no una letra ' +
-           'pequeña.' },
+  // La ubicacion exacta no se dice en pantalla, donde sin contexto genera mas dudas
+  // que certezas. Pero no se oculta: la LOPDP exige informar cuando los datos
+  // salen del pais, y eso consta en el contrato y en la politica de privacidad.
+  { ico: 'cloud_done', titulo: 'Dónde se guardan los datos',
+    texto: 'En la nube, en centros de datos con certificaciones internacionales de ' +
+           'seguridad. Viajan cifrados y se guardan cifrados.',
+    hecho: 'La ubicación y las garantías de protección constan en el contrato con cada ' +
+           'empresa y en la política de privacidad, como exige la ley.' },
   { ico: 'report', titulo: 'Aviso de incidentes',
     texto: 'Si hubiera una brecha de seguridad, hay obligación de avisar a la empresa y a la ' +
            'autoridad.',
