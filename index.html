@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <!-- La version publicada: la pone el empaquetador y la pagina la compara con la del servidor. -->
-<meta name="kontia-version" content="9790a77731e1">
+<meta name="kontia-version" content="bbe42ad7fe05">
 <title>Kontia</title>
 <meta name="theme-color" content="#0F7B4F">
 <link rel="manifest" href="manifiesto.json">
@@ -2749,7 +2749,9 @@
       var VERSION = marca ? marca.getAttribute('content') : '';
       // En desarrollo la marca queda sin poner: ahi no hay nada que comparar.
       var publicada = !!VERSION && VERSION.indexOf('__') !== 0;
-      var DIEZ_MINUTOS = 10 * 60 * 1000;
+      // Cada cinco minutos con la aplicación abierta. Además, al abrirla, al
+      // volver a ella y al recuperar internet (más abajo).
+      var CADA = 5 * 60 * 1000;
       var registro = null;
       var nueva = '';
       var escribio = false;
@@ -2797,11 +2799,21 @@
         if (document.visibilityState === 'visible') revisar();
       });
       window.addEventListener('online', revisar);
-      setInterval(revisar, DIEZ_MINUTOS);
+      window.addEventListener('focus', revisar);
+      // Al volver con «atrás» o al reabrir la aplicación desde el teléfono, el
+      // navegador puede mostrar la página congelada sin cargarla de nuevo.
+      window.addEventListener('pageshow', function (ev) { if (ev.persisted) revisar(); });
+      setInterval(revisar, CADA);
 
       window.addEventListener('load', function () {
         navigator.serviceWorker.register('servicio.js', { updateViaCache: 'none' })
-          .then(function (r) { registro = r; })
+          .then(function (r) {
+            registro = r;
+            // Recién registrado: se revisa en seguida, sin esperar a nada. Así,
+            // quien abre la aplicación con una versión vieja la ve actualizarse
+            // sola al abrir, sin reinstalar ni tocar nada.
+            revisar();
+          })
           .catch(function () { /* sin instalador: la pagina funciona igual */ });
       });
     }

@@ -18,7 +18,7 @@
  * instala el trabajador nuevo solo, y al activarse borra lo guardado por el
  * anterior (mas abajo). Ya no hay que acordarse de subir un numero a mano.
  */
-const VERSION = '9790a77731e1';
+const VERSION = 'bbe42ad7fe05';
 const CACHE = 'kontia-' + VERSION;
 const PROPIOS = ['./', './index.html', './manifiesto.json',
                  './iconos/icono-192.png', './iconos/icono-512.png'];
@@ -42,30 +42,54 @@ self.addEventListener('activate', (ev) => {
   );
 });
 
+/*
+ * Cómo se pide cada cosa a la red.
+ *
+ * Lo nuestro se pide «sin memoria del navegador» (`no-cache`): el navegador
+ * pregunta al servidor si cambió y, si no, reutiliza lo que tiene sin volver a
+ * descargarlo. Así una publicación nueva se ve en la primera recarga.
+ *
+ * EL ERROR QUE HABÍA. Antes se hacía `fetch(pedido, { cache: 'reload' })` con
+ * todo, también con la página misma. Pero una página (un pedido de navegación)
+ * no admite opciones: el navegador lo rechaza, se caía al `catch` y se servía
+ * la copia guardada, que era la vieja. Por eso recargar no bastaba y hacía
+ * falta una segunda carga. La página se pide ahora por su dirección, que sí
+ * admite la opción.
+ */
+function pedirALaRed(pedido) {
+  const nuestro = new URL(pedido.url).origin === location.origin;
+  if (!nuestro) return fetch(pedido);
+  if (pedido.mode === 'navigate') {
+    return fetch(pedido.url, { cache: 'no-cache', credentials: 'same-origin' });
+  }
+  try {
+    return fetch(new Request(pedido, { cache: 'no-cache' }));
+  } catch (e) {
+    return fetch(pedido);
+  }
+}
+
 self.addEventListener('fetch', (ev) => {
   if (ev.request.method !== 'GET') return;
 
-  const nuestro = new URL(ev.request.url).origin === location.origin;
+  const pedido = ev.request;
+  const nuestro = new URL(pedido.url).origin === location.origin;
 
   /*
-   * Primero la red, para que una versión nueva se vea el mismo día en que se
-   * publica. Lo guardado es la red de seguridad, no la fuente.
-   *
-   * `cache: 'reload'` para lo nuestro: sin eso, `fetch` puede contestar con lo
-   * que el navegador guardó por su cuenta —que puede ser de antes de publicar—
-   * y entonces ni la red ni este archivo tienen nada que decir. Los tipos de
-   * letra y Tailwind vienen de fuera y ahi si conviene dejar que el navegador
-   * los reutilice: no cambian.
+   * Primero la red, para que una versión nueva se vea en cuanto se recarga.
+   * Lo guardado es la red de seguridad cuando no hay internet, no la fuente.
+   * Los tipos de letra y Tailwind vienen de fuera y no se guardan aquí.
    */
   ev.respondWith(
-    fetch(ev.request, nuestro ? { cache: 'reload' } : undefined)
+    pedirALaRed(pedido)
       .then((r) => {
         if (r.ok && nuestro) {
           const copia = r.clone();
-          caches.open(CACHE).then((c) => c.put(ev.request, copia));
+          caches.open(CACHE).then((c) => c.put(pedido, copia)).catch(() => {});
         }
         return r;
       })
-      .catch(() => caches.match(ev.request))
+      .catch(() => caches.match(pedido, { ignoreSearch: pedido.mode === 'navigate' })
+        .then((r) => r || (pedido.mode === 'navigate' ? caches.match('./index.html') : r)))
   );
 });
