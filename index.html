@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <!-- La version publicada: la pone el empaquetador y la pagina la compara con la del servidor. -->
-<meta name="kontia-version" content="ecfd3991bf58">
+<meta name="kontia-version" content="3aac2293cd67">
 <title>Kontia</title>
 <meta name="theme-color" content="#0F7B4F">
 <link rel="manifest" href="manifiesto.json">
@@ -13359,11 +13359,22 @@ function saludarSiYaEntro() {
   const caja = document.getElementById('sigue-sesion');
   if (!caja) return;
 
-  if (!sesion.activa()) { caja.hidden = true; return; }
+  // Recién cerrada la sesión, ofrecer «continuar como…» contradice el aviso de
+  // «Sesión cerrada» que sale debajo.
+  if (!sesion.activa() || recienSalio) { caja.hidden = true; return; }
 
+  const usuario = sesion.usuario();
   const nombre = document.getElementById('sigue-nombre');
   const boton = document.getElementById('sigue-boton');
-  if (nombre) nombre.textContent = sesion.usuario().nombre;
+  const frase = caja.querySelector('p');
+  if (nombre) nombre.textContent = usuario.nombre;
+  // Un papel de la demostración no es una cuenta: se dice, para que nadie crea
+  // que quedó abierta la sesión de una persona real.
+  if (frase) {
+    frase.textContent = usuario.deLaNube
+      ? 'Ya tiene una sesión abierta en este navegador.'
+      : 'Hay una demostración abierta en este navegador, con datos de ejemplo.';
+  }
   if (boton) {
     boton.setAttribute('href', sesion.esSuperAdmin() ? '#/admin/empresas' : '#/resumen');
   }
@@ -13592,6 +13603,23 @@ if (document.readyState !== 'loading') arrancar();
 
 // Permite que las vistas pidan un redibujado sin conocer el enrutador.
 window.addEventListener('kontia:redibujar', dibujar);
+
+/*
+ * Las pestañas del mismo navegador comparten la sesión guardada, pero cada una
+ * la recuerda también en memoria. Sin esto, cerrar la sesión en una pestaña
+ * dejaba la otra dentro, con la cuenta todavía abierta.
+ */
+window.addEventListener('storage', (ev) => {
+  if (ev.newValue) return;
+  if (ev.key === 'kontia.nube.sesion') {
+    sesion.salir();
+  } else if (ev.key === 'kontia.sesion') {
+    sesion.olvidarPapel();
+  } else {
+    return;
+  }
+  dibujar();
+});
 
 
   return {  };
