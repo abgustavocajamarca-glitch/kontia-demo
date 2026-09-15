@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <!-- La version publicada: la pone el empaquetador y la pagina la compara con la del servidor. -->
-<meta name="kontia-version" content="452947e3ae5f">
+<meta name="kontia-version" content="7f8aeed2fd58">
 <title>Kontia</title>
 <meta name="theme-color" content="#0F7B4F">
 <link rel="manifest" href="manifiesto.json">
@@ -8087,7 +8087,8 @@ async function adminAlta() {
         <div class="mt-4 grid gap-4 sm:grid-cols-2">
           <label class="block">
             <span class="text-[11px] font-bold uppercase tracking-wide text-tinta-suave">¿Lleva contabilidad?</span>
-            <select id="nueva-contabilidad" class= + SELECT + r>
+            <select id="nueva-contabilidad" class="mt-1.5 w-full px-3.5 py-2.5 rounded-xl border border-papel-linea
+                                         bg-white text-sm focus:outline-none focus:border-verde">
               <option value="si">Sí: compañía o persona obligada</option>
               <option value="no">No: persona no obligada o RIMPE negocio popular</option>
             </select>
@@ -8098,7 +8099,8 @@ async function adminAlta() {
           </label>
           <label class="block">
             <span class="text-[11px] font-bold uppercase tracking-wide text-tinta-suave">¿Maneja inventario?</span>
-            <select id="nueva-inventario" class= + SELECT + r>
+            <select id="nueva-inventario" class="mt-1.5 w-full px-3.5 py-2.5 rounded-xl border border-papel-linea
+                                         bg-white text-sm focus:outline-none focus:border-verde">
               <option value="si">Sí</option>
               <option value="no">No</option>
             </select>
