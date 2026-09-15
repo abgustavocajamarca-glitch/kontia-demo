@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <!-- La version publicada: la pone el empaquetador y la pagina la compara con la del servidor. -->
-<meta name="kontia-version" content="3f12b918f41b">
+<meta name="kontia-version" content="cd5683522c2d">
 <title>Kontia</title>
 <meta name="theme-color" content="#0F7B4F">
 <link rel="manifest" href="manifiesto.json">
@@ -8703,7 +8703,7 @@ async function seccionDeAccesos(empresaId) {
         ? html`<ul class="divide-y divide-papel-linea">${lista.map(fila)}</ul>`
         : html`<p class="px-5 py-4 text-sm text-tinta-suave">Todavía nadie tiene acceso.</p>`}
 
-      <form id="dar-acceso" data-empresa="${empresaId}" class="px-5 py-4 border-t border-papel-linea bg-papel/40 grid gap-3 sm:grid-cols-2">
+      <form id="dar-acceso" data-empresa-acceso="${empresaId}" class="px-5 py-4 border-t border-papel-linea bg-papel/40 grid gap-3 sm:grid-cols-2">
         <label class="block sm:col-span-2">
           <span class="text-[11px] font-bold uppercase tracking-wide text-tinta-suave">Correo de la persona</span>
           <input id="acceso-correo" type="email" autocomplete="off" placeholder="contador@correo.com"
@@ -8783,7 +8783,10 @@ function conectarFicha() {
     try {
       await darAcceso({
         correo,
-        empresaId: forma.dataset.empresa,
+        // No se llama `data-empresa`: esa marca la escucha la pantalla de
+        // elegir empresa (acceso.js) en todo el documento, y cualquier clic en
+        // este formulario cambiaba de empresa y sacaba de la ficha.
+        empresaId: forma.dataset.empresaAcceso,
         rol: revision ? 'CONSULTA' : document.getElementById('acceso-rol')?.value,
         horas: revision ? HORAS_DE_REVISION : null,
       });
