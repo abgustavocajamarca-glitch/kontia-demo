@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <!-- La version publicada: la pone el empaquetador y la pagina la compara con la del servidor. -->
-<meta name="kontia-version" content="e1b646aff8c0">
+<meta name="kontia-version" content="9790a77731e1">
 <title>Kontia</title>
 <meta name="theme-color" content="#0F7B4F">
 <link rel="manifest" href="manifiesto.json">
@@ -843,6 +843,128 @@
   }
   #portada .caja > p.letra-chica { margin-top: 1.2rem; font-size: .78rem; }
 
+  /* ═══════════════════════════════════════════ el carrusel del titular
+     Las fotos van detrás de todo; el velo, encima de ellas y debajo del texto.
+     Cada foto se acerca o se aleja despacio mientras está a la vista, y la
+     que se va sigue moviéndose durante el fundido: la animación es la misma
+     con la clase `activa` que con `saliendo`, así que no vuelve a empezar. */
+  #portada .hero.con-carrusel { padding-bottom: 5.6rem; }
+  #portada .hero > .hero-carrusel {
+    position: absolute; inset: 0; z-index: 0; overflow: hidden; background: var(--hondo);
+  }
+  #portada .diapo { position: absolute; inset: 0; margin: 0; opacity: 0; transition: opacity 1.2s ease; }
+  #portada .diapo.activa { opacity: 1; z-index: 2; }
+  /* La que se va queda debajo y entera mientras la nueva aparece encima: sin
+     eso, las dos a medias dejan ver el fondo verde y la foto «parpadea». */
+  #portada .diapo.saliendo { opacity: 1; z-index: 1; transition: none; }
+  #portada .diapo img, #portada .diapo video {
+    display: block; width: 100%; height: 100%; object-fit: cover; transform-origin: center;
+  }
+  @keyframes kontia-acerca {
+    from { transform: scale(1) translate3d(0, 0, 0); }
+    to   { transform: scale(1.12) translate3d(-2%, -1.5%, 0); }
+  }
+  @keyframes kontia-aleja {
+    from { transform: scale(1.12) translate3d(2%, 1.5%, 0); }
+    to   { transform: scale(1) translate3d(0, 0, 0); }
+  }
+  #portada .diapo.activa > *, #portada .diapo.saliendo > * { animation: kontia-acerca 7.4s linear both; }
+  #portada .diapo:nth-child(even).activa > *,
+  #portada .diapo:nth-child(even).saliendo > * { animation-name: kontia-aleja; }
+  #portada .hero-carrusel.en-pausa .diapo > * { animation-play-state: paused; }
+
+  /* El velo: oscuro donde va el texto y abierto hacia la derecha, como el de
+     las demás cabeceras con foto. */
+  #portada .carrusel-velo {
+    position: absolute; inset: 0; z-index: 3; pointer-events: none;
+    background:
+      linear-gradient(90deg, rgba(7,42,28,.93) 0%, rgba(12,58,39,.76) 46%, rgba(12,58,39,.34) 100%),
+      linear-gradient(180deg, rgba(7,42,28,0) 60%, rgba(7,42,28,.55) 100%);
+  }
+  /* En el teléfono el texto ocupa todo el ancho: un velo casi opaco taparía la
+     foto entera. Oscuro arriba (título) y abajo (clave y puntos), más ligero en
+     el centro, que es donde se ve la foto. */
+  @media (max-width: 40rem) {
+    #portada .carrusel-velo {
+      background: linear-gradient(180deg, rgba(7,42,28,.9) 0%, rgba(7,42,28,.64) 32%,
+                  rgba(7,42,28,.46) 58%, rgba(7,42,28,.88) 100%);
+    }
+  }
+
+  /* Controles: los puntos abajo al centro; las flechas a los lados en tableta
+     y computadora, y junto a los puntos en el teléfono para no tapar el título. */
+  #portada .hero > .carrusel-controles {
+    position: absolute; inset: 0; z-index: 3; pointer-events: none;
+    display: flex; align-items: flex-end; justify-content: center; gap: .6rem;
+    padding-bottom: 1.1rem;
+  }
+  #portada .carrusel-controles button { pointer-events: auto; cursor: pointer; font: inherit; }
+  #portada .carrusel-puntos { display: flex; gap: .45rem; align-items: center; padding: .4rem .2rem; }
+  #portada .carrusel-puntos button {
+    width: .6rem; height: .6rem; padding: 0; border-radius: 99px; border: 0;
+    background: rgba(255,255,255,.42); transition: width .3s ease, background .3s ease;
+  }
+  #portada .carrusel-puntos button[aria-current="true"] { width: 1.6rem; background: #fff; }
+  #portada .carrusel-flecha {
+    width: 2.5rem; height: 2.5rem; border-radius: 50%;
+    display: inline-flex; align-items: center; justify-content: center;
+    font-size: 1.6rem; line-height: 1; color: #fff;
+    background: rgba(7,42,28,.45); border: 1px solid rgba(255,255,255,.28);
+    backdrop-filter: blur(4px); transition: background .2s ease;
+  }
+  #portada .carrusel-flecha:hover { background: rgba(7,42,28,.72); }
+  #portada .carrusel-controles button:focus-visible { outline: 2px solid var(--verde-viv); outline-offset: 3px; }
+  @media (min-width: 40rem) {
+    /* Aire a los lados para que las flechas no tapen el texto del titular. */
+    #portada .hero.con-carrusel { padding-left: 4.2rem; padding-right: 4.2rem; }
+    #portada .carrusel-flecha { position: absolute; top: 50%; transform: translateY(-50%); }
+    #portada .carrusel-flecha.anterior { left: .9rem; }
+    #portada .carrusel-flecha.siguiente { right: .9rem; }
+  }
+  /* Con «reducir movimiento» las fotos siguen cambiando, pero quietas. */
+  @media (prefers-reduced-motion: reduce) {
+    #portada .diapo > * { animation: none !important; }
+  }
+
+  /* ═══════════════════════════════════════════ tarjetas que se elevan
+     Solo en la portada y solo con un puntero de verdad: en el teléfono no hay
+     «pasar por encima», y un toque dejaría la tarjeta agrandada.
+     La sombra va en variables, nunca en `style`: una sombra en línea ganaría
+     siempre y el hover no podría cambiarla. */
+  #portada #pag-inicio .rejilla > .carta,
+  #portada #pag-inicio .regiones > .region {
+    position: relative; z-index: 1; box-shadow: var(--sombra-tarjeta);
+  }
+  #portada #pag-inicio .rejilla > .carta {
+    --sombra-tarjeta: 0 1px 2px rgba(20,32,26,.035), 0 2px 8px rgba(20,32,26,.04);
+    --sombra-tarjeta-elevada: 0 22px 44px -16px rgba(20,32,26,.32), 0 8px 18px -8px rgba(20,32,26,.18);
+  }
+  #portada #pag-inicio .regiones > .region {
+    --sombra-tarjeta: 0 0 0 1px rgba(255,255,255,.1);
+    --sombra-tarjeta-elevada: 0 0 0 1px rgba(255,255,255,.16), 0 26px 50px -16px rgba(0,0,0,.62);
+  }
+  /* El levantamiento anterior (subir 2 px) choca con el nuevo: se quita aquí.
+     Mismo peso que la regla del agrandamiento, y antes que ella: si llevara
+     `a.carta`, pesaría más y anularía la escala al pasar el mouse. */
+  #portada #pag-inicio .rejilla > .carta:hover { transform: none; }
+  @media (hover: hover) and (pointer: fine) {
+    #portada #pag-inicio .rejilla > .carta,
+    #portada #pag-inicio .regiones > .region {
+      transition: transform 0.3s cubic-bezier(0.25, 0.8, 0.25, 1), box-shadow 0.3s ease;
+      will-change: transform;
+    }
+    #portada #pag-inicio .rejilla > .carta:hover,
+    #portada #pag-inicio .regiones > .region:hover {
+      transform: scale(1.05);
+      box-shadow: var(--sombra-tarjeta-elevada);
+      z-index: 2;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    #portada #pag-inicio .rejilla > .carta:hover,
+    #portada #pag-inicio .regiones > .region:hover { transform: none; }
+  }
+
   @media (prefers-reduced-motion: reduce) { #portada * { transition: none !important; } }
 
   /* ── El sistema ── */
@@ -1066,7 +1188,37 @@
 <!-- ══════════════════════════════════════════════════════════ 1 · inicio -->
 <div class="pantalla" id="pag-inicio">
 
-  <div class="hero franja grabado con-monograma">
+  <div class="hero franja grabado con-monograma con-carrusel">
+    <!--
+      El fondo del titular: fotos que ya están en el proyecto, una tras otra.
+      Solo la primera trae `src`; las demás esperan en `data-src` y el guion las
+      pide cuando les toca o cuando son la siguiente, para no gastar datos del
+      teléfono en fotos que quizá nadie llegue a ver. Decorativas: el texto de
+      encima es el que informa, por eso `alt` vacío.
+
+      Preparado para video: una diapositiva puede ser
+        <video data-src="…" poster="…" muted loop playsinline autoplay></video>
+      y el guion la trata igual. Hoy no hay ningún video en el proyecto.
+    -->
+    <div class="hero-carrusel" data-carrusel aria-hidden="true">
+      <figure class="diapo activa"><img src="imagenes/cierre-prueba.webp" width="1920" height="800" alt="" decoding="async"></figure>
+      <figure class="diapo"><img data-src="imagenes/pais-costa.webp" width="1200" height="800" alt="" decoding="async"></figure>
+      <figure class="diapo"><img data-src="imagenes/pais-sierra.webp" width="1200" height="800" alt="" decoding="async"></figure>
+      <figure class="diapo"><img data-src="imagenes/respaldo-legal.webp" width="1600" height="1000" alt="" decoding="async"></figure>
+      <figure class="diapo"><img data-src="imagenes/pais-amazonia.webp" width="1200" height="800" alt="" decoding="async"></figure>
+      <span class="carrusel-velo"></span>
+    </div>
+    <div class="carrusel-controles" data-carrusel-controles role="group" aria-label="Fotos del fondo">
+      <button class="carrusel-flecha anterior" type="button" data-anterior aria-label="Foto anterior">&#8249;</button>
+      <div class="carrusel-puntos">
+        <button type="button" data-punto="0" aria-label="Ver foto 1 de 5" aria-current="true"></button>
+        <button type="button" data-punto="1" aria-label="Ver foto 2 de 5"></button>
+        <button type="button" data-punto="2" aria-label="Ver foto 3 de 5"></button>
+        <button type="button" data-punto="3" aria-label="Ver foto 4 de 5"></button>
+        <button type="button" data-punto="4" aria-label="Ver foto 5 de 5"></button>
+      </div>
+      <button class="carrusel-flecha siguiente" type="button" data-siguiente aria-label="Foto siguiente">&#8250;</button>
+    </div>
     <div class="centro">
       <div class="hero-rejilla">
       <div>
@@ -2251,6 +2403,182 @@
       });
     }
   })();
+</script>
+
+<script>
+  /* carrusel:inicio */
+  /*
+   * EL CARRUSEL DEL TITULAR.
+   *
+   * Dos partes. La primera decide CUÁNDO avanzar y no toca la página, así se
+   * puede probar sola (apps/web/test/portada-efectos.test.mjs). La segunda la
+   * conecta con las fotos y los botones.
+   *
+   * Se mueve siempre solo, cada seis segundos. Se detiene únicamente:
+   *   - con el MOUSE encima de un control,
+   *   - con el foco del TECLADO en un control (el foco visible, no el de un clic),
+   *   - con la pestaña oculta.
+   * Un toque con el dedo nunca lo detiene: en una pantalla táctil no llega el
+   * aviso de «el dedo se fue», y el carrusel quedaría quieto para siempre.
+   * «Reducir movimiento» tampoco lo detiene: quita el acercamiento (en la hoja
+   * de estilos), no el cambio de foto.
+   */
+  (function (global) {
+    'use strict';
+
+    function crearCarrusel(op) {
+      var total = op.total;
+      var intervalo = op.intervalo || 6000;
+      var programar = op.programar || function (f, ms) { return setTimeout(f, ms); };
+      var cancelar = op.cancelar || function (t) { clearTimeout(t); };
+      var actual = 0;
+      var motivos = { mouse: false, foco: false, oculta: false };
+      var reloj = null;
+
+      function pausado() { return motivos.mouse || motivos.foco || motivos.oculta; }
+
+      function reprogramar() {
+        if (reloj !== null) cancelar(reloj);
+        reloj = null;
+        if (op.alPausar) op.alPausar(pausado());
+        if (!pausado()) reloj = programar(avanzar, intervalo);
+      }
+
+      function ir(i) {
+        var anterior = actual;
+        actual = ((i % total) + total) % total;
+        if (anterior !== actual) op.alMostrar(actual, anterior);
+        reprogramar();
+      }
+
+      function avanzar() {
+        reloj = null;
+        // Si el titular no está a la vista (otra pantalla del sitio, o el
+        // sistema abierto) no se descarga ni se mueve nada: se espera.
+        if (op.visible && !op.visible()) { reprogramar(); return; }
+        ir(actual + 1);
+      }
+
+      return {
+        iniciar: function () { op.alMostrar(0, null); reprogramar(); },
+        siguiente: function () { ir(actual + 1); },
+        anterior: function () { ir(actual - 1); },
+        ir: ir,
+        actual: function () { return actual; },
+        pausado: pausado,
+        /* Solo el mouse pausa. Dedo y lápiz se ignoran a propósito. */
+        puntero: function (tipo, dentro) {
+          if (tipo !== 'mouse') return;
+          motivos.mouse = !!dentro;
+          reprogramar();
+        },
+        /* Solo el foco visible: el que deja el teclado, no el de un clic o un toque. */
+        foco: function (visible) { motivos.foco = !!visible; reprogramar(); },
+        visibilidad: function (oculta) { motivos.oculta = !!oculta; reprogramar(); }
+      };
+    }
+
+    global.kontiaCrearCarrusel = crearCarrusel;
+    if (typeof document === 'undefined') return;
+
+    var raiz = document.querySelector('[data-carrusel]');
+    var controles = document.querySelector('[data-carrusel-controles]');
+    if (!raiz || !controles) return;
+
+    var diapos = [].slice.call(raiz.querySelectorAll('.diapo'));
+    var puntos = [].slice.call(controles.querySelectorAll('[data-punto]'));
+    if (diapos.length < 2) return;
+    var salidas = [];
+
+    /* Pide la foto (o el video) solo cuando hace falta. */
+    function cargar(i) {
+      var medio = diapos[i] && diapos[i].firstElementChild;
+      if (!medio) return;
+      var src = medio.getAttribute('data-src');
+      if (src) {
+        medio.setAttribute('src', src);
+        medio.removeAttribute('data-src');
+        if (medio.tagName === 'VIDEO') {
+          medio.muted = true;
+          medio.loop = true;
+          medio.playsInline = true;
+          medio.load();
+        }
+      }
+    }
+
+    function medioDe(i) { return diapos[i] && diapos[i].firstElementChild; }
+
+    var carrusel = crearCarrusel({
+      total: diapos.length,
+      intervalo: 6000,
+      visible: function () { return raiz.offsetParent !== null; },
+      alPausar: function (si) { raiz.classList.toggle('en-pausa', si); },
+      alMostrar: function (i, anterior) {
+        cargar(i);
+        cargar((i + 1) % diapos.length);
+
+        diapos.forEach(function (d, n) {
+          if (n !== i && n !== anterior) { d.classList.remove('activa'); d.classList.remove('saliendo'); }
+        });
+        if (anterior !== null && anterior !== i) {
+          var ida = diapos[anterior];
+          ida.classList.remove('activa');
+          ida.classList.add('saliendo');
+          clearTimeout(salidas[anterior]);
+          salidas[anterior] = setTimeout(function () {
+            ida.classList.remove('saliendo');
+            var v = medioDe(anterior);
+            if (v && v.tagName === 'VIDEO') v.pause();
+          }, 1300);
+        }
+        diapos[i].classList.remove('saliendo');
+        clearTimeout(salidas[i]);
+        diapos[i].classList.add('activa');
+
+        var m = medioDe(i);
+        if (m && m.tagName === 'VIDEO' && m.play) m.play().catch(function () {});
+
+        puntos.forEach(function (p, n) {
+          if (n === i) p.setAttribute('aria-current', 'true');
+          else p.removeAttribute('aria-current');
+        });
+      }
+    });
+
+    controles.addEventListener('click', function (ev) {
+      var b = ev.target.closest('button');
+      if (!b) return;
+      if (b.hasAttribute('data-anterior')) carrusel.anterior();
+      else if (b.hasAttribute('data-siguiente')) carrusel.siguiente();
+      else if (b.hasAttribute('data-punto')) carrusel.ir(Number(b.getAttribute('data-punto')));
+    });
+
+    controles.addEventListener('keydown', function (ev) {
+      if (ev.key === 'ArrowLeft') { ev.preventDefault(); carrusel.anterior(); }
+      if (ev.key === 'ArrowRight') { ev.preventDefault(); carrusel.siguiente(); }
+    });
+
+    [].slice.call(controles.querySelectorAll('button')).forEach(function (b) {
+      b.addEventListener('pointerenter', function (ev) { carrusel.puntero(ev.pointerType, true); });
+      b.addEventListener('pointerleave', function (ev) { carrusel.puntero(ev.pointerType, false); });
+    });
+
+    function focoVisible(el) {
+      try { return el.matches(':focus-visible'); } catch (e) { return false; }
+    }
+    controles.addEventListener('focusin', function (ev) { carrusel.foco(focoVisible(ev.target)); });
+    controles.addEventListener('focusout', function (ev) {
+      if (!ev.relatedTarget || !controles.contains(ev.relatedTarget)) carrusel.foco(false);
+    });
+
+    document.addEventListener('visibilitychange', function () { carrusel.visibilidad(document.hidden); });
+
+    carrusel.iniciar();
+    if (document.hidden) carrusel.visibilidad(true);
+    global.kontiaCarrusel = carrusel;
+  })(typeof window !== 'undefined' ? window : globalThis);
+  /* carrusel:fin */
 </script>
 
 <script>
