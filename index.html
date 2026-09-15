@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <!-- La version publicada: la pone el empaquetador y la pagina la compara con la del servidor. -->
-<meta name="kontia-version" content="7f8aeed2fd58">
+<meta name="kontia-version" content="d20d104e7e9e">
 <title>Kontia</title>
 <meta name="theme-color" content="#0F7B4F">
 <link rel="manifest" href="manifiesto.json">
@@ -3750,7 +3750,7 @@ async function estado() {
 
 // ---- src/cuenta-nube.js ------------------------------------------
 const __src_cuenta_nube_js = (function () {
-  const { configurada, haySesion, usuario: usuarioDeLaNube, tabla } = __src_nube_js;
+  const { configurada, haySesion, usuario: usuarioDeLaNube, tabla, funcion } = __src_nube_js;
 
 /**
  * La cuenta de verdad: quién entró y con qué empresas trabaja.
@@ -3830,6 +3830,9 @@ function empresaDeFila(e, rol = null) {
  * Devuelve el perfil, o null si no hay nube o no hay sesión. Si la base no
  * contesta, el error sube: entrar sin saber qué se puede ver es peor que no
  * entrar.
+ *
+ * Un acceso vencido no aparece: la política de empresas ya no la entrega
+ * (migración 0009), así que el vínculo llega sin empresa y se descarta.
  */
 async function cargarPerfil() {
   if (!configurada() || !haySesion()) {
@@ -3848,11 +3851,12 @@ async function cargarPerfil() {
     empresas = (filas ?? []).map((e) => empresaDeFila(e));
   } else {
     const vinculos = await tabla('usuarios_empresas').leer({
-      select: 'rol,activo,empresas(*)', usuario_id: `eq.${u.id}`, activo: 'eq.true',
+      select: 'rol,activo,vence_en,empresas(*)', usuario_id: `eq.${u.id}`, activo: 'eq.true',
     });
+    const ahora = Date.now();
     empresas = (vinculos ?? [])
-      .filter((v) => v.empresas)
-      .map((v) => empresaDeFila(v.empresas, v.rol));
+      .filter((v) => v.empresas && !(v.vence_en && new Date(v.vence_en).getTime() <= ahora))
+      .map((v) => ({ ...empresaDeFila(v.empresas, v.rol), accesoVence: v.vence_en ? new Date(v.vence_en) : null }));
   }
 
   perfil = {
@@ -3912,8 +3916,70 @@ async function altaDeEmpresa(entrada) {
   return empresaDeFila(fila);
 }
 
+// ===========================================================================
+//  Accesos a una empresa (migración 0009)
+// ===========================================================================
 
-  return { ROLES, perfilDeLaNube, olvidarPerfil, empresaDeFila, cargarPerfil, altaDeEmpresa };
+/** Las horas que dura un acceso de revisión. La base acepta de 1 a 72. */
+const HORAS_DE_REVISION = 24;
+
+/**
+ * Quién tiene acceso a una empresa, con su rol y si vence.
+ *
+ * La base solo lo entrega al super administrador y al administrador de esa
+ * empresa (política usuarios_empresas_lectura).
+ */
+async function accesosDeEmpresa(empresaId) {
+  const filas = await tabla('usuarios_empresas').leer({
+    select: 'id,rol,activo,vence_en,creado_en,usuarios(nombre,correo)',
+    empresa_id: `eq.${empresaId}`,
+    order: 'creado_en.asc',
+  });
+  const ahora = Date.now();
+  return (filas ?? []).map((f) => {
+    const venceEn = f.vence_en ? new Date(f.vence_en) : null;
+    const vencido = Boolean(venceEn && venceEn.getTime() <= ahora);
+    return {
+      id: f.id,
+      rol: f.rol,
+      rolNombre: ROLES[f.rol] ?? f.rol,
+      nombre: f.usuarios?.nombre ?? '—',
+      correo: f.usuarios?.correo ?? '—',
+      activo: f.activo !== false,
+      venceEn,
+      vencido,
+      vigente: f.activo !== false && !vencido,
+      desde: f.creado_en ? new Date(f.creado_en) : null,
+    };
+  });
+}
+
+/**
+ * Da acceso a una persona que ya tiene cuenta.
+ *
+ * Con `horas`, el acceso vence solo: es el de revisión. Las comprobaciones de
+ * aquí evitan un viaje inútil a la base; las que cuentan son las de la función
+ * vincular_usuario, que las repite.
+ */
+async function darAcceso({ correo, empresaId, rol, horas = null }) {
+  const limpio = String(correo ?? '').trim().toLowerCase();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(limpio)) throw new Error('Ese correo no es válido.');
+  if (!ROLES[rol]) throw new Error('Elija el rol que tendrá esa persona.');
+  if (horas != null && rol === 'ADMIN_EMPRESA') {
+    throw new Error('Un acceso temporal no puede ser de administrador.');
+  }
+  return funcion('vincular_usuario', {
+    p_correo: limpio, p_empresa_id: empresaId, p_rol: rol, p_horas: horas,
+  });
+}
+
+/** Retira un acceso. No lo borra: queda el rastro en la auditoría. */
+async function retirarAcceso(vinculoId) {
+  return funcion('retirar_acceso', { p_vinculo_id: vinculoId });
+}
+
+
+  return { ROLES, perfilDeLaNube, olvidarPerfil, empresaDeFila, cargarPerfil, altaDeEmpresa, HORAS_DE_REVISION, accesosDeEmpresa, darAcceso, retirarAcceso };
 })();
 
 // ---- src/sesion.js -----------------------------------------------
@@ -7763,6 +7829,7 @@ async function puntosEmision() {
 const __src_vistas_admin_js = (function () {
   const { html, crudo, esc, icono, tabla, boton, cabecera, aviso, dato, chipEstado, fecha, fechaLarga, fechaHora, vacio, dejarRecado } = __src_ui_js;
   const { cargar, guardar } = __src_almacen_js;
+  const { perfilDeLaNube, accesosDeEmpresa, darAcceso, retirarAcceso, ROLES, HORAS_DE_REVISION } = __src_cuenta_nube_js;
 
 /**
  * Las pantallas del super administrador.
@@ -7784,6 +7851,7 @@ const __src_vistas_admin_js = (function () {
  * un motivo escrito, dura dos horas y queda anotado en una auditoría que ni el
  * super administrador puede borrar.
  */
+
 
 
 
@@ -7906,6 +7974,8 @@ async function adminFicha(id) {
   const diasCert = e.certificadoVence
     ? Math.ceil((e.certificadoVence - new Date()) / (24 * 60 * 60 * 1000)) : null;
 
+  const accesos = perfilDeLaNube() ? await seccionDeAccesos(e.id) : '';
+
   return html`
     <a href="#/admin/empresas" class="inline-flex items-center gap-1.5 text-xs font-bold text-tinta-suave hover:text-verde mb-4">
       ${icono('arrow_back', 'text-[16px]')} Empresas
@@ -7948,6 +8018,8 @@ async function adminFicha(id) {
               : 'Sin certificado cargado')}
           </dl>
         </section>
+
+        ${accesos}
 
         <section class="bg-white border-2 border-papel-linea border-dashed rounded-2xl p-6">
           <div class="flex items-start gap-4">
@@ -8007,6 +8079,159 @@ async function adminFicha(id) {
         </section>
       </div>
     </div>`;
+}
+
+// ===========================================================================
+//  Quién entra a una empresa (solo con la cuenta de verdad)
+// ===========================================================================
+
+/**
+ * La lista de accesos y el formulario para dar uno.
+ *
+ * Solo existe con la base de datos: los vínculos de verdad los guarda la tabla
+ * usuarios_empresas, y el vencimiento lo hace cumplir la base (migración 0009),
+ * no esta pantalla. Si la migración no está instalada, se dice.
+ */
+async function seccionDeAccesos(empresaId) {
+  let lista;
+  try {
+    lista = await accesosDeEmpresa(empresaId);
+  } catch (error) {
+    return crudo(aviso({
+      tono: 'ambar', ico: 'database',
+      titulo: 'Falta instalar los accesos en la base de datos',
+      texto: 'Ejecute db/migrations/0009_accesos.sql en el editor SQL de Supabase. ' +
+             `Respuesta de la base: ${error.message}`,
+    }));
+  }
+
+  const opcionesRol = Object.entries(ROLES)
+    .map(([codigo, nombre]) => `<option value="${codigo}">${esc(nombre)}</option>`).join('');
+
+  const fila = (a) => {
+    const estado = !a.activo
+      ? '<span class="text-[11px] font-bold px-2 py-1 rounded-full bg-papel text-tinta-suave">Retirado</span>'
+      : a.vencido
+        ? '<span class="text-[11px] font-bold px-2 py-1 rounded-full bg-papel text-tinta-suave">Venció</span>'
+        : a.venceEn
+          ? `<span class="text-[11px] font-bold px-2 py-1 rounded-full bg-amber-100 text-amber-800">Vence ${esc(fechaHora(a.venceEn))}</span>`
+          : '<span class="text-[11px] font-bold px-2 py-1 rounded-full bg-verde-claro text-verde">Permanente</span>';
+    return html`
+      <li class="flex flex-wrap items-center justify-between gap-3 px-5 py-3.5">
+        <div class="min-w-0">
+          <p class="text-sm font-semibold truncate">${a.nombre}</p>
+          <p class="text-[11px] text-tinta-suave truncate">${a.correo} · ${a.rolNombre}</p>
+        </div>
+        <div class="flex items-center gap-2">
+          ${crudo(estado)}
+          ${a.vigente ? crudo(`<button data-retirar="${esc(a.id)}"
+              class="text-[11px] font-bold px-2.5 py-1 rounded-lg border border-papel-linea hover:border-red-400 hover:text-red-700">
+              Retirar</button>`) : ''}
+        </div>
+      </li>`;
+  };
+
+  return html`
+    <section class="bg-white border border-papel-linea rounded-2xl relieve overflow-hidden">
+      <header class="px-5 py-4 border-b border-papel-linea">
+        <h2 class="text-sm font-bold">Quién entra a esta empresa</h2>
+        <p class="text-[11px] text-tinta-suave mt-0.5">
+          Un acceso retirado o vencido deja de ver datos al instante, aunque tenga la sesión abierta.
+        </p>
+      </header>
+      ${lista.length
+        ? html`<ul class="divide-y divide-papel-linea">${lista.map(fila)}</ul>`
+        : html`<p class="px-5 py-4 text-sm text-tinta-suave">Todavía nadie tiene acceso.</p>`}
+
+      <form id="dar-acceso" data-empresa="${empresaId}" class="px-5 py-4 border-t border-papel-linea bg-papel/40 grid gap-3 sm:grid-cols-2">
+        <label class="block sm:col-span-2">
+          <span class="text-[11px] font-bold uppercase tracking-wide text-tinta-suave">Correo de la persona</span>
+          <input id="acceso-correo" type="email" autocomplete="off" placeholder="contador@correo.com"
+                 class="mt-1.5 w-full px-3.5 py-2.5 rounded-xl border border-papel-linea bg-white text-sm focus:outline-none focus:border-verde">
+          <span class="mt-1 block text-[11px] text-tinta-suave">
+            Debe tener cuenta: se crea en Supabase → Authentication → Add user. Kontia no crea cuentas.
+          </span>
+        </label>
+        <label class="block">
+          <span class="text-[11px] font-bold uppercase tracking-wide text-tinta-suave">Rol</span>
+          <select id="acceso-rol"
+                  class="mt-1.5 w-full px-3.5 py-2.5 rounded-xl border border-papel-linea bg-white text-sm focus:outline-none focus:border-verde">
+            ${crudo(opcionesRol)}
+          </select>
+        </label>
+        <label class="flex items-start gap-2.5 self-end pb-2">
+          <input id="acceso-revision" type="checkbox" class="mt-0.5 accent-[#0C3A27]">
+          <span class="text-[12px] leading-snug">
+            <strong>Acceso de revisión</strong><br>
+            <span class="text-tinta-suave">Solo lectura, vence en ${String(HORAS_DE_REVISION)} horas.</span>
+          </span>
+        </label>
+        <button type="submit"
+                class="sm:col-span-2 py-2.5 rounded-xl bg-verde text-white text-sm font-bold hover:bg-verde-oscuro transition">
+          Dar acceso
+        </button>
+      </form>
+    </section>`;
+}
+
+let fichaConectada = false;
+
+function conectarFicha() {
+  const zona = document.getElementById('raiz');
+  if (!zona || fichaConectada) return;
+  fichaConectada = true;
+
+  const redibujar = () => window.dispatchEvent(new CustomEvent('kontia:redibujar'));
+
+  // El acceso de revisión es siempre de solo lectura: se fija el rol al marcarlo.
+  zona.addEventListener('change', (ev) => {
+    if (ev.target.id !== 'acceso-revision') return;
+    const rol = document.getElementById('acceso-rol');
+    if (!rol) return;
+    rol.disabled = ev.target.checked;
+    if (ev.target.checked) rol.value = 'CONSULTA';
+  });
+
+  zona.addEventListener('submit', async (ev) => {
+    const forma = ev.target.closest('#dar-acceso');
+    if (!forma) return;
+    ev.preventDefault();
+    const revision = document.getElementById('acceso-revision')?.checked;
+    const correo = document.getElementById('acceso-correo')?.value ?? '';
+    const boton = forma.querySelector('button[type="submit"]');
+    if (boton) { boton.disabled = true; boton.textContent = 'Dando acceso…'; }
+    try {
+      await darAcceso({
+        correo,
+        empresaId: forma.dataset.empresa,
+        rol: revision ? 'CONSULTA' : document.getElementById('acceso-rol')?.value,
+        horas: revision ? HORAS_DE_REVISION : null,
+      });
+      dejarRecado({
+        tono: 'exito', ico: 'check_circle', titulo: 'Acceso dado',
+        texto: revision
+          ? `${correo.trim()} puede ver esta empresa, sin modificar nada, durante ${HORAS_DE_REVISION} horas.`
+          : `${correo.trim()} ya puede entrar a esta empresa.`,
+      });
+    } catch (error) {
+      dejarRecado({ tono: 'rojo', ico: 'error', titulo: 'No se dio el acceso', texto: error.message });
+    }
+    redibujar();
+  });
+
+  zona.addEventListener('click', async (ev) => {
+    const boton = ev.target.closest('[data-retirar]');
+    if (!boton) return;
+    if (!window.confirm('¿Retirar este acceso? La persona deja de ver la empresa al instante.')) return;
+    try {
+      await retirarAcceso(boton.dataset.retirar);
+      dejarRecado({ tono: 'exito', ico: 'check_circle', titulo: 'Acceso retirado',
+        texto: 'Queda anotado en la auditoría.' });
+    } catch (error) {
+      dejarRecado({ tono: 'rojo', ico: 'error', titulo: 'No se retiró', texto: error.message });
+    }
+    redibujar();
+  });
 }
 
 // ===========================================================================
@@ -8241,7 +8466,7 @@ function conectarAlta() {
 }
 
 
-  return { adminEmpresas, adminFicha, adminAlta, adminAuditoria, conectarAlta };
+  return { adminEmpresas, adminFicha, conectarFicha, adminAlta, adminAuditoria, conectarAlta };
 })();
 
 // ---- src/vistas/contabilidad.js ----------------------------------
@@ -12380,7 +12605,7 @@ const __src_app_js = (function () {
   const { clientes, productos } = __src_vistas_catalogo_js;
   const { formularioCliente, formularioProducto, conectarFormularios } = __src_vistas_formularios_js;
   const { configuracion, certificado, usuarios, puntosEmision } = __src_vistas_empresa_js;
-  const { adminEmpresas, adminAlta, adminFicha, adminAuditoria, conectarAlta } = __src_vistas_admin_js;
+  const { adminEmpresas, adminAlta, adminFicha, adminAuditoria, conectarAlta, conectarFicha } = __src_vistas_admin_js;
   const { pendiente } = __src_vistas_pendiente_js;
   const { planDeCuentas, libroDiario, libroMayor, balanceComprobacion } = __src_vistas_contabilidad_js;
   const { estadoResultados, balanceGeneral } = __src_vistas_estados_js;
@@ -12499,7 +12724,8 @@ const RUTAS = [
   { patron: /^#\/admin\/empresas\/?$/, vista: adminEmpresas, admin: true },
   { patron: /^#\/admin\/empresas\/nueva\/?$/, vista: adminAlta, admin: true,
     alDibujar: conectarAlta },
-  { patron: /^#\/admin\/empresas\/([\w-]+)\/?$/, vista: adminFicha, admin: true },
+  { patron: /^#\/admin\/empresas\/([\w-]+)\/?$/, vista: adminFicha, admin: true,
+    alDibujar: conectarFicha },
   { patron: /^#\/admin\/auditoria\/?$/, vista: adminAuditoria, admin: true },
   { patron: /^#\/admin\/suscripciones\/?$/, vista: suscripciones, admin: true },
   { patron: /^#\/admin\/uso\/?$/, vista: usoPlataforma, admin: true },
