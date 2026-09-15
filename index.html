@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <!-- La version publicada: la pone el empaquetador y la pagina la compara con la del servidor. -->
-<meta name="kontia-version" content="3b271f278ea4">
+<meta name="kontia-version" content="ecfd3991bf58">
 <title>Kontia</title>
 <meta name="theme-color" content="#0F7B4F">
 <link rel="manifest" href="manifiesto.json">
@@ -3982,6 +3982,484 @@ async function retirarAcceso(vinculoId) {
   return { ROLES, perfilDeLaNube, olvidarPerfil, empresaDeFila, cargarPerfil, altaDeEmpresa, HORAS_DE_REVISION, accesosDeEmpresa, darAcceso, retirarAcceso };
 })();
 
+// ---- src/catalogo-nube.js ----------------------------------------
+const __src_catalogo_nube_js = (function () {
+  const { tabla } = __src_nube_js;
+  const { TIPOS_IDENTIFICACION } = __src_datos_js;
+
+/**
+ * Clientes y productos en la base de datos (migración 0008).
+ *
+ * Con la cuenta de verdad, la ficha de un cliente no puede vivir en el
+ * navegador: el facturador la crea en la caja, el contador la consulta desde su
+ * oficina y los dos tienen que ver la misma. Aquí se traduce entre la forma de
+ * las pantallas y la de las tablas, y nada más.
+ *
+ * Lo que comprueba la base —que el RUC no se repita en la empresa, que el tipo
+ * de identificación cuadre, que quien escribe tenga rol para escribir— no se
+ * vuelve a decidir aquí: se traduce su respuesta a algo que se entienda.
+ */
+
+
+
+
+const TIPO_POR_CODIGO = Object.fromEntries(
+  Object.entries(TIPOS_IDENTIFICACION).map(([clave, t]) => [t.codigo, clave]));
+
+/** Los roles que la base deja escribir en clientes y productos. */
+const ESCRIBEN = ['ADMIN_EMPRESA', 'FACTURADOR'];
+
+function puedeEscribir(empresa) {
+  if (!empresa) throw new Error('Elija primero la empresa con la que va a trabajar.');
+  if (!ESCRIBEN.includes(empresa.rol)) {
+    throw new Error('Su acceso a esta empresa es de solo lectura: puede consultar, pero no guardar cambios.');
+  }
+}
+
+function explicar(error, repetido) {
+  if (error.codigo === '23505') return new Error(repetido);
+  if (error.estado === 401 || error.estado === 403 || error.codigo === '42501') {
+    return new Error('La base de datos no dejó guardar: su acceso a esta empresa no permite ' +
+      'escribir, o ya venció. Vuelva a entrar y, si sigue igual, pida acceso al administrador.');
+  }
+  if (error.codigo === '23514') {
+    return new Error('La base de datos rechazó el dato: no cumple la forma que exige el SRI ' +
+      '(identificación, tipo o tarifa). Revise lo escrito.');
+  }
+  return error;
+}
+
+// ---------------------------------------------------------------------------
+//  Clientes
+// ---------------------------------------------------------------------------
+
+function clienteDeFila(f) {
+  return {
+    id: f.id,
+    empresaId: f.empresa_id,
+    tipo: TIPO_POR_CODIGO[f.tipo_identificacion] ?? f.tipo_identificacion,
+    identificacion: f.identificacion,
+    razonSocial: f.razon_social,
+    ciudad: f.ciudad ?? '',
+    correo: f.correo ?? '',
+    telefono: f.telefono ?? '',
+    direccion: f.direccion ?? '',
+    activo: f.activo !== false,
+    // Cuántos comprobantes y cuánto se le facturó salen de los comprobantes,
+    // que todavía no se leen de la base. Mientras tanto, cero y no un invento.
+    comprobantes: 0,
+    facturado: 0,
+    nube: true,
+  };
+}
+
+async function clientesDeLaNube(empresaId) {
+  if (!empresaId) return [];
+  const filas = await tabla('clientes').leer({
+    empresa_id: `eq.${empresaId}`, activo: 'eq.true', order: 'razon_social.asc',
+  });
+  return (filas ?? []).map(clienteDeFila);
+}
+
+async function clienteDeLaNube(empresaId, id) {
+  if (!empresaId || !id) return null;
+  const fila = await tabla('clientes').uno({ empresa_id: `eq.${empresaId}`, id: `eq.${id}` });
+  return fila ? clienteDeFila(fila) : null;
+}
+
+/** `limpio` ya pasó por las comprobaciones de almacen.js. */
+async function guardarClienteEnLaNube(empresa, limpio, id = null) {
+  puedeEscribir(empresa);
+  const codigo = TIPOS_IDENTIFICACION[limpio.tipo]?.codigo;
+  if (!codigo) throw new Error(`"${limpio.tipo}" no es un tipo de identificación válido.`);
+
+  const fila = {
+    tipo_identificacion: codigo,
+    identificacion: limpio.identificacion,
+    razon_social: limpio.razonSocial,
+    direccion: limpio.direccion || null,
+    correo: limpio.correo || null,
+    telefono: limpio.telefono || null,
+    ciudad: limpio.ciudad || null,
+    activo: true,
+  };
+  const repetido = `Ya hay un cliente con la identificación ${limpio.identificacion} en esta empresa. ` +
+    'Búsquelo en la lista y edítelo: dos fichas del mismo cliente acaban con dos correos distintos.';
+  try {
+    const guardada = id
+      ? await tabla('clientes').actualizar({ id: `eq.${id}`, empresa_id: `eq.${empresa.id}` }, fila)
+      : await tabla('clientes').insertar({ ...fila, empresa_id: empresa.id });
+    if (!guardada) throw new Error('Ese cliente ya no existe en esta empresa. Vuelva a la lista.');
+    return clienteDeFila(guardada);
+  } catch (error) {
+    throw explicar(error, repetido);
+  }
+}
+
+// ---------------------------------------------------------------------------
+//  Productos
+// ---------------------------------------------------------------------------
+
+/** Tabla 18: el código que va en el XML. La pantalla habla en porcentaje. */
+const IVA_POR_CODIGO = { 0: 0, 4: 15, 6: 0, 7: 0 };
+
+function productoDeFila(f) {
+  return {
+    id: f.id,
+    empresaId: f.empresa_id,
+    codigo: f.codigo_principal,
+    descripcion: f.descripcion,
+    unidad: f.unidad_medida || 'UNIDAD',
+    tipo: f.tipo === 'SERVICIO' ? 'Servicio' : 'Bien',
+    precio: Number(f.precio_unitario),
+    iva: IVA_POR_CODIGO[f.codigo_porcentaje_iva] ?? 0,
+    codigoIva: f.codigo_porcentaje_iva,
+    activo: f.activo !== false,
+    nube: true,
+  };
+}
+
+async function productosDeLaNube(empresaId) {
+  if (!empresaId) return [];
+  const filas = await tabla('productos').leer({
+    empresa_id: `eq.${empresaId}`, activo: 'eq.true', order: 'descripcion.asc',
+  });
+  return (filas ?? []).map(productoDeFila);
+}
+
+async function productoDeLaNube(empresaId, codigo) {
+  if (!empresaId || !codigo) return null;
+  const fila = await tabla('productos').uno({
+    empresa_id: `eq.${empresaId}`, codigo_principal: `eq.${codigo}`,
+  });
+  return fila ? productoDeFila(fila) : null;
+}
+
+/**
+ * El código de tarifa a guardar.
+ *
+ * La pantalla solo distingue 15% y 0%, pero la base distingue tres ceros: 0%,
+ * no objeto y exento. Si el producto ya tenía uno de esos y sigue en cero, se
+ * respeta el que tenía; cambiar un exento por un 0% al editar la descripción
+ * movería la venta de casillero en el formulario 104.
+ */
+function codigoDeIva(porcentaje, anterior = null) {
+  if (Number(porcentaje) === 15) return '4';
+  return ['0', '6', '7'].includes(anterior) ? anterior : '0';
+}
+
+async function guardarProductoEnLaNube(empresa, limpio, codigoOriginal = null) {
+  puedeEscribir(empresa);
+  const anterior = codigoOriginal ? await productoDeLaNube(empresa.id, codigoOriginal) : null;
+  if (codigoOriginal && !anterior) {
+    throw new Error('Ese producto ya no existe en esta empresa. Vuelva al catálogo.');
+  }
+
+  const fila = {
+    codigo_principal: limpio.codigo,
+    descripcion: limpio.descripcion,
+    unidad_medida: limpio.unidad || 'UNIDAD',
+    tipo: limpio.tipo === 'Servicio' ? 'SERVICIO' : 'BIEN',
+    precio_unitario: Number(limpio.precio),
+    codigo_porcentaje_iva: codigoDeIva(limpio.iva, anterior?.codigoIva),
+    activo: true,
+  };
+  const repetido = `Ya hay un producto con el código ${limpio.codigo} en esta empresa. ` +
+    'Cada código identifica un solo producto en el XML.';
+  try {
+    const guardada = anterior
+      ? await tabla('productos').actualizar({ id: `eq.${anterior.id}`, empresa_id: `eq.${empresa.id}` }, fila)
+      : await tabla('productos').insertar({ ...fila, empresa_id: empresa.id });
+    return productoDeFila(guardada);
+  } catch (error) {
+    throw explicar(error, repetido);
+  }
+}
+
+
+  return { clienteDeFila, clientesDeLaNube, clienteDeLaNube, guardarClienteEnLaNube, productoDeFila, productosDeLaNube, productoDeLaNube, codigoDeIva, guardarProductoEnLaNube };
+})();
+
+// ---- src/comprobantes-nube.js ------------------------------------
+const __src_comprobantes_nube_js = (function () {
+  const { tabla, funcion } = __src_nube_js;
+  const { totalizar, FORMAS_PAGO, TIPOS_IDENTIFICACION } = __src_datos_js;
+
+/**
+ * Puntos de emisión y facturas en la base de datos (migraciones 0002 y 0007).
+ *
+ * Con la cuenta de verdad, una factura es un documento tributario de la
+ * empresa: dos cajas no pueden tomar el mismo número y el contador tiene que
+ * verla desde su oficina. Por eso aquí:
+ *
+ *   - El número lo entrega la base (siguiente_secuencial), de uno en uno y sin
+ *     repetir, aunque dos personas guarden en el mismo segundo.
+ *   - La clave de acceso se calcula al reservar el número. La tabla la exige y
+ *     el SRI la construye con la fecha, el RUC, la serie y el secuencial, así
+ *     que queda fijada con ellos.
+ *   - La emisión simulada NO existe con la cuenta de verdad. Marcar como
+ *     «autorizada» una factura que el SRI no autorizó, en la base de una empresa
+ *     real, sería fabricar un documento tributario. La base además lo impide:
+ *     un comprobante autorizado exige número y fecha de autorización del SRI.
+ */
+
+
+
+
+const TIPO_POR_CODIGO = Object.fromEntries(
+  Object.entries(TIPOS_IDENTIFICACION).map(([clave, t]) => [t.codigo, clave]));
+
+const ESCRIBEN = ['ADMIN_EMPRESA', 'FACTURADOR'];
+const r2 = (n) => Math.round(Number(n || 0) * 100) / 100;
+
+// ---------------------------------------------------------------------------
+//  Clave de acceso (ficha técnica del SRI, tabla 1)
+// ---------------------------------------------------------------------------
+
+/** Módulo 11 con pesos de 2 a 7, de derecha a izquierda. */
+function digitoModulo11(cadena) {
+  let suma = 0;
+  let peso = 2;
+  for (let i = cadena.length - 1; i >= 0; i--) {
+    suma += Number(cadena[i]) * peso;
+    peso = peso === 7 ? 2 : peso + 1;
+  }
+  const resultado = 11 - (suma % 11);
+  return resultado === 11 ? 0 : resultado === 10 ? 1 : resultado;
+}
+
+/** Ocho dígitos al azar, del generador criptográfico del navegador. */
+function codigoNumerico() {
+  const n = new Uint32Array(1);
+  globalThis.crypto.getRandomValues(n);
+  return String(n[0] % 100000000).padStart(8, '0');
+}
+
+function claveDeAcceso({ fecha, tipo = '01', ruc, ambiente, estab, ptoEmi, secuencial, codigo }) {
+  const dd = String(fecha.getDate()).padStart(2, '0');
+  const mm = String(fecha.getMonth() + 1).padStart(2, '0');
+  const base = `${dd}${mm}${fecha.getFullYear()}${tipo}${ruc}${ambiente === 'PRODUCCION' ? '2' : '1'}` +
+    `${estab}${ptoEmi}${String(secuencial).padStart(9, '0')}${codigo}1`;
+  if (!/^\d{48}$/.test(base)) {
+    throw new Error('No se pudo armar la clave de acceso: revise el RUC de la empresa y el punto de emisión.');
+  }
+  return base + digitoModulo11(base);
+}
+
+// ---------------------------------------------------------------------------
+//  Puntos de emisión
+// ---------------------------------------------------------------------------
+
+async function puntosDeLaNube(empresaId) {
+  if (!empresaId) return [];
+  const [puntos, secuenciales] = await Promise.all([
+    tabla('puntos_emision').leer({
+      select: 'id,codigo,descripcion,activo,establecimiento_id,establecimientos(codigo,direccion)',
+      empresa_id: `eq.${empresaId}`,
+    }),
+    tabla('secuenciales').leer({
+      select: 'punto_emision_id,ultimo_numero', empresa_id: `eq.${empresaId}`, tipo: 'eq.01',
+    }),
+  ]);
+  const ultimo = Object.fromEntries((secuenciales ?? []).map((s) => [s.punto_emision_id, s.ultimo_numero]));
+  return (puntos ?? [])
+    .map((p) => ({
+      id: p.id,
+      codigo: `${p.establecimientos?.codigo ?? '000'}-${p.codigo}`,
+      estab: p.establecimientos?.codigo ?? '000',
+      ptoEmi: p.codigo,
+      nombre: p.descripcion || `Punto ${p.codigo}`,
+      lugar: p.establecimientos?.direccion ?? '',
+      ultimo: Number(ultimo[p.id] ?? 0),
+      activo: p.activo !== false,
+    }))
+    .sort((a, b) => a.codigo.localeCompare(b.codigo));
+}
+
+// ---------------------------------------------------------------------------
+//  Leer facturas
+// ---------------------------------------------------------------------------
+
+const PARTES = '*,comprobante_detalles(*),comprobante_impuestos(*),comprobante_pagos(*)';
+
+const IVA_POR_CODIGO = { 0: 0, 4: 15, 6: 0, 7: 0 };
+
+function comprobanteDeFila(f) {
+  const impuestos = f.comprobante_impuestos ?? [];
+  const lineas = (f.comprobante_detalles ?? [])
+    .slice()
+    .sort((a, b) => a.linea - b.linea)
+    .map((d) => {
+      const imp = impuestos.find((i) => i.detalle_id === d.id);
+      return {
+        codigo: d.codigo_principal ?? '',
+        descripcion: d.descripcion,
+        cantidad: Number(d.cantidad),
+        precio: Number(d.precio_unitario),
+        descuento: Number(d.descuento),
+        iva: IVA_POR_CODIGO[imp?.codigo_porcentaje] ?? 0,
+        codigoIva: imp?.codigo_porcentaje ?? '0',
+      };
+    });
+  const pago = (f.comprobante_pagos ?? [])[0];
+  const forma = FORMAS_PAGO.find((x) => x.codigo === pago?.forma_pago);
+  const borrador = f.estado === 'BORRADOR';
+
+  return {
+    id: f.id,
+    empresaId: f.empresa_id,
+    numero: f.numero,
+    tipo: 'Factura',
+    estado: f.estado,
+    cliente: {
+      tipo: TIPO_POR_CODIGO[f.receptor_tipo_identificacion] ?? f.receptor_tipo_identificacion,
+      identificacion: f.receptor_identificacion,
+      razonSocial: f.receptor_razon_social,
+      direccion: f.receptor_direccion ?? '',
+      correo: f.receptor_correo ?? '',
+      ciudad: '',
+    },
+    fecha: new Date(f.fecha_emision),
+    fechaAutorizacion: f.fecha_autorizacion ? new Date(f.fecha_autorizacion) : null,
+    // Las pantallas tratan la clave como «ya firmada». Un borrador tiene su
+    // clave reservada, pero todavía no la enseña como si hubiera salido.
+    claveAcceso: borrador ? null : f.clave_acceso,
+    claveReservada: f.clave_acceso,
+    autorizacion: f.numero_autorizacion ?? null,
+    formaPago: pago ? `${pago.forma_pago} · ${forma?.texto ?? ''}`.trim() : '',
+    lineas,
+    totales: totalizar(lineas),
+    simulado: false,
+    nube: true,
+  };
+}
+
+async function comprobantesDeLaNube(empresaId, filtro = {}) {
+  if (!empresaId) return [];
+  const filas = await tabla('comprobantes').leer({
+    select: PARTES,
+    empresa_id: `eq.${empresaId}`,
+    ...(filtro.estado ? { estado: `eq.${filtro.estado}` } : {}),
+    order: 'fecha_emision.desc',
+  });
+  return (filas ?? []).map(comprobanteDeFila);
+}
+
+async function comprobanteDeLaNube(empresaId, numero) {
+  if (!empresaId || !numero) return null;
+  const fila = await tabla('comprobantes').uno({
+    select: PARTES, empresa_id: `eq.${empresaId}`, numero: `eq.${numero}`,
+  });
+  return fila ? comprobanteDeFila(fila) : null;
+}
+
+// ---------------------------------------------------------------------------
+//  Guardar una factura como borrador
+// ---------------------------------------------------------------------------
+
+/**
+ * @param empresa  la empresa activa, con su rol, RUC y ambiente
+ * @param cliente  la ficha del cliente, ya leída de la base
+ * @param punto    el punto de emisión, ya leído de la base
+ */
+async function borradorEnLaNube({ empresa, cliente, punto, lineas, formaPago }) {
+  if (!empresa) throw new Error('Elija primero la empresa con la que va a trabajar.');
+  if (!ESCRIBEN.includes(empresa.rol)) {
+    throw new Error('Su acceso a esta empresa es de solo lectura: puede consultar facturas, pero no crearlas.');
+  }
+  if (!cliente) throw new Error('Hay que elegir a quién se le factura.');
+  if (!lineas?.length) throw new Error('Una factura sin líneas no se puede emitir.');
+  if (!punto?.activo) throw new Error('No hay ningún punto de emisión activo.');
+
+  const totales = totalizar(lineas);
+
+  // Primero el número. Si algo falla después, ese número queda sin usar: un
+  // hueco en la numeración se explica; un número repetido lo rechaza el SRI.
+  const secuencial = await funcion('siguiente_secuencial', {
+    p_punto_emision_id: punto.id, p_tipo: '01',
+  });
+  const fecha = new Date();
+  const clave = claveDeAcceso({
+    fecha, ruc: empresa.ruc, ambiente: empresa.ambiente,
+    estab: punto.estab, ptoEmi: punto.ptoEmi, secuencial, codigo: codigoNumerico(),
+  });
+
+  const cabecera = await tabla('comprobantes').insertar({
+    empresa_id: empresa.id,
+    punto_emision_id: punto.id,
+    tipo: '01',
+    estab: punto.estab,
+    pto_emi: punto.ptoEmi,
+    secuencial,
+    clave_acceso: clave,
+    fecha_emision: fecha.toISOString(),
+    ambiente: empresa.ambiente ?? 'PRUEBAS',
+    estado: 'BORRADOR',
+    receptor_tipo_identificacion: TIPOS_IDENTIFICACION[cliente.tipo]?.codigo ?? cliente.tipo,
+    receptor_identificacion: cliente.identificacion,
+    receptor_razon_social: cliente.razonSocial,
+    receptor_direccion: cliente.direccion || null,
+    receptor_correo: cliente.correo || null,
+    total_sin_impuestos: totales.sinImpuestos,
+    total_descuento: totales.descuento,
+    importe_total: totales.total,
+  });
+
+  const numero = cabecera.numero ?? `${punto.estab}-${punto.ptoEmi}-${String(secuencial).padStart(9, '0')}`;
+
+  try {
+    let linea = 0;
+    for (const l of lineas) {
+      linea += 1;
+      const precioTotal = r2(Number(l.cantidad) * Number(l.precio) - Number(l.descuento || 0));
+      const detalle = await tabla('comprobante_detalles').insertar({
+        comprobante_id: cabecera.id,
+        empresa_id: empresa.id,
+        linea,
+        codigo_principal: l.codigo || null,
+        descripcion: l.descripcion,
+        cantidad: Number(l.cantidad),
+        precio_unitario: Number(l.precio),
+        descuento: r2(l.descuento),
+        precio_total: precioTotal,
+      });
+      const codigoIva = l.codigoIva ?? (Number(l.iva) === 15 ? '4' : '0');
+      const tarifa = Number(l.iva) === 15 ? 15 : 0;
+      await tabla('comprobante_impuestos').insertar({
+        comprobante_id: cabecera.id,
+        empresa_id: empresa.id,
+        detalle_id: detalle.id,
+        codigo: '2',
+        codigo_porcentaje: codigoIva,
+        tarifa,
+        base_imponible: precioTotal,
+        valor: r2(precioTotal * tarifa / 100),
+      });
+    }
+    await tabla('comprobante_pagos').insertar({
+      comprobante_id: cabecera.id,
+      empresa_id: empresa.id,
+      forma_pago: String(formaPago ?? '').slice(0, 2),
+      total: totales.total,
+    });
+  } catch (error) {
+    throw new Error(`La factura ${numero} quedó guardada, pero incompleta: ${error.message} ` +
+      'No la emita. Avise al administrador para revisarla antes de continuar.');
+  }
+
+  return comprobanteDeLaNube(empresa.id, numero);
+}
+
+function emisionSimuladaNoPermitida() {
+  throw new Error('Con la cuenta de verdad no hay emisión simulada. Una factura solo pasa a ' +
+    '«autorizada» cuando el SRI la autoriza, y para eso la empresa necesita cargar su ' +
+    'certificado de firma y conectar con el SRI. El borrador queda guardado.');
+}
+
+
+  return { digitoModulo11, codigoNumerico, claveDeAcceso, puntosDeLaNube, comprobanteDeFila, comprobantesDeLaNube, comprobanteDeLaNube, borradorEnLaNube, emisionSimuladaNoPermitida };
+})();
+
 // ---- src/sesion.js -----------------------------------------------
 const __src_sesion_js = (function () {
   const { haySesion: haySesionEnLaNube, usuario: usuarioDeLaNube, olvidar: olvidarLaNube, salir: salirDeLaNube } = __src_nube_js;
@@ -4139,6 +4617,8 @@ const sesion = {
 const __src_almacen_js = (function () {
   const { SEMILLA, totalizar, TARIFAS_IVA, TIPOS_IDENTIFICACION } = __src_datos_js;
   const { perfilDeLaNube, altaDeEmpresa, cargarPerfil } = __src_cuenta_nube_js;
+  const { clientesDeLaNube, clienteDeLaNube, guardarClienteEnLaNube, productosDeLaNube, productoDeLaNube, guardarProductoEnLaNube } = __src_catalogo_nube_js;
+  const { puntosDeLaNube, comprobantesDeLaNube, comprobanteDeLaNube, borradorEnLaNube, emisionSimuladaNoPermitida } = __src_comprobantes_nube_js;
 
 /**
  * El almacén: lo único que sabe dónde están los datos y cómo se guardan.
@@ -4162,6 +4642,8 @@ const __src_almacen_js = (function () {
  *    de datos (migración 0007) y se repite aquí para que la pantalla no ofrezca
  *    algo que el servidor va a rechazar.
  */
+
+
 
 
 
@@ -4400,21 +4882,27 @@ const cargar = {
     { nombre: 'Juan Carlos Pérez', correo: 'jperez@agroperez.com.ec', rol: 'Administrador',
       puntos: 'Todos', ultimoAcceso: 'Ahora', activo: true },
   ]),
-  puntos: () => esperar(deLaActiva(datos.puntos)),
+  puntos: () => (enLaNube() ? puntosDeLaNube(idActiva()) : esperar(deLaActiva(datos.puntos))),
 
-  clientes: () => esperar(activos(deLaActiva(datos.clientes))),
-  cliente: (id) => esperar(deLaActiva(datos.clientes).find((c) => c.id === id) ?? null),
+  // Con la cuenta de verdad, clientes y productos se leen de la base: son de la
+  // empresa, no de este navegador.
+  clientes: () => (enLaNube() ? clientesDeLaNube(idActiva())
+    : esperar(activos(deLaActiva(datos.clientes)))),
+  cliente: (id) => (enLaNube() ? clienteDeLaNube(idActiva(), id)
+    : esperar(deLaActiva(datos.clientes).find((c) => c.id === id) ?? null)),
 
-  productos: () => esperar(activos(deLaActiva(datos.productos))),
-  producto: (codigo) => esperar(deLaActiva(datos.productos).find((p) => p.codigo === codigo) ?? null),
+  productos: () => (enLaNube() ? productosDeLaNube(idActiva())
+    : esperar(activos(deLaActiva(datos.productos)))),
+  producto: (codigo) => (enLaNube() ? productoDeLaNube(idActiva(), codigo)
+    : esperar(deLaActiva(datos.productos).find((p) => p.codigo === codigo) ?? null)),
 
-  comprobantes: (filtro = {}) => esperar(
+  comprobantes: (filtro = {}) => (enLaNube() ? comprobantesDeLaNube(idActiva(), filtro) : esperar(
     deLaActiva(datos.comprobantes)
       .filter((c) => !filtro.estado || c.estado === filtro.estado)
       .slice()
-      .sort((a, b) => new Date(b.fecha) - new Date(a.fecha))),
-  comprobante: (numero) =>
-    esperar(deLaActiva(datos.comprobantes).find((c) => c.numero === numero) ?? null),
+      .sort((a, b) => new Date(b.fecha) - new Date(a.fecha)))),
+  comprobante: (numero) => (enLaNube() ? comprobanteDeLaNube(idActiva(), numero)
+    : esperar(deLaActiva(datos.comprobantes).find((c) => c.numero === numero) ?? null)),
 
   /** Las compras registradas, la mas reciente primero. */
   compras: () => esperar(
@@ -4675,6 +5163,17 @@ const guardar = {
   /** Crea o actualiza un cliente. Devuelve el cliente tal como quedó. */
   cliente(entrada) {
     const { identificacion, razonSocial } = comprobarCliente(entrada);
+    if (enLaNube()) {
+      return guardarClienteEnLaNube(empresaActiva(), {
+        tipo: entrada.tipo,
+        identificacion,
+        razonSocial,
+        ciudad: String(entrada.ciudad ?? '').trim(),
+        correo: String(entrada.correo ?? '').trim(),
+        telefono: String(entrada.telefono ?? '').trim(),
+        direccion: String(entrada.direccion ?? '').trim(),
+      }, entrada.id || null);
+    }
     const existente = datos.clientes.find((c) => c.id === entrada.id);
 
     const cliente = {
@@ -4703,6 +5202,16 @@ const guardar = {
   /** Crea o actualiza un producto. `codigoOriginal` identifica al que se edita. */
   producto(entrada) {
     const { codigo, descripcion } = comprobarProducto(entrada);
+    if (enLaNube()) {
+      return guardarProductoEnLaNube(empresaActiva(), {
+        codigo,
+        descripcion,
+        unidad: String(entrada.unidad ?? '').trim(),
+        tipo: entrada.tipo,
+        precio: Number(entrada.precio),
+        iva: Number(entrada.iva),
+      }, entrada.codigoOriginal || null);
+    }
     const existente = datos.productos.find((p) => p.codigo === entrada.codigoOriginal);
 
     const producto = {
@@ -4734,6 +5243,7 @@ const guardar = {
    * número repetido lo rechaza el SRI.
    */
   borrador(entrada) {
+    if (enLaNube()) return borradorEnLaNubeActiva(entrada);
     const cliente = deLaActiva(datos.clientes).find((c) => c.id === entrada.clienteId);
     if (!cliente) fallo('Hay que elegir a quién se le factura.');
     if (!entrada.lineas?.length) fallo('Una factura sin líneas no se puede emitir.');
@@ -4791,6 +5301,7 @@ const guardar = {
    * autorizado sin estarlo es peor que no tener ninguno.
    */
   emitirSimulado(numero) {
+    if (enLaNube()) return emisionSimuladaNoPermitida();
     const c = deLaActiva(datos.comprobantes).find((x) => x.numero === numero);
     if (!c) fallo(`No existe el comprobante ${numero}.`);
     if (c.estado !== 'BORRADOR') {
@@ -4804,6 +5315,24 @@ const guardar = {
     return esperar(c);
   },
 };
+
+/**
+ * Una factura en borrador con la cuenta de verdad: el cliente y el punto se
+ * leen de la base en ese momento, no de lo que la pantalla tenía en memoria.
+ */
+async function borradorEnLaNubeActiva(entrada) {
+  const empresaId = idActiva();
+  const [cliente, puntos] = await Promise.all([
+    clienteDeLaNube(empresaId, entrada.clienteId), puntosDeLaNube(empresaId),
+  ]);
+  const punto = puntos.find((p) => p.codigo === entrada.punto && p.activo)
+    ?? puntos.find((p) => p.activo);
+  const c = await borradorEnLaNube({
+    empresa: empresaActiva(), cliente, punto, lineas: entrada.lineas, formaPago: entrada.formaPago,
+  });
+  window.dispatchEvent(new CustomEvent('kontia:datos-cambiaron'));
+  return c;
+}
 
 /**
  * El alta de una empresa en la base de datos.
@@ -7045,7 +7574,7 @@ function conectarEmision() {
       if (!p) return;
       borrador.lineas.push({
         codigo: p.codigo, descripcion: p.descripcion,
-        cantidad, precio: p.precio, descuento: 0, iva: p.iva,
+        cantidad, precio: p.precio, descuento: 0, iva: p.iva, codigoIva: p.codigoIva,
       });
       repintar();
       return;
@@ -12786,6 +13315,16 @@ const PENDIENTES = {
  */
 const RUTAS_DE_LIBROS = /^#\/(plan-cuentas|diario|mayor|comprobacion|resultados|situacion)(\/|$)/;
 
+/**
+ * Las pantallas que todavía no leen de la base de datos.
+ *
+ * Con la cuenta de verdad no pueden enseñar las cifras de ejemplo —serían
+ * retenciones, bancos y empleados que no existen— ni guardar en el navegador
+ * compras de una empresa real que el contador no vería desde su oficina. Se
+ * dice qué falta, en lugar de simularlo.
+ */
+const RUTAS_SIN_BASE = /^#\/(retenciones|notas-credito|guias|diario|mayor|comprobacion|resultados|situacion|por-cobrar|por-pagar|bancos|proveedores|buzon|compras|ingresos-gastos|inventario|nomina|activos|iva|anexo|usuarios)(\/|$)/;
+
 const raiz = () => document.getElementById('raiz');
 const sitio = () => document.getElementById('portada');
 
@@ -12945,6 +13484,13 @@ async function dibujar() {
       texto: 'Las personas no obligadas y los negocios populares del RIMPE llevan un registro de ' +
              'ingresos y egresos (Reglamento de la LRTI, art. 38), no libros contables. Lo encuentra ' +
              'en «Ingresos y egresos».',
+    });
+  } else if (!admin && perfilDeLaNube() && RUTAS_SIN_BASE.test(r.ruta)) {
+    contenido = pendiente({
+      titulo: 'Todavía sin datos reales', ico: 'cloud_sync', etiqueta: 'En preparación',
+      texto: 'Con su cuenta de verdad, esta pantalla se habilita cuando sus datos se guarden en la ' +
+             'base de la empresa. Ya se guardan en la base los clientes, los productos, los puntos de ' +
+             'emisión y las facturas.',
     });
   } else {
     contenido = await r.coincide.vista(...r.args);
