@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <!-- La version publicada: la pone el empaquetador y la pagina la compara con la del servidor. -->
-<meta name="kontia-version" content="87c30d2f2d96">
+<meta name="kontia-version" content="e3c8b03eece8">
 <title>Kontia</title>
 <meta name="theme-color" content="#0F7B4F">
 <link rel="manifest" href="manifiesto.json">
@@ -11336,10 +11336,10 @@ async function proteccionDatos() {
 
 // ---- src/vistas/impuestos.js -------------------------------------
 const __src_vistas_impuestos_js = (function () {
-  const { html, crudo, usd, dinero, icono, cabecera, aviso, boton, fecha, fechaLarga, empresaEnBlanco } = __src_ui_js;
+  const { html, crudo, usd, dinero, icono, cabecera, aviso, boton, fecha, fechaLarga, empresaEnBlanco, tabla, vacio } = __src_ui_js;
   const { barraCompuesta, leyenda, VERDE, AMBAR } = __src_graficos_js;
   const { formulario104, nombreCuenta, balanceDeComprobacion, diarioCon } = __src_datos_contables_js;
-  const { esLaDeEjemplo, cargar } = __src_almacen_js;
+  const { esLaDeEjemplo, cargar, empresaActiva } = __src_almacen_js;
 
 /**
  * Impuestos: el formulario 104 y el anexo transaccional.
@@ -11479,73 +11479,139 @@ async function declaracionIva() {
 // ===========================================================================
 
 async function anexoTransaccional() {
-  // Los libros de la empresa de ejemplo no son de ninguna otra.
-  if (!esLaDeEjemplo()) {
-    return html`${crudo(cabecera({ titulo: 'Anexo transaccional' }))}${empresaEnBlanco({
-      ico: 'folder_zip', titulo: 'Todavía no hay transacciones',
-      texto: 'El anexo detalla las compras y ventas del mes. Se genera cuando haya alguna.',
-    })}`;
+  const empresa = empresaActiva();
+  const hoy = new Date();
+  const anio = hoy.getFullYear();
+  const mes = hoy.getMonth();
+  const delPeriodo = (d) => {
+    const f = new Date(d);
+    return f.getFullYear() === anio && f.getMonth() === mes;
+  };
+  const esElectronico = (clave) => /^\d{49}$/.test(String(clave ?? ''));
+  const r2 = (n) => Math.round(n * 100) / 100;
+
+  const ventas = (await cargar.comprobantes({ estado: 'AUTORIZADO' })).filter((c) => delPeriodo(c.fecha));
+  const compras = (await cargar.compras()).filter((c) => delPeriodo(c.fecha));
+  const puntos = await cargar.puntos();
+
+  // Ficha técnica del ATS, numeral 1: quien emite electrónicamente conforme a la
+  // ficha de comprobantes electrónicos no registra esos comprobantes en los
+  // módulos de compras y ventas, porque el SRI ya los tiene. Y numeral 2.3: las
+  // retenciones sustentadas en comprobantes electrónicos tampoco se reportan ahí.
+  const ventasElectronicas = ventas.filter((c) => esElectronico(c.claveAcceso ?? c.clave));
+  const ventasFisicas = ventas.filter((c) => !esElectronico(c.claveAcceso ?? c.clave));
+  const facturasCompra = compras.filter((c) => c.tipo !== '07');
+  const comprasElectronicas = facturasCompra.filter((c) => esElectronico(c.clave));
+  const comprasFisicas = facturasCompra.filter((c) => !esElectronico(c.clave));
+  const retencionesRecibidas = compras.filter((c) => c.tipo === '07');
+
+  // Cabecera: totalVentas es la suma de bases (0%, diferente de 0% y no objeto)
+  // de todo lo vendido en el período, sea o no electrónico.
+  const totalVentas = r2(ventas.reduce((s, c) => s + Number(c.totales?.sinImpuestos ?? 0), 0));
+  const establecimientos = [...new Set(puntos.map((pt) => String(pt.codigo ?? '').slice(0, 3)).filter(Boolean))];
+  const porEstablecimiento = establecimientos.map((codEstab) => ({
+    codEstab,
+    ventasEstab: r2(ventas.filter((c) => String(c.numero ?? '').startsWith(codEstab))
+      .reduce((s, c) => s + Number(c.totales?.sinImpuestos ?? 0), 0)),
+    ivaComp: 0,
+  }));
+
+  const nombreMes = hoy.toLocaleDateString('es-EC', { month: 'long', year: 'numeric' });
+
+  if (!ventas.length && !compras.length) {
+    return html`
+      ${crudo(cabecera({ titulo: 'Anexo transaccional simplificado' }))}
+      ${vacio({
+        ico: 'folder_zip', titulo: `Sin transacciones en ${nombreMes}`,
+        texto: 'El anexo se arma solo con lo facturado y lo que entra por el buzón en el mes.',
+      })}`;
   }
 
-  const bloques = [
-    { nombre: 'Compras', registros: 34, ico: 'shopping_cart',
-      detalle: 'Facturas recibidas de proveedores, con su retención' },
-    { nombre: 'Ventas', registros: 148, ico: 'point_of_sale',
-      detalle: 'Todo lo emitido y autorizado en el mes' },
-    { nombre: 'Retenciones', registros: 3, ico: 'content_cut',
-      detalle: 'Las practicadas a proveedores' },
-    { nombre: 'Comprobantes anulados', registros: 2, ico: 'block',
-      detalle: 'Notas de crédito emitidas' },
-  ];
-  const total = bloques.reduce((s, b) => s + b.registros, 0);
+  const bloque = (nombre, cuantos, ico, detalle, reporta) => html`
+    <div class="bg-white border border-papel-linea rounded-2xl relieve p-5">
+      <div class="flex items-start justify-between">
+        <p class="text-[11px] font-bold uppercase tracking-wide text-tinta-suave">${nombre}</p>
+        <span class="w-9 h-9 rounded-xl flex items-center justify-center ${crudo(reporta
+          ? 'bg-verde-claro text-verde' : 'bg-papel text-tinta-suave')}">
+          ${icono(ico, 'text-[18px]')}
+        </span>
+      </div>
+      <p class="mt-3 text-[26px] font-extrabold tracking-tight tabular">${String(cuantos)}</p>
+      <p class="mt-1 text-xs text-tinta-suave leading-snug">${detalle}</p>
+      <p class="mt-2 text-[11px] font-bold ${crudo(reporta ? 'text-verde' : 'text-tinta-suave')}">
+        ${reporta ? 'Va en el detalle del anexo' : 'No va en el detalle: el SRI ya lo tiene'}
+      </p>
+    </div>`;
+
+  const campo = (nombre, valor, descripcion) => html`
+    <tr>
+      <td class="px-5 py-2.5 text-[12px] font-mono">${nombre}</td>
+      <td class="px-5 py-2.5 text-sm">${descripcion}</td>
+      <td class="px-5 py-2.5 text-right text-sm font-semibold tabular">${valor}</td>
+    </tr>`;
 
   return html`
     ${crudo(cabecera({
       titulo: 'Anexo transaccional simplificado',
-      descripcion: 'El detalle de todas las transacciones del mes, en el formato XML que exige el SRI.',
-      acciones: boton('Generar anexo', { ico: 'code' }),
+      descripcion: `${nombreMes} · lo que iría en el anexo según la ficha técnica del SRI, con los datos del sistema.`,
     }))}
 
     ${crudo(aviso({
-      tono: 'info', ico: 'verified',
-      titulo: 'Este anexo sí se puede comprobar antes de enviarlo',
-      texto: 'El SRI publica un esquema (at.xsd) contra el que se valida el archivo. Igual que ' +
-             'con los comprobantes electrónicos: lo que no valide contra el esquema está mal, ' +
-             'y se sabe aquí y no al presentarlo.',
+      tono: 'ambar', ico: 'rule',
+      titulo: 'Todavía no se genera el archivo para presentar',
+      texto: 'Falta confirmar con el contador la regla de la ficha técnica que deja fuera del detalle ' +
+             'a los comprobantes electrónicos, y validar el XML contra el esquema oficial at.xsd. ' +
+             'Un anexo mal presentado se corrige con uno sustitutivo.',
     }))}
 
     <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4 mb-5">
-      ${bloques.map((b) => html`
-        <div class="bg-white border border-papel-linea rounded-2xl relieve p-5">
-          <div class="flex items-start justify-between">
-            <p class="text-[11px] font-bold uppercase tracking-wide text-tinta-suave">${b.nombre}</p>
-            <span class="w-9 h-9 rounded-xl bg-verde-claro text-verde flex items-center justify-center">
-              ${icono(b.ico, 'text-[18px]')}
-            </span>
-          </div>
-          <p class="mt-3 text-[26px] font-extrabold tracking-tight tabular">${b.registros}</p>
-          <p class="mt-1 text-xs text-tinta-suave leading-snug">${b.detalle}</p>
-        </div>`)}
+      ${bloque('Ventas electrónicas', ventasElectronicas.length, 'point_of_sale',
+        `Suman ${usd(r2(ventasElectronicas.reduce((s, c) => s + Number(c.totales?.sinImpuestos ?? 0), 0)))} de base`, false)}
+      ${bloque('Ventas físicas', ventasFisicas.length, 'receipt', 'Notas de venta o facturas preimpresas', true)}
+      ${bloque('Compras electrónicas', comprasElectronicas.length, 'shopping_cart',
+        'Entraron por el buzón con su clave de acceso', false)}
+      ${bloque('Compras físicas', comprasFisicas.length, 'description',
+        'Comprobantes sin clave de acceso', true)}
     </div>
 
-    <section class="bg-white border border-papel-linea rounded-2xl relieve p-5 sm:p-6">
-      <h2 class="text-sm font-bold mb-1">Qué se va a generar</h2>
-      <p class="text-xs text-tinta-suave mb-5">
-        ${total} registros en un solo archivo XML, con la estructura de la ficha técnica del SRI.
-      </p>
-      <pre class="text-[11px] leading-relaxed bg-papel rounded-xl p-4 overflow-x-auto"><code>&lt;iva&gt;
-  &lt;TipoIDInformante&gt;R&lt;/TipoIDInformante&gt;
-  &lt;IdInformante&gt;0912345678001&lt;/IdInformante&gt;
-  &lt;razonSocial&gt;AGROQUIMICOS PEREZ S.A.&lt;/razonSocial&gt;
-  &lt;Anio&gt;2026&lt;/Anio&gt;  &lt;Mes&gt;09&lt;/Mes&gt;
-  &lt;compras&gt; … 34 detalles … &lt;/compras&gt;
-  &lt;ventas&gt;  … 148 detalles … &lt;/ventas&gt;
-&lt;/iva&gt;</code></pre>
-      <p class="mt-4 text-[11px] text-tinta-suave leading-relaxed">
-        Es un ejemplo de la forma, no el archivo definitivo: el generador del anexo se
-        construye contra el esquema oficial, igual que se construyó el de los comprobantes.
-      </p>
-    </section>`;
+    <div class="grid gap-5 lg:grid-cols-2">
+      <section class="bg-white border border-papel-linea rounded-2xl relieve overflow-hidden">
+        <header class="px-5 py-4 border-b border-papel-linea">
+          <h2 class="text-sm font-bold">Identificación del informante</h2>
+          <p class="text-[11px] text-tinta-suave mt-0.5">Numeral 2.1 de la ficha técnica.</p>
+        </header>
+        ${tabla([{ texto: 'Campo' }, { texto: 'Qué es' }, { texto: 'Valor', der: true }], [
+          campo('TipoIDInformante', 'R', 'Tipo de identificación: RUC'),
+          campo('IdInformante', empresa?.ruc ?? '—', 'RUC del informante'),
+          campo('razonSocial', empresa?.razonSocial ?? '—', 'Razón social'),
+          campo('anio', String(anio), 'Año del período'),
+          campo('mes', String(mes + 1).padStart(2, '0'), 'Mes del período'),
+          campo('numEstabRuc', String(Math.max(establecimientos.length, 1)).padStart(3, '0'), 'Establecimientos inscritos en el RUC'),
+          campo('totalVentas', dinero(totalVentas), 'Suma de bases de todas las ventas del período'),
+          campo('codigoOperativo', 'IVA', 'Código del operativo'),
+        ])}
+      </section>
+
+      <section class="bg-white border border-papel-linea rounded-2xl relieve overflow-hidden">
+        <header class="px-5 py-4 border-b border-papel-linea">
+          <h2 class="text-sm font-bold">Ventas por establecimiento</h2>
+          <p class="text-[11px] text-tinta-suave mt-0.5">
+            Se informan aunque las ventas sean electrónicas.
+          </p>
+        </header>
+        ${tabla([{ texto: 'codEstab' }, { texto: 'ventasEstab', der: true }, { texto: 'ivaComp', der: true }],
+          porEstablecimiento.map((e) => html`
+            <tr>
+              <td class="px-5 py-2.5 text-sm font-mono">${e.codEstab}</td>
+              <td class="px-5 py-2.5 text-right text-sm tabular">${dinero(e.ventasEstab)}</td>
+              <td class="px-5 py-2.5 text-right text-sm tabular">${dinero(e.ivaComp)}</td>
+            </tr>`))}
+        <p class="px-5 py-3 text-[11px] text-tinta-suave border-t border-papel-linea leading-relaxed">
+          Retenciones recibidas en el período: ${String(retencionesRecibidas.length)}. Las que llegan en
+          comprobante electrónico no se reportan en el anexo (numeral 2.3 de la ficha).
+        </p>
+      </section>
+    </div>`;
 }
 
 
