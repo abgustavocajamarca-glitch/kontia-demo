@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <!-- La version publicada: la pone el empaquetador y la pagina la compara con la del servidor. -->
-<meta name="kontia-version" content="cd5683522c2d">
+<meta name="kontia-version" content="0767731c5b63">
 <title>Kontia</title>
 <meta name="theme-color" content="#0F7B4F">
 <link rel="manifest" href="manifiesto.json">
@@ -6635,13 +6635,19 @@ async function seleccionEmpresa() {
 document.addEventListener('click', async (ev) => {
   const papel = ev.target.closest('[data-papel]');
   if (papel) {
+    // La demostración y una cuenta de verdad no conviven. Quien pulsa un papel
+    // de ejemplo con su cuenta abierta la cierra primero: si no, la pantalla
+    // mezclaría menús del papel de ejemplo con datos reales de la base.
+    sesion.salir();
     sesion.entrar(papel.dataset.papel);
     location.hash = sesion.esSuperAdmin() ? '#/admin/empresas' : '#/empresas';
     return;
   }
   // Elegir con qué empresa se trabaja. Lo que se elija aquí decide qué datos se
   // ven después, así que se guarda antes de entrar a ninguna pantalla.
-  const empresa = ev.target.closest('[data-empresa]');
+  // Solo los botones de esta pantalla: la marca sola se colaba en cualquier
+  // otro elemento que la llevara, y un clic ahí cambiaba de empresa.
+  const empresa = ev.target.closest('button[data-empresa]');
   if (empresa) {
     await guardar.cambiarEmpresa(empresa.dataset.empresa);
     location.hash = '#/resumen';
