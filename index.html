@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <!-- La version publicada: la pone el empaquetador y la pagina la compara con la del servidor. -->
-<meta name="kontia-version" content="221683d0f153">
+<meta name="kontia-version" content="f1e70a010ca7">
 <title>Kontia</title>
 <meta name="theme-color" content="#0F7B4F">
 <link rel="manifest" href="manifiesto.json">
@@ -2566,6 +2566,7 @@ const EMPRESA = {
   dirMatriz: 'Km 14.5 Vía Daule, Daule, Guayas',
   regimen: 'General',
   obligadoContabilidad: true,
+  manejaInventario: true,
   contribuyenteEspecial: false,
   agenteRetencion: false,
   ambiente: 'PRUEBAS',
@@ -3966,6 +3967,9 @@ const copiaDeLaSemilla = () => ({
   // Las compras no se siembran: entran por el buzon, y lo que se quiere
   // ensenar es justamente ese recorrido —soltar el XML y verlo registrado—.
   compras: [],
+  // La cuenta con que se registró la última compra de cada proveedor, por
+  // empresa: { empresaId: { rucProveedor: cuenta } }.
+  cuentasProveedor: {},
 });
 
 function leer() {
@@ -3993,6 +3997,7 @@ let datos = leer();
 for (const coleccion of ['clientes', 'productos', 'comprobantes', 'puntos', 'compras']) {
   if (!Array.isArray(datos[coleccion])) datos[coleccion] = [];
 }
+if (!datos.cuentasProveedor || typeof datos.cuentasProveedor !== 'object') datos.cuentasProveedor = {};
 
 function persistir() {
   try {
@@ -4147,6 +4152,9 @@ const cargar = {
   compras: () => esperar(
     deLaActiva(datos.compras).slice().sort((a, b) => new Date(b.fecha) - new Date(a.fecha))),
 
+  /** Las cuentas recordadas por proveedor en la empresa activa: { ruc: cuenta }. */
+  cuentasDeProveedores: () => esperar({ ...(datos.cuentasProveedor[datos.activa] ?? {}) }),
+
   /**
    * Las cifras del tablero.
    *
@@ -4278,6 +4286,24 @@ const guardar = {
   },
 
   /**
+   * Recuerda la cuenta con que se registró la compra de cada proveedor.
+   *
+   * El contador: el proveedor frecuente queda vinculado a su cuenta y sus
+   * facturas van solas. Se guarda la última confirmada, que es la que un
+   * usuario cambiaría si el proveedor empezó a vender otra cosa.
+   */
+  cuentasDeProveedores(mapa) {
+    const validas = Object.entries(mapa ?? {})
+      .filter(([ruc, cuenta]) => /^\d{10,13}$/.test(ruc) && /^\d{4,9}$/.test(String(cuenta)));
+    datos.cuentasProveedor[datos.activa] = {
+      ...(datos.cuentasProveedor[datos.activa] ?? {}),
+      ...Object.fromEntries(validas),
+    };
+    persistir();
+    return esperar(validas.length);
+  },
+
+  /**
    * Da de alta una empresa.
    *
    * Nace vacía y en ambiente de PRUEBAS, las dos cosas a propósito. Vacía
@@ -4308,6 +4334,7 @@ const guardar = {
       regimen: entrada.regimen ?? 'General',
       plan: entrada.plan ?? 'Profesional',
       obligadoContabilidad: true,
+      manejaInventario: entrada.manejaInventario !== false,
       contribuyenteEspecial: false,
       agenteRetencion: false,
       ambiente: 'PRUEBAS',
@@ -4480,7 +4507,7 @@ const guardar = {
 
 // ---- src/datos-contables.js --------------------------------------
 const __src_datos_contables_js = (function () {
-  const { COMPROBANTES } = __src_datos_js;
+  const { COMPROBANTES, PRODUCTOS } = __src_datos_js;
 
 /**
  * La semilla de contabilidad y operaciones.
@@ -4510,7 +4537,9 @@ const CUENTAS = [
   { codigo: '1010205', nombre: 'Documentos y cuentas por cobrar clientes no relacionados', tipo: 'TOTAL', naturaleza: 'DEUDORA' },
   { codigo: '101020502', nombre: 'De actividades ordinarias que no generen intereses', tipo: 'DETALLE', naturaleza: 'DEUDORA' },
   { codigo: '1010209', nombre: '(-) Provisión cuentas incobrables y deterioro', tipo: 'DETALLE', naturaleza: 'ACREEDORA' },
+  { codigo: '1010301', nombre: 'Inventarios de materia prima', tipo: 'DETALLE', naturaleza: 'DEUDORA' },
   { codigo: '1010305', nombre: 'Inventarios de productos terminados y mercadería en almacén', tipo: 'DETALLE', naturaleza: 'DEUDORA' },
+  { codigo: '1010306', nombre: 'Inventarios de productos terminados y mercadería comprados a terceros', tipo: 'DETALLE', naturaleza: 'DEUDORA' },
   { codigo: '1010501', nombre: 'Crédito tributario a favor de la empresa (IVA)', tipo: 'DETALLE', naturaleza: 'DEUDORA' },
   { codigo: '1010502', nombre: 'Crédito tributario a favor de la empresa (I. R.)', tipo: 'DETALLE', naturaleza: 'DEUDORA' },
   { codigo: '102', nombre: 'Activo no corriente', tipo: 'TOTAL', naturaleza: 'DEUDORA' },
@@ -4541,6 +4570,7 @@ const CUENTAS = [
 
   { codigo: '51', nombre: 'COSTO DE VENTAS Y PRODUCCIÓN', tipo: 'TOTAL', naturaleza: 'DEUDORA' },
   { codigo: '510102', nombre: '(+) Compras netas locales de bienes no producidos por la compañía', tipo: 'DETALLE', naturaleza: 'DEUDORA' },
+  { codigo: '510106', nombre: '(+) Compras netas locales de materia prima', tipo: 'DETALLE', naturaleza: 'DEUDORA' },
 
   { codigo: '52', nombre: 'GASTOS', tipo: 'TOTAL', naturaleza: 'DEUDORA' },
   { codigo: '520101', nombre: 'Sueldos, salarios y demás remuneraciones', tipo: 'DETALLE', naturaleza: 'DEUDORA' },
@@ -4553,6 +4583,20 @@ const CUENTAS = [
   { codigo: '520115', nombre: 'Transporte', tipo: 'DETALLE', naturaleza: 'DEUDORA' },
   { codigo: '520118', nombre: 'Agua, energía, luz y telecomunicaciones', tipo: 'DETALLE', naturaleza: 'DEUDORA' },
   { codigo: '520121', nombre: 'Depreciaciones · propiedades, planta y equipo', tipo: 'DETALLE', naturaleza: 'DEUDORA' },
+  { codigo: '520110', nombre: 'Comisiones (ventas)', tipo: 'DETALLE', naturaleza: 'DEUDORA' },
+  // La serie 5202, de administración: la que se propone por defecto (contador,
+  // repregunta 2). Los nombres son los del catálogo; la serie dice el área.
+  { codigo: '520205', nombre: 'Honorarios, comisiones y dietas a personas naturales (administración)', tipo: 'DETALLE', naturaleza: 'DEUDORA' },
+  { codigo: '520208', nombre: 'Mantenimiento y reparaciones (administración)', tipo: 'DETALLE', naturaleza: 'DEUDORA' },
+  { codigo: '520209', nombre: 'Arrendamiento operativo (administración)', tipo: 'DETALLE', naturaleza: 'DEUDORA' },
+  { codigo: '520210', nombre: 'Comisiones (administración)', tipo: 'DETALLE', naturaleza: 'DEUDORA' },
+  { codigo: '520212', nombre: 'Combustibles (administración)', tipo: 'DETALLE', naturaleza: 'DEUDORA' },
+  { codigo: '520214', nombre: 'Seguros y reaseguros (administración)', tipo: 'DETALLE', naturaleza: 'DEUDORA' },
+  { codigo: '520215', nombre: 'Transporte (administración)', tipo: 'DETALLE', naturaleza: 'DEUDORA' },
+  { codigo: '520217', nombre: 'Gastos de viaje (administración)', tipo: 'DETALLE', naturaleza: 'DEUDORA' },
+  { codigo: '520218', nombre: 'Agua, energía, luz y telecomunicaciones (administración)', tipo: 'DETALLE', naturaleza: 'DEUDORA' },
+  { codigo: '520220', nombre: 'Impuestos, contribuciones y otros (administración)', tipo: 'DETALLE', naturaleza: 'DEUDORA' },
+  { codigo: '520228', nombre: 'Otros gastos (administración)', tipo: 'DETALLE', naturaleza: 'DEUDORA' },
 ];
 
 const cuenta = (codigo) => CUENTAS.find((c) => c.codigo === codigo);
@@ -4574,12 +4618,34 @@ const centavos = (n) => Math.round(n * 100);
  */
 function asientoDeFactura(c) {
   const t = c.totales;
+  const cent = (n) => Math.round(Number(n || 0) * 100);
+  const esServicio = (codigo) => PRODUCTOS.find((p) => p.codigo === codigo)?.tipo === 'Servicio';
+
+  // Contador, respuestas 8 y repregunta 6: la venta por su valor completo y el
+  // descuento en su propia cuenta (4110), también el que va en la misma factura.
+  // Y la venta de servicios en 4102, no mezclada con la de bienes.
+  let bienes = 0;
+  let servicios = 0;
+  let descuento = 0;
+  const lineasFactura = c.lineas ?? [];
+  for (const l of lineasFactura) {
+    const bruto = cent(l.cantidad * l.precio);
+    if (esServicio(l.codigo)) servicios += bruto; else bienes += bruto;
+    descuento += cent(l.descuento);
+  }
+  if (!lineasFactura.length) bienes = cent(t.sinImpuestos);
+
   const lineas = [
     { cuenta: '101020502', debe: t.total, haber: 0,
       detalle: `${c.cliente.razonSocial} · ${c.numero}` },
-    { cuenta: '4101', debe: 0, haber: t.sinImpuestos,
-      detalle: 'Venta de bienes' },
   ];
+  if (descuento > 0) {
+    lineas.push({ cuenta: '4110', debe: descuento / 100, haber: 0, detalle: 'Descuento concedido en la factura' });
+  }
+  if (bienes > 0) lineas.push({ cuenta: '4101', debe: 0, haber: bienes / 100, detalle: 'Venta de bienes' });
+  if (servicios > 0) {
+    lineas.push({ cuenta: '4102', debe: 0, haber: servicios / 100, detalle: 'Prestación de servicios' });
+  }
   if (t.iva > 0) {
     lineas.push({ cuenta: '2010701', debe: 0, haber: t.iva, detalle: 'IVA cobrado 15%' });
   }
@@ -4752,19 +4818,40 @@ function asientoDeCompra(c) {
   const nombre = c.proveedorNombre || c.proveedorRuc;
 
   if (c.tipo === '07') {
+    // Contador, respuestas 11 y repregunta 9: la retención de IVA recibida no se
+    // mezcla con la de renta, y se lleva por porcentaje. El catálogo de la
+    // Superintendencia tiene una sola cuenta de detalle por impuesto (1010501 y
+    // 1010502); el porcentaje va como auxiliar dentro de ella, que es como no se
+    // rompe la presentación de estados financieros.
     const retenido = Number(c.retenido ?? c.total ?? 0);
+    const conDesglose = c.retenidoRenta != null || c.retenidoIva != null;
+    const iva = conDesglose ? Number(c.retenidoIva ?? 0) : 0;
+    const renta = conDesglose ? Number(c.retenidoRenta ?? 0) : retenido;
+    const porcentajes = (impuesto) => [...new Set((c.sustentos ?? [])
+      .filter((s) => s.impuesto === impuesto).map((s) => `${s.porcentaje}%`))].join(', ');
+    const lineas = [];
+    if (renta > 0) {
+      lineas.push({ cuenta: '1010502', debe: renta, haber: 0,
+        detalle: `Retención de renta recibida ${porcentajes('1')}`.trim(),
+        auxiliar: `Retenciones de renta recibidas ${porcentajes('1')}`.trim() });
+    }
+    if (iva > 0) {
+      lineas.push({ cuenta: '1010501', debe: iva, haber: 0,
+        detalle: `Retención de IVA recibida ${porcentajes('2')}`.trim(),
+        auxiliar: `Retenciones de IVA recibidas ${porcentajes('2')}`.trim() });
+    }
+    const otras = Math.round((retenido - renta - iva) * 100) / 100;
+    if (otras > 0.004) {
+      lineas.push({ cuenta: '1010502', debe: otras, haber: 0, detalle: 'Otras retenciones recibidas' });
+    }
+    lineas.push({ cuenta: '101020502', debe: 0, haber: retenido, detalle: `${nombre} · retenido al pagar` });
     return {
       numero: null,
       fecha: c.fecha,
       tipo: 'RETENCION',
       origen: c.numero,
       glosa: `Retención ${c.numero} que le practicó ${nombre}`,
-      lineas: [
-        { cuenta: '1010502', debe: retenido, haber: 0,
-          detalle: 'Crédito tributario · impuesto a la renta' },
-        { cuenta: '101020502', debe: 0, haber: retenido,
-          detalle: `${nombre} · retenido al pagar` },
-      ],
+      lineas,
       generado: true,
     };
   }
@@ -4779,7 +4866,7 @@ function asientoDeCompra(c) {
   ];
   if (iva > 0) {
     lineas.push({ cuenta: '1010501', debe: iva, haber: 0,
-      detalle: 'IVA en compras · crédito tributario' });
+      detalle: 'IVA en compras · crédito tributario', auxiliar: 'IVA pagado en compras' });
   }
   lineas.push({ cuenta: '2010301', debe: 0, haber: total, detalle: `Por pagar a ${nombre}` });
 
@@ -4880,19 +4967,21 @@ const CARTERA_COBRAR = [
  *                 misma para uno que para otro.
  *   `contribuyenteEspecial`  porque a un especial se le retiene distinto.
  *
- * Los porcentajes que aparecen son los de uso corriente y están **pendientes
- * de confirmar** con la tabla vigente del SRI: es la pregunta 4 del documento
- * de reglas. Se guardan por proveedor y no dentro del código para que el día
+ * Los porcentajes son los vigentes: renta, Resolución NAC-DGERCGC26-00000009
+ * (desde el 1-mar-2026: bienes 2%, transporte 1%, energía eléctrica 2%,
+ * arriendo de inmuebles 10%); IVA, NAC-DGERCGC20-00000061 con sus reformas. A
+ * los contribuyentes especiales y a las empresas públicas no se les retiene IVA
+ * (NAC-DGERCGC23-00000026). El contador remitió a la resolución. Se guardan por proveedor y no dentro del código para que el día
  * que cambien se corrijan aquí, sin tocar ningún programa.
  */
 const PROVEEDORES = [
   { id: 'p1', razonSocial: 'Fertilizantes del Pacífico S.A.', ruc: '0990123456001',
     ciudad: 'Guayaquil', tipo: 'Bienes', contribuyenteEspecial: true,
-    retencionIR: 1.75, retencionIVA: 30, correo: 'ventas@fertipacifico.com.ec',
+    retencionIR: 2, retencionIVA: 0, correo: 'ventas@fertipacifico.com.ec',
     telefono: '(04) 216 7788', comprado: 48620.00, saldo: 7240.00, activo: true },
   { id: 'p2', razonSocial: 'Semillas del Guayas Cía. Ltda.', ruc: '0991765432001',
     ciudad: 'Daule', tipo: 'Bienes', contribuyenteEspecial: false,
-    retencionIR: 1.75, retencionIVA: 30, correo: 'pedidos@semillasguayas.ec',
+    retencionIR: 2, retencionIVA: 30, correo: 'pedidos@semillasguayas.ec',
     telefono: '(04) 279 3311', comprado: 21400.00, saldo: 2450.00, activo: true },
   { id: 'p3', razonSocial: 'Transportes Andinos del Norte S.A.', ruc: '0992871045001',
     ciudad: 'Samborondón', tipo: 'Servicios', contribuyenteEspecial: false,
@@ -4900,11 +4989,11 @@ const PROVEEDORES = [
     telefono: '(04) 208 4420', comprado: 9840.50, saldo: 1180.50, activo: true },
   { id: 'p4', razonSocial: 'Inmobiliaria Km 14 Cía. Ltda.', ruc: '0993311220001',
     ciudad: 'Daule', tipo: 'Servicios', contribuyenteEspecial: false,
-    retencionIR: 8, retencionIVA: 70, correo: 'arriendos@km14.ec',
+    retencionIR: 10, retencionIVA: 70, correo: 'arriendos@km14.ec',
     telefono: '(04) 279 6600', comprado: 10800.00, saldo: 0, activo: true },
   { id: 'p5', razonSocial: 'Corporación Nacional de Electricidad', ruc: '0968599190001',
     ciudad: 'Guayaquil', tipo: 'Servicios', contribuyenteEspecial: true,
-    retencionIR: 0, retencionIVA: 0, correo: 'servicioalcliente@cnel.gob.ec',
+    retencionIR: 2, retencionIVA: 0, correo: 'servicioalcliente@cnel.gob.ec',
     telefono: '1800 CNEL EC', comprado: 4120.40, saldo: 0, activo: true },
 ];
 
@@ -4993,13 +5082,13 @@ const SOPORTE = [
 
 const RETENCIONES = [
   { numero: '001-001-000000031', proveedor: 'Fertilizantes del Pacífico S.A.', ruc: '0990123456001',
-    fecha: new Date(2026, 8, 5), sustento: '001-001-000008842', baseIR: 8400.00, porcentajeIR: 1.75,
-    baseIVA: 1260.00, porcentajeIVA: 30, estado: 'AUTORIZADO' },
+    fecha: new Date(2026, 8, 5), sustento: '001-001-000008842', baseIR: 8400.00, porcentajeIR: 2,
+    baseIVA: 0, porcentajeIVA: 0, estado: 'AUTORIZADO' },
   { numero: '001-001-000000030', proveedor: 'Transportes Andinos del Norte S.A.', ruc: '0992871045001',
     fecha: new Date(2026, 8, 19), sustento: '002-001-000003318', baseIR: 1026.52, porcentajeIR: 1,
     baseIVA: 153.98, porcentajeIVA: 70, estado: 'AUTORIZADO' },
   { numero: '001-001-000000029', proveedor: 'Semillas del Guayas Cía. Ltda.', ruc: '0991765432001',
-    fecha: new Date(2026, 7, 28), sustento: '001-001-000002205', baseIR: 3000.00, porcentajeIR: 1.75,
+    fecha: new Date(2026, 7, 28), sustento: '001-001-000002205', baseIR: 3000.00, porcentajeIR: 2,
     baseIVA: 450.00, porcentajeIVA: 30, estado: 'AUTORIZADO' },
 ];
 
@@ -5032,27 +5121,84 @@ const GUIAS_REMISION = [
 //  salen de los libros, que es justo el sentido de tener un sistema contable.
 // ===========================================================================
 
-function formulario104(saldos = balanceDeComprobacion()) {
+function formulario104(saldos = balanceDeComprobacion(), compras = []) {
   const saldo = (codigo) => saldos.find((s) => s.codigo === codigo) ?? { saldoDeudor: 0, saldoAcreedor: 0 };
+  const r2 = (n) => Math.round(n * 100) / 100;
+
   const ivaCobrado = saldo('2010701').saldoAcreedor;
-  const ivaPagado = saldo('1010501').saldoDeudor;
   const ventas15 = 38200.00;
   const ventas0 = 4118.50;
 
-  const aPagar = Math.round((ivaCobrado - ivaPagado) * 100) / 100;
+  // Las compras del buzón: gravadas, de activos fijos y con tarifa 0%.
+  const facturas = (compras ?? []).filter((c) => c.tipo !== '07');
+  const sumar = (fn) => r2(facturas.reduce((s, c) => s + fn(c), 0));
+  const esActivoFijo = (c) => String(c.cuenta ?? '').startsWith('10201');
+  const gravadas = (c) => Object.entries(c.bases ?? {})
+    .filter(([tarifa]) => /^(15|14|12|5)%$/.test(tarifa))
+    .reduce((s, [, v]) => s + Number(v), 0);
+  const COMPRAS_GRAVADAS_DE_LIBROS = 10926.20;
+  const c500 = r2(COMPRAS_GRAVADAS_DE_LIBROS + sumar((c) => (esActivoFijo(c) ? 0 : gravadas(c))));
+  const c501 = sumar((c) => (esActivoFijo(c) ? gravadas(c) : 0));
+  const c507 = sumar((c) => Number(c.bases?.['0%'] ?? 0));
+
+  // Casilla 609: las retenciones de IVA recibidas no son IVA de compras.
+  const retIva = r2((compras ?? []).filter((c) => c.tipo === '07')
+    .reduce((s, c) => s + Number(c.retenidoIva ?? 0), 0));
+  const ivaCompras = r2(saldo('1010501').saldoDeudor - retIva);
+
+  // Casillas 563 y 564. Contador, respuesta 19: sí se calcula el factor. Las ventas
+  // con tarifa 0% se tratan como «no dan derecho a crédito tributario» (403).
+  const factor = ventas15 + ventas0 > 0
+    ? Math.round((ventas15 / (ventas15 + ventas0)) * 10000) / 10000 : 1;
+  const credito = r2(ivaCompras * factor);
+
+  const diferencia = r2(ivaCobrado - credito);
+  const c601 = Math.max(0, diferencia);
+  const c602 = Math.max(0, -diferencia);
+  // 605 y 606 traen el saldo del mes anterior (el 615 y el 617 de la declaración
+  // previa). Este es el primer mes que se declara desde Kontia: no hay saldo.
+  const c605 = 0;
+  const c606 = 0;
+  let c615 = 0;
+  let c617 = 0;
+  let aPagar = 0;
+  if (c602 > 0) {
+    c615 = r2(c602 + c605);
+    c617 = r2(c606 + retIva);
+  } else {
+    const trasAdquisiciones = r2(c601 - c605);
+    if (trasAdquisiciones < 0) {
+      c615 = r2(-trasAdquisiciones);
+      c617 = r2(c606 + retIva);
+    } else {
+      const resto = r2(trasAdquisiciones - c606 - retIva);
+      if (resto >= 0) aPagar = resto; else c617 = r2(-resto);
+    }
+  }
+
   return {
     periodo: 'Septiembre 2026',
     casillas: [
-      { casilla: '401', concepto: 'Ventas locales gravadas con tarifa 15%', valor: ventas15, cuenta: '4101' },
-      { casilla: '403', concepto: 'Ventas locales gravadas con tarifa 0%', valor: ventas0, cuenta: '4101' },
-      { casilla: '409', concepto: 'Total de ventas y otras operaciones', valor: ventas15 + ventas0, total: true },
+      { casilla: '401', concepto: 'Ventas locales gravadas con tarifa diferente de cero', valor: ventas15, cuenta: '4101' },
+      { casilla: '402', concepto: 'Ventas de activos fijos gravadas con tarifa diferente de cero', valor: 0 },
+      { casilla: '403', concepto: 'Ventas locales con tarifa 0% que no dan derecho a crédito tributario', valor: ventas0, cuenta: '4101' },
+      { casilla: '409', concepto: 'Total ventas y otras operaciones', valor: r2(ventas15 + ventas0), total: true },
       { casilla: '429', concepto: 'IVA generado en ventas', valor: ivaCobrado, cuenta: '2010701' },
-      { casilla: '500', concepto: 'Adquisiciones gravadas con tarifa 15%', valor: 10926.20, cuenta: '510102' },
-      { casilla: '564', concepto: 'IVA en compras · crédito tributario', valor: ivaPagado, cuenta: '1010501' },
-      { casilla: '601', concepto: 'Impuesto causado', valor: Math.max(0, aPagar), total: true },
-      { casilla: '902', concepto: 'Total a pagar', valor: Math.max(0, aPagar), total: true, fuerte: true },
+      { casilla: '500', concepto: 'Adquisiciones gravadas con tarifa diferente de cero, con derecho a crédito tributario', valor: c500 },
+      { casilla: '501', concepto: 'Adquisiciones locales de activos fijos gravadas con tarifa diferente de cero', valor: c501 },
+      { casilla: '507', concepto: 'Adquisiciones y pagos con tarifa 0%', valor: c507 },
+      { casilla: '563', concepto: 'Factor de proporcionalidad para crédito tributario', valor: factor, factor: true },
+      { casilla: '564', concepto: 'Crédito tributario aplicable (IVA de compras × factor)', valor: credito, cuenta: '1010501' },
+      { casilla: '601', concepto: 'Impuesto causado', valor: c601, total: true },
+      { casilla: '602', concepto: 'Crédito tributario aplicable en este período', valor: c602, total: true },
+      { casilla: '605', concepto: '(-) Saldo crédito tributario del mes anterior · por adquisiciones', valor: c605 },
+      { casilla: '606', concepto: '(-) Saldo crédito tributario del mes anterior · por retenciones', valor: c606 },
+      { casilla: '609', concepto: '(-) Retenciones de IVA que le han sido efectuadas', valor: retIva, cuenta: '1010501' },
+      { casilla: '615', concepto: 'Saldo crédito tributario para el próximo mes · por adquisiciones', valor: c615 },
+      { casilla: '617', concepto: 'Saldo crédito tributario para el próximo mes · por retenciones', valor: c617 },
+      { casilla: '902', concepto: 'Total a pagar', valor: aPagar, total: true, fuerte: true },
     ],
-    ivaCobrado, ivaPagado, aPagar,
+    ivaCobrado, ivaCompras, factor, credito, retIva, aPagar,
     vence: new Date(2026, 9, 14),
   };
 }
@@ -7019,8 +7165,8 @@ async function configuracion() {
         <section class="bg-white border border-papel-linea rounded-2xl relieve p-5">
           <h2 class="text-sm font-bold mb-1">Condición tributaria</h2>
           <p class="text-[11px] text-tinta-suave mb-2">
-            Estos tres datos cambian lo que se imprime en cada factura y lo que viaja en el
-            XML. No se marcan por costumbre: se marcan si el SRI lo declaró así.
+            Estos datos cambian lo que se imprime en cada factura, lo que viaja en el XML y
+            cómo se registran las compras. No se marcan por costumbre: se marcan si es así.
           </p>
           ${interruptor('Obligado a llevar contabilidad', e.obligadoContabilidad,
             'Se imprime en el RIDE de cada comprobante. Depende de sus ingresos y su capital.')}
@@ -7029,6 +7175,9 @@ async function configuracion() {
           ${interruptor('Agente de retención', e.agenteRetencion,
             'Si lo es, está obligado a retener al pagar a sus proveedores y a emitir el ' +
             'comprobante de retención.')}
+          ${interruptor('Maneja inventario', e.manejaInventario !== false,
+            'Si lleva inventario, la mercadería comprada va a la cuenta de inventario y pasa al ' +
+            'costo recién al vender. Si no, la compra va directo al costo.')}
         </section>
       </div>
 
@@ -9638,11 +9787,32 @@ function leerXml(texto) {
     iva += numero(t(nodo, 'valor'));
   }
 
-  // Lo retenido, si es un comprobante de retención.
+  // Lo retenido, si es un comprobante de retención. Separado por impuesto,
+  // porque van a cuentas distintas (renta a 1010502, IVA a 1010501), y con la
+  // factura sobre la que se retuvo: sin eso no se puede avisar de que un
+  // cliente retuvo dos veces la misma factura, que el contador ha visto pasar.
+  // La versión 1.0.0 trae <impuesto> con su numDocSustento; la 2.0.0 trae
+  // <retencion> dentro de un <docSustento>.
   let retenido = 0;
-  for (const nodo of raiz.getElementsByTagName('impuesto')) {
-    const v = t(nodo, 'valorRetenido');
-    if (v) retenido += numero(v);
+  let retenidoRenta = 0;
+  let retenidoIva = 0;
+  const sustentos = [];
+  for (const etiqueta of ['impuesto', 'retencion']) {
+    for (const nodo of raiz.getElementsByTagName(etiqueta)) {
+      const v = t(nodo, 'valorRetenido');
+      if (!v) continue;
+      const valor = numero(v);
+      const impuesto = t(nodo, 'codigo');
+      let documento = t(nodo, 'numDocSustento');
+      for (let padre = nodo.parentNode; !documento && padre && padre.nodeType === 1;
+           padre = padre.parentNode) {
+        if (padre.nodeName === 'docSustento') documento = t(padre, 'numDocSustento');
+      }
+      retenido += valor;
+      if (impuesto === '1') retenidoRenta += valor;
+      else if (impuesto === '2') retenidoIva += valor;
+      sustentos.push({ documento, impuesto, porcentaje: numero(t(nodo, 'porcentajeRetener')), valor });
+    }
   }
 
   const sinImpuestos = numero(t(raiz, 'totalSinImpuestos'));
@@ -9673,9 +9843,129 @@ function leerXml(texto) {
     sinImpuestos,
     iva,
     retenido,
+    retenidoRenta,
+    retenidoIva,
+    sustentos,
     pagos,
     total: retenido || total,
   };
+}
+
+// ===========================================================================
+//  El listado de texto del SRI
+// ===========================================================================
+
+const sinTildes = (s) =>
+  String(s ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase().trim();
+
+/** Un importe escrito con punto o con coma decimal. */
+function importe(texto) {
+  const x = String(texto ?? '').trim();
+  if (!x) return 0;
+  const limpio = x.includes(',') && !x.includes('.') ? x.replace(',', '.') : x.replace(/,/g, '');
+  return Number(limpio) || 0;
+}
+
+/**
+ * Lee el listado de «comprobantes electrónicos recibidos» que entrega el SRI en
+ * línea como archivo de texto.
+ *
+ * POR QUÉ EXISTE. El contador lo dijo claro: con cien facturas al mes nadie baja
+ * cien XML uno por uno; se baja el listado del mes y se carga de una vez.
+ *
+ * CÓMO LEE, Y POR QUÉ ASÍ. El formato no está publicado como ficha técnica y el
+ * SRI lo ha cambiado de separador y de columnas. Así que no se fía de posiciones:
+ * busca las columnas por su nombre si hay cabecera, y lo esencial lo saca de la
+ * clave de acceso, que sí está normada (fecha, tipo, RUC del emisor, serie y
+ * secuencial van dentro de sus 49 dígitos). Lo que el listado NO trae —formas de
+ * pago, desglose por tarifa, qué parte de una retención es renta y cuál IVA— no
+ * se inventa: se avisa.
+ */
+function leerTxt(texto, rucPropio) {
+  const lineas = String(texto ?? '').replace(/^\uFEFF/, '').split(/\r?\n/).filter((l) => l.trim());
+  if (!lineas.length) return { error: 'El archivo de texto está vacío.' };
+
+  const primera = lineas[0];
+  const separador = ['\t', ';', '|']
+    .sort((a, b) => primera.split(b).length - primera.split(a).length)[0];
+  const cabecera = primera.split(separador).map(sinTildes);
+  const hayCabecera = cabecera.some((c) => c.includes('CLAVE'));
+  const columna = (...nombres) => cabecera.findIndex((c) => nombres.some((n) => c.includes(n)));
+  const col = hayCabecera ? {
+    ruc: columna('RUC_EMISOR', 'RUC EMISOR'),
+    razon: columna('RAZON_SOCIAL_EMISOR', 'RAZON SOCIAL EMISOR', 'RAZON_SOCIAL', 'RAZON SOCIAL'),
+    clave: columna('CLAVE'),
+    receptor: columna('IDENTIFICACION_RECEPTOR', 'IDENTIFICACION RECEPTOR', 'RUC_RECEPTOR'),
+    sinImpuestos: columna('SIN_IMPUESTOS', 'SIN IMPUESTOS', 'SUBTOTAL'),
+    iva: cabecera.findIndex((c) => c === 'IVA' || c === 'VALOR_IVA' || c === 'VALOR IVA'),
+    total: columna('IMPORTE_TOTAL', 'IMPORTE TOTAL', 'VALOR_TOTAL', 'VALOR TOTAL'),
+  } : {};
+  const dato = (partes, i) => (i >= 0 && i != null ? (partes[i] ?? '').trim() : '');
+
+  const filas = [];
+  lineas.slice(hayCabecera ? 1 : 0).forEach((linea, n) => {
+    const numeroLinea = n + (hayCabecera ? 2 : 1);
+    const partes = linea.split(separador);
+    const clave = dato(partes, col.clave) || (linea.match(/\d{49}/) ?? [''])[0];
+    if (!/^\d{49}$/.test(clave)) return;          // totales, pies de página, líneas en blanco
+
+    const codigo = clave.slice(8, 10);
+    const tipo = TIPOS[codigo];
+    if (!tipo) {
+      filas.push({ linea: numeroLinea, error: `No reconozco el tipo de comprobante ${codigo}.` });
+      return;
+    }
+    if (codigo === '07') {
+      filas.push({ linea: numeroLinea, error: 'Las retenciones necesitan su XML: el listado no dice ' +
+        'qué parte es renta y qué parte IVA, y cada una va a una cuenta distinta.' });
+      return;
+    }
+
+    const sinImpuestos = importe(dato(partes, col.sinImpuestos));
+    const iva = importe(dato(partes, col.iva));
+    const total = importe(dato(partes, col.total)) || Math.round((sinImpuestos + iva) * 100) / 100;
+    // Sin desglose por tarifa, la base con IVA se deduce del propio IVA (15%).
+    const base15 = iva > 0 ? Math.min(sinImpuestos, Math.round((iva / 0.15) * 100) / 100) : 0;
+    const bases = {};
+    if (base15 > 0) bases['15%'] = base15;
+    if (sinImpuestos - base15 > 0.004) bases['0%'] = Math.round((sinImpuestos - base15) * 100) / 100;
+
+    filas.push({
+      linea: numeroLinea,
+      codigo,
+      tipoNombre: tipo.nombre,
+      esCompraPorNaturaleza: tipo.compra,
+      clave,
+      autorizacion: null,
+      emisorRuc: dato(partes, col.ruc) || clave.slice(10, 23),
+      emisorNombre: dato(partes, col.razon),
+      recibeId: dato(partes, col.receptor) || rucPropio,
+      numeroDoc: `${clave.slice(24, 27)}-${clave.slice(27, 30)}-${clave.slice(30, 39)}`,
+      fecha: new Date(Number(clave.slice(4, 8)), Number(clave.slice(2, 4)) - 1, Number(clave.slice(0, 2))),
+      bases,
+      sinImpuestos,
+      iva,
+      retenido: 0,
+      retenidoRenta: 0,
+      retenidoIva: 0,
+      sustentos: [],
+      pagos: [],
+      total,
+      avisosPropios: [{
+        tono: 'gris', ico: 'list_alt',
+        que: 'Cargado desde el listado de texto del SRI',
+        porque: 'El listado no trae las formas de pago ni el desglose por tarifa: la base con IVA ' +
+          'se calcula desde el IVA, y la bancarización no se puede revisar.',
+        haga: 'Si la compra supera USD 500 o mezcla tarifas, cargue también su XML.',
+      }],
+    });
+  });
+
+  if (!filas.length) {
+    return { error: 'No encontré claves de acceso de 49 dígitos. ¿Es el listado de comprobantes ' +
+      'recibidos que entrega el SRI en línea?' };
+  }
+  return { filas };
 }
 
 // ===========================================================================
@@ -9691,38 +9981,59 @@ function leerXml(texto) {
  * saldos en una de ellas hace que se rechacen.
  */
 const CUENTAS_DE_COMPRA = [
-  { codigo: '510102', nombre: 'Compras netas locales de bienes (mercadería)' },
-  { codigo: '520105', nombre: 'Honorarios, comisiones y dietas a personas naturales' },
-  { codigo: '520108', nombre: 'Mantenimiento y reparaciones' },
-  { codigo: '520109', nombre: 'Arrendamiento operativo' },
-  { codigo: '520111', nombre: 'Promoción y publicidad' },
-  { codigo: '520112', nombre: 'Combustibles' },
-  { codigo: '520115', nombre: 'Transporte' },
-  { codigo: '520118', nombre: 'Agua, energía, luz y telecomunicaciones' },
+  // Con inventario, la compra de mercadería es un activo y pasa al costo al vender
+  // (contador, respuestas 4 y 6). Sin inventario, va directo al costo.
+  { grupo: 'Inventario', codigo: '1010306', nombre: 'Inventario de mercadería comprada a terceros' },
+  { grupo: 'Inventario', codigo: '1010301', nombre: 'Inventario de materia prima' },
+  { grupo: 'Costo, sin inventario', codigo: '510102', nombre: 'Compras locales de bienes no producidos' },
+  { grupo: 'Costo, sin inventario', codigo: '510106', nombre: 'Compras locales de materia prima' },
+  // Por defecto, administración (contador, repregunta 2). Publicidad y comisiones
+  // en ventas solo tienen sentido en la serie de ventas.
+  { grupo: 'Gastos administrativos', codigo: '520205', nombre: 'Honorarios, comisiones y dietas a personas naturales' },
+  { grupo: 'Gastos administrativos', codigo: '520208', nombre: 'Mantenimiento y reparaciones (vehículos, planta, equipos)' },
+  { grupo: 'Gastos administrativos', codigo: '520209', nombre: 'Arrendamiento operativo' },
+  { grupo: 'Gastos administrativos', codigo: '520210', nombre: 'Comisiones' },
+  { grupo: 'Gastos administrativos', codigo: '520212', nombre: 'Combustibles' },
+  { grupo: 'Gastos administrativos', codigo: '520214', nombre: 'Seguros y reaseguros' },
+  { grupo: 'Gastos administrativos', codigo: '520215', nombre: 'Transporte' },
+  { grupo: 'Gastos administrativos', codigo: '520217', nombre: 'Gastos de viaje y movilización' },
+  { grupo: 'Gastos administrativos', codigo: '520218', nombre: 'Agua, energía, luz y telecomunicaciones' },
+  { grupo: 'Gastos administrativos', codigo: '520220', nombre: 'Impuestos, contribuciones y otros' },
+  { grupo: 'Gastos administrativos', codigo: '520228', nombre: 'Otros gastos (uniformes, seguridad, suministros)' },
+  { grupo: 'Gastos de venta', codigo: '520110', nombre: 'Comisiones en ventas' },
+  { grupo: 'Gastos de venta', codigo: '520111', nombre: 'Promoción y publicidad' },
+  { grupo: 'Activos fijos', codigo: '1020105', nombre: 'Muebles y enseres' },
+  { grupo: 'Activos fijos', codigo: '1020106', nombre: 'Maquinaria y equipo' },
+  { grupo: 'Activos fijos', codigo: '1020108', nombre: 'Equipo de computación' },
+  { grupo: 'Activos fijos', codigo: '1020109', nombre: 'Vehículos, equipos de transporte' },
 ];
 
 /**
- * Propone una cuenta mirando el nombre del proveedor.
+ * Propone una cuenta.
  *
- * Es una ayuda, no un dictamen: acierta con la gasolinera y con la eléctrica, y
- * se queda en mercadería cuando no reconoce nada. Por eso la pantalla pide
- * confirmar. Cuando el contador conteste la pregunta 6, esto se sustituye por
- * lo que él diga, y además se recordará por proveedor: la primera compra a cada
- * uno se clasifica una vez y las siguientes van solas.
+ * Primero la que se usó la última vez con ese proveedor: el contador lo describe
+ * así —el proveedor frecuente queda vinculado a su cuenta y sus facturas van
+ * solas—, con el riesgo que él mismo señaló de que un día venda otra cosa. Por
+ * eso la pantalla avisa cuando la cuenta es recordada. Si no hay recuerdo, mira
+ * el nombre; y si no reconoce nada, mercadería: al inventario si la empresa lo
+ * maneja, al costo si no.
  */
-function proponerCuenta(nombreProveedor) {
+function proponerCuenta(nombreProveedor, { manejaInventario = true, recordada = null } = {}) {
+  if (recordada) return recordada;
   const n = String(nombreProveedor ?? '').toLowerCase();
   const reglas = [
-    [/combustib|gasolin|petr[oó]l|primax|terpel|lubric/, '520112'],
-    [/el[eé]ctric|energ[íi]a|cnel|agua|telecomunic|claro|movistar|\bcnt\b|internet/, '520118'],
-    [/transport|flete|carga|log[íi]stic|courier/, '520115'],
-    [/honorari|asesor|consultor|abogad|contad|auditor|estudio jur/, '520105'],
-    [/arriend|alquil|arrendamiento|inmobiliar/, '520109'],
-    [/manteni|repuest|taller|mec[aá]nic|ferreter/, '520108'],
+    [/combustib|gasolin|petr[oó]l|primax|terpel|lubric/, '520212'],
+    [/el[eé]ctric|energ[íi]a|cnel|agua|telecomunic|claro|movistar|\bcnt\b|internet/, '520218'],
+    [/transport|flete|carga|log[íi]stic|courier/, '520215'],
+    [/honorari|asesor|consultor|abogad|contad|auditor|estudio jur/, '520205'],
+    [/arriend|alquil|arrendamiento|inmobiliar/, '520209'],
+    [/manteni|repuest|taller|mec[aá]nic|ferreter/, '520208'],
+    [/segur(os|adora)|reasegur/, '520214'],
+    [/hotel|hostal|aerol|pasaje|agencia de viaj/, '520217'],
     [/public|imprenta|rotulac|marketing|radio|prensa/, '520111'],
   ];
   for (const [patron, cuenta] of reglas) if (patron.test(n)) return cuenta;
-  return '510102';
+  return manejaInventario ? '1010306' : '510102';
 }
 
 // ===========================================================================
@@ -9730,19 +10041,19 @@ function proponerCuenta(nombreProveedor) {
 // ===========================================================================
 
 /**
- * El umbral de bancarización, y por qué está aquí y no escondido.
+ * El umbral de bancarización.
  *
- * La ley exige que los pagos por encima de cierta cantidad se hagan por el
- * sistema financiero para que el gasto sea deducible y para tener derecho al
- * crédito tributario. La cifra la fija la norma y cambia, así que vive en una
- * sola línea, a la vista, con su fuente al lado — y no repartida por el código.
- *
- * PENDIENTE DE CONFIRMAR CON LA NORMA VIGENTE (art. 103 de la Ley de Régimen
- * Tributario Interno y su reglamento). Mientras no esté confirmada, el sistema
- * avisa pero no afirma: dice «revise si corresponde bancarizar», no «este gasto
- * no es deducible».
+ * Artículo 103 de la Ley de Régimen Tributario Interno, sustituido por el Art. 25
+ * de la Ley Orgánica de Eficiencia Económica y Generación de Empleo (Suplemento
+ * del R.O. 461, 20-dic-2023): en operaciones de MÁS de USD 500 gravadas con
+ * impuestos, el pago tiene que pasar por el sistema financiero para que el gasto
+ * sea deducible y el IVA dé crédito tributario. El contador lo confirmó: se mira
+ * la operación entera, con los impuestos incluidos.
  */
-const UMBRAL_BANCARIZACION = 1000;
+const UMBRAL_BANCARIZACION = 500;
+
+/** Una factura sin IVA por encima de esto merece una mirada. No es norma: es criterio. */
+const MONTO_ALTO_SIN_IVA = 1000;
 
 const SEMANAS = 7 * 24 * 60 * 60 * 1000;
 
@@ -9767,17 +10078,20 @@ function revisar(c, hoy = new Date()) {
     });
   }
 
-  // ── 2. Efectivo por encima del umbral ──
+  // ── 2. Operación de más de USD 500 pagada fuera del sistema financiero ──
+  // Se compara el total de la operación, con impuestos, y no solo la parte en
+  // efectivo: la norma habla de operaciones, no de pagos.
   const enEfectivo = (c.pagos ?? [])
     .filter((p) => p.forma === '01')
     .reduce((s, p) => s + p.total, 0);
-  if (enEfectivo > UMBRAL_BANCARIZACION) {
+  if (c.codigo !== '07' && Number(c.total ?? 0) > UMBRAL_BANCARIZACION && enEfectivo > 0) {
     avisos.push({
       tono: 'ambar', ico: 'payments',
-      que: `Pago en efectivo por ${enEfectivo.toFixed(2)}`,
-      porque: 'Por encima del umbral, la ley exige pagar por el sistema financiero para '
-        + 'que el gasto sea deducible y para tener derecho al crédito tributario.',
-      haga: 'Compruebe si hay transferencia o cheque que lo respalde, y consérvelo.',
+      que: `Operación de ${Number(c.total).toFixed(2)} con pago en efectivo`,
+      porque: `En operaciones de más de USD ${UMBRAL_BANCARIZACION}, impuestos incluidos, el `
+        + 'art. 103 de la LRTI exige pagar por el sistema financiero para que el gasto sea '
+        + 'deducible y el IVA dé crédito tributario.',
+      haga: 'Compruebe si hay transferencia, cheque o tarjeta que lo respalde, y consérvelo.',
     });
   }
 
@@ -9819,14 +10133,15 @@ function revisar(c, hoy = new Date()) {
     avisos.push({
       tono: 'ambar', ico: 'gavel',
       que: 'Es una liquidación de compra',
-      porque: 'Solo procede cuando el proveedor no puede emitir comprobante, y obliga a '
-        + 'retener el IVA y la renta en su totalidad.',
-      haga: 'Compruebe que se emitieron las retenciones que corresponden.',
+      porque: 'Solo procede cuando el proveedor no puede emitir comprobante. Se retiene '
+        + 'siempre el 100% del IVA; la renta, con el porcentaje que corresponda a lo comprado '
+        + '(3% si la persona no tiene RUC, Resolución NAC-DGERCGC26-00000009).',
+      haga: 'Compruebe que se emitió la retención: 100% del IVA y la renta según la tabla vigente.',
     });
   }
 
   // ── 6. Una compra grande sin IVA ──
-  if (c.iva === 0 && c.sinImpuestos > UMBRAL_BANCARIZACION && c.codigo === '01') {
+  if (c.iva === 0 && c.sinImpuestos > MONTO_ALTO_SIN_IVA && c.codigo === '01') {
     avisos.push({
       tono: 'gris', ico: 'help',
       que: 'Factura sin IVA por un monto alto',
@@ -9933,19 +10248,50 @@ const vaciarLote = () => { lote = []; };
 /** Analiza los archivos soltados y los deja listos para confirmar. */
 async function analizar(archivos) {
   const empresa = empresaActiva();
+  const registradas = await cargar.compras();
+  const recordadas = await cargar.cuentasDeProveedores();
   const yaEstan = new Set([
-    ...(await cargar.compras()).map((c) => c.clave),
+    ...registradas.map((c) => c.clave),
     ...(await cargar.comprobantes()).map((c) => c.clave ?? c.claveAcceso).filter(Boolean),
   ]);
   const enEsteLote = new Set();
 
+  // La misma factura puede llegar con otra clave de acceso. El contador no sabe
+  // si el SRI lo impide, así que el sistema avisa: RUC del proveedor + tipo + número.
+  const firma = (ruc, tipo, numero) => `${ruc}|${tipo}|${numero}`;
+  const firmas = new Set(registradas.map((c) => firma(c.proveedorRuc, c.tipo, c.numero)));
+  // Y una retención sobre una factura que ya tiene retenido ese impuesto.
+  const retencion = (ruc, s) => `${ruc}|${s.documento}|${s.impuesto}`;
+  const retenidas = new Set(registradas.filter((c) => c.tipo === '07')
+    .flatMap((c) => (c.sustentos ?? []).map((s) => retencion(c.proveedorRuc, s))));
+  const NOMBRE_IMPUESTO = { 1: 'renta', 2: 'IVA', 6: 'ISD' };
+
+  // Primero se leen todos: un TXT trae muchos comprobantes en un solo archivo.
+  const leidos = [];
   const nuevos = [];
   for (const archivo of archivos) {
     const fila = { archivo: archivo.name, tamano: archivo.size };
 
+    if (/\.txt$/i.test(archivo.name)) {
+      let resultado;
+      try {
+        resultado = leerTxt(await archivo.text(), empresa.ruc);
+      } catch {
+        resultado = { error: 'No pude leer el archivo.' };
+      }
+      if (resultado.error) {
+        nuevos.push({ ...fila, estado: 'NO_SIRVE', porque: resultado.error });
+        continue;
+      }
+      for (const l of resultado.filas) {
+        leidos.push({ fila: { ...fila, archivo: `${archivo.name} · línea ${l.linea}` }, leido: l });
+      }
+      continue;
+    }
+
     if (!/\.xml$/i.test(archivo.name)) {
       nuevos.push({ ...fila, estado: 'NO_SIRVE',
-        porque: 'Solo XML. El PDF es para leer; el XML es el que trae los datos.' });
+        porque: 'Solo XML o el listado TXT del SRI. El PDF es para leer; los datos vienen en el XML.' });
       continue;
     }
 
@@ -9955,7 +10301,10 @@ async function analizar(archivos) {
     } catch {
       leido = { error: 'No pude leer el archivo.' };
     }
+    leidos.push({ fila, leido });
+  }
 
+  for (const { fila, leido } of leidos) {
     if (leido.error) {
       nuevos.push({ ...fila, estado: 'NO_SIRVE', porque: leido.error });
       continue;
@@ -9985,10 +10334,44 @@ async function analizar(archivos) {
       continue;
     }
 
+    if (firmas.has(firma(leido.emisorRuc, leido.codigo, leido.numeroDoc))) {
+      nuevos.push({ ...leido, ...fila, estado: 'REPETIDO',
+        porque: `Ya está registrado el comprobante ${leido.numeroDoc} de ${leido.emisorRuc}, ` +
+                'con otra clave de acceso. Parece la misma factura cargada dos veces.' });
+      continue;
+    }
+
+    if (leido.codigo === '07') {
+      const dobles = (leido.sustentos ?? []).filter((s) => retenidas.has(retencion(leido.emisorRuc, s)));
+      if (dobles.length) {
+        const impuestos = [...new Set(dobles.map((s) => NOMBRE_IMPUESTO[s.impuesto] ?? s.impuesto))];
+        nuevos.push({ ...leido, ...fila, estado: 'REPETIDO',
+          porque: `La factura ${dobles[0].documento} ya tiene registrada una retención de ` +
+                  `${impuestos.join(' y ')} de este cliente. Una misma factura no se retiene dos veces: ` +
+                  'pida al cliente que anule una de las dos.' });
+        continue;
+      }
+    }
+
     enEsteLote.add(leido.clave);
+    firmas.add(firma(leido.emisorRuc, leido.codigo, leido.numeroDoc));
+    for (const s of leido.sustentos ?? []) retenidas.add(retencion(leido.emisorRuc, s));
+
+    const recordada = recordadas[leido.emisorRuc] ?? null;
+    const avisos = [...(leido.avisosPropios ?? []), ...revisar(leido)];
+    if (recordada && leido.codigo !== '07') {
+      avisos.push({
+        tono: 'gris', ico: 'history',
+        que: 'Cuenta recordada de este proveedor',
+        porque: 'Es la que se usó la última vez que se registró una compra suya.',
+        haga: 'Si esta vez compró algo distinto —un servicio en lugar de un bien—, cámbiela.',
+      });
+    }
+
     nuevos.push({ ...leido, ...fila, estado: 'NUEVO',
-      cuenta: proponerCuenta(leido.emisorNombre),
-      avisos: revisar(leido) });
+      cuenta: proponerCuenta(leido.emisorNombre, {
+        manejaInventario: empresa.manejaInventario !== false, recordada }),
+      avisos });
   }
 
   lote = nuevos;
@@ -10016,6 +10399,9 @@ async function registrarLote() {
     sinImpuestos: f.sinImpuestos,
     iva: f.iva,
     retenido: f.retenido,
+    retenidoRenta: f.retenidoRenta ?? 0,
+    retenidoIva: f.retenidoIva ?? 0,
+    sustentos: f.sustentos ?? [],
     total: f.total,
     bases: f.bases,
     cuenta: f.cuenta,
@@ -10025,6 +10411,10 @@ async function registrarLote() {
     autorizacion: f.autorizacion?.numero ?? null,
     origen: f.archivo,
   })));
+
+  // La cuenta confirmada queda como la de ese proveedor para la próxima vez.
+  await guardar.cuentasDeProveedores(Object.fromEntries(
+    listos.filter((f) => f.codigo !== '07' && f.cuenta).map((f) => [f.emisorRuc, f.cuenta])));
 
   lote = [];
   return cuantos;
@@ -10059,15 +10449,15 @@ const zona = () => html`
   <div id="zona-buzon"
        class="relative rounded-2xl border-2 border-dashed border-papel-linea bg-white
               px-6 py-10 text-center transition hover:border-verde">
-    <input type="file" id="archivos-buzon" multiple accept=".xml,text/xml,application/xml"
+    <input type="file" id="archivos-buzon" multiple accept=".xml,.txt,text/xml,application/xml,text/plain"
            class="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-           aria-label="Elegir archivos XML">
+           aria-label="Elegir archivos XML o el listado TXT del SRI">
     <img src="imagenes/ilus-buzon.webp" alt="" width="800" height="800"
          class="pointer-events-none w-28 h-28 mx-auto object-cover rounded-3xl">
-    <p class="mt-4 text-sm font-bold">Suelte aquí los XML de sus compras</p>
+    <p class="mt-4 text-sm font-bold">Suelte aquí los XML de sus compras, o el listado TXT del SRI</p>
     <p class="mt-1.5 text-sm text-tinta-suave max-w-lg mx-auto leading-relaxed">
-      O toque para elegirlos. Puede soltar muchos a la vez: el lote entero que descargó
-      del portal del SRI, o los que le llegaron por correo.
+      O toque para elegirlos. Puede soltar muchos a la vez, o el listado de comprobantes
+      recibidos del mes que entrega el SRI en línea, con todo el mes en un solo archivo.
     </p>
     <p class="mt-3 text-[11px] text-tinta-suave">
       Se leen en su propio equipo. Nada se envía a ningún sitio.
@@ -10128,9 +10518,12 @@ async function buzon() {
           <select data-cuenta-de="${f.clave}"
                   class="w-full max-w-[17rem] px-2.5 py-2 rounded-lg border border-papel-linea
                          bg-papel text-[12px] font-medium">
-            ${CUENTAS_DE_COMPRA.map((c) => crudo(
-              `<option value="${c.codigo}"${c.codigo === f.cuenta ? ' selected' : ''}>` +
-              `${c.codigo} · ${c.nombre}</option>`))}
+            ${crudo([...new Set(CUENTAS_DE_COMPRA.map((c) => c.grupo))].map((grupo) =>
+              `<optgroup label="${grupo}">` +
+              CUENTAS_DE_COMPRA.filter((c) => c.grupo === grupo).map((c) =>
+                `<option value="${c.codigo}"${c.codigo === f.cuenta ? ' selected' : ''}>` +
+                `${c.codigo} · ${c.nombre}</option>`).join('') +
+              '</optgroup>').join(''))}
           </select>
           <p class="mt-1 text-[10px] text-tinta-suave">Propuesta. Confírmela o cámbiela.</p>` : ''}
       </td>
@@ -10302,7 +10695,7 @@ function conectarBuzon() {
 }
 
 
-  return { leerXml, CUENTAS_DE_COMPRA, proponerCuenta, UMBRAL_BANCARIZACION, revisar, archivosDeEjemplo, vaciarLote, analizar, cambiarCuenta, registrarLote, buzon, conectarBuzon };
+  return { leerXml, leerTxt, CUENTAS_DE_COMPRA, proponerCuenta, UMBRAL_BANCARIZACION, revisar, archivosDeEjemplo, vaciarLote, analizar, cambiarCuenta, registrarLote, buzon, conectarBuzon };
 })();
 
 // ---- src/vistas/compras.js ---------------------------------------
@@ -10786,7 +11179,8 @@ async function declaracionIva() {
 
   // La declaracion sale de los saldos, y los saldos incluyen el IVA de las
   // compras que entraron por el buzon: ese es el credito tributario del mes.
-  const f = formulario104(balanceDeComprobacion(diarioCon(await cargar.compras())));
+  const compras = await cargar.compras();
+  const f = formulario104(balanceDeComprobacion(diarioCon(compras)), compras);
   const dias = Math.ceil((f.vence - new Date(2026, 8, 30)) / (24 * 60 * 60 * 1000));
 
   return html`
@@ -10828,7 +11222,7 @@ async function declaracionIva() {
               </div>
               <span class="text-sm tabular whitespace-nowrap ${crudo(
                 c.fuerte ? 'font-extrabold text-lg' : c.total ? 'font-extrabold' : 'font-semibold')}">
-                ${dinero(c.valor)}
+                ${c.factor ? c.valor.toFixed(4).replace('.', ',') : dinero(c.valor)}
               </span>
             </div>`)}
         </div>
@@ -10838,7 +11232,8 @@ async function declaracionIva() {
         <section class="bg-white border border-papel-linea rounded-2xl relieve p-5">
           <h2 class="text-sm font-bold mb-1">Cómo sale lo que hay que pagar</h2>
           <p class="text-xs text-tinta-suave mb-4">
-            El IVA que cobró menos el que pagó en sus compras.
+            El IVA que cobró, menos el crédito tributario de sus compras y las retenciones
+            de IVA que le hicieron sus clientes.
           </p>
           <div class="space-y-3">
             <div class="flex items-baseline justify-between">
@@ -10846,8 +11241,12 @@ async function declaracionIva() {
               <span class="text-sm font-semibold tabular">${dinero(f.ivaCobrado)}</span>
             </div>
             <div class="flex items-baseline justify-between">
-              <span class="text-sm text-tinta-suave">− IVA pagado en compras</span>
-              <span class="text-sm font-semibold tabular">${dinero(f.ivaPagado)}</span>
+              <span class="text-sm text-tinta-suave">− Crédito tributario (factor ${f.factor.toFixed(4).replace('.', ',')})</span>
+              <span class="text-sm font-semibold tabular">${dinero(f.credito)}</span>
+            </div>
+            <div class="flex items-baseline justify-between">
+              <span class="text-sm text-tinta-suave">− Retenciones de IVA recibidas</span>
+              <span class="text-sm font-semibold tabular">${dinero(f.retIva)}</span>
             </div>
             <div class="flex items-baseline justify-between pt-3 border-t-2 border-tinta">
               <span class="text-sm font-extrabold">A pagar al SRI</span>
@@ -10856,12 +11255,12 @@ async function declaracionIva() {
           </div>
           <div class="mt-5">
             ${barraCompuesta([
-              { etiqueta: 'Crédito tributario', valor: f.ivaPagado, tono: VERDE },
+              { etiqueta: 'Crédito tributario', valor: f.credito + f.retIva, tono: VERDE },
               { etiqueta: 'A pagar', valor: f.aPagar, tono: AMBAR },
             ], { alto: 12 })}
             <div class="mt-3 divide-y divide-papel-linea">
               ${leyenda([
-                { etiqueta: 'Se descuenta (crédito)', valor: f.ivaPagado, tono: VERDE },
+                { etiqueta: 'Se descuenta (crédito)', valor: f.credito + f.retIva, tono: VERDE },
                 { etiqueta: 'Sale de la empresa', valor: f.aPagar, tono: AMBAR },
               ])}
             </div>
