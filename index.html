@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <!-- La version publicada: la pone el empaquetador y la pagina la compara con la del servidor. -->
-<meta name="kontia-version" content="bb7b116a5e77">
+<meta name="kontia-version" content="dd54aed7154e">
 <title>Kontia</title>
 <meta name="theme-color" content="#0F7B4F">
 <link rel="manifest" href="manifiesto.json">
@@ -12537,6 +12537,13 @@ function saludarSiYaEntro() {
   caja.hidden = false;
 }
 
+/**
+ * Si se acaba de cerrar la sesión. Al pulsar «Entrar con otro usuario» el aviso
+ * de sesión abierta desaparece y el formulario ya estaba debajo: sin decir nada,
+ * parecía que el botón no hacía nada.
+ */
+let recienSalio = false;
+
 /** Decide qué dibujar, y corrige la dirección cuando no corresponde. */
 function resolver(hash) {
   /*
@@ -12558,7 +12565,11 @@ function resolver(hash) {
 
   const ruta = hash;
 
-  if (ruta === '#/salir') { sesion.salir(); return { redirigir: '#/entrar' }; }
+  if (ruta === '#/salir') {
+    sesion.salir();
+    recienSalio = true;
+    return { redirigir: '#/entrar' };
+  }
 
   // Sin sesión manda el sitio, que lleva el inicio de sesión dentro. No hay
   // una pantalla de entrada aparte: sería una segunda puerta a la misma casa.
@@ -12598,6 +12609,15 @@ async function dibujar() {
     // presentación: ya sabe lo que es Kontia, quiere entrar.
     if (location.hash.startsWith('#/') && window.kontiaSitio) {
       window.kontiaSitio.mostrar('ingresar');
+    }
+    if (recienSalio) {
+      recienSalio = false;
+      const recado = document.getElementById('recado-ingreso');
+      if (recado) {
+        recado.hidden = false;
+        recado.textContent = 'Sesión cerrada. Entre con su correo y su contraseña.';
+      }
+      document.querySelector('#forma-ingreso [name="correo"]')?.focus();
     }
     return;
   }
