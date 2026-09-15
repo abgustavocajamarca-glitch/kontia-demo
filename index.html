@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <!-- La version publicada: la pone el empaquetador y la pagina la compara con la del servidor. -->
-<meta name="kontia-version" content="3aac2293cd67">
+<meta name="kontia-version" content="3f12b918f41b">
 <title>Kontia</title>
 <meta name="theme-color" content="#0F7B4F">
 <link rel="manifest" href="manifiesto.json">
@@ -8726,6 +8726,7 @@ async function seccionDeAccesos(empresaId) {
             <span class="text-tinta-suave">Solo lectura, vence en ${String(HORAS_DE_REVISION)} horas.</span>
           </span>
         </label>
+        <div id="recado-acceso" class="sm:col-span-2" aria-live="polite"></div>
         <button type="submit"
                 class="sm:col-span-2 py-2.5 rounded-xl bg-verde text-white text-sm font-bold hover:bg-verde-oscuro transition">
           Dar acceso
@@ -8735,13 +8736,32 @@ async function seccionDeAccesos(empresaId) {
 }
 
 let fichaConectada = false;
+// Tras dar o retirar un acceso, la ficha se vuelve a dibujar para enseñar la
+// lista al día. Sin esto, la pantalla subía hasta arriba y el aviso quedaba
+// fuera de la vista: parecía que el botón no había hecho nada.
+let volverAAccesos = null;
 
 function conectarFicha() {
+  if (volverAAccesos) {
+    const recado = volverAAccesos;
+    volverAAccesos = null;
+    const sitio = document.getElementById('recado-acceso');
+    if (sitio) {
+      sitio.innerHTML = String(aviso(recado));
+      document.getElementById('dar-acceso')?.closest('section')
+        ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }
+
   const zona = document.getElementById('raiz');
   if (!zona || fichaConectada) return;
   fichaConectada = true;
 
   const redibujar = () => window.dispatchEvent(new CustomEvent('kontia:redibujar'));
+  const avisarAqui = (recado) => {
+    const sitio = document.getElementById('recado-acceso');
+    if (sitio) sitio.innerHTML = String(aviso(recado));
+  };
 
   // El acceso de revisión es siempre de solo lectura: se fija el rol al marcarlo.
   zona.addEventListener('change', (ev) => {
@@ -8767,15 +8787,19 @@ function conectarFicha() {
         rol: revision ? 'CONSULTA' : document.getElementById('acceso-rol')?.value,
         horas: revision ? HORAS_DE_REVISION : null,
       });
-      dejarRecado({
-        tono: 'exito', ico: 'check_circle', titulo: 'Acceso dado',
-        texto: revision
-          ? `${correo.trim()} puede ver esta empresa, sin modificar nada, durante ${HORAS_DE_REVISION} horas.`
-          : `${correo.trim()} ya puede entrar a esta empresa.`,
-      });
     } catch (error) {
-      dejarRecado({ tono: 'rojo', ico: 'error', titulo: 'No se dio el acceso', texto: error.message });
+      // El error se dice junto al botón y lo escrito se queda: hay que poder
+      // corregir un correo sin volver a teclearlo todo.
+      avisarAqui({ tono: 'rojo', ico: 'error', titulo: 'No se dio el acceso', texto: error.message });
+      if (boton) { boton.disabled = false; boton.textContent = 'Dar acceso'; }
+      return;
     }
+    volverAAccesos = {
+      tono: 'exito', ico: 'check_circle', titulo: 'Acceso dado',
+      texto: revision
+        ? `${correo.trim()} puede ver esta empresa, sin modificar nada, durante ${HORAS_DE_REVISION} horas.`
+        : `${correo.trim()} ya puede entrar a esta empresa.`,
+    };
     redibujar();
   });
 
@@ -8785,11 +8809,12 @@ function conectarFicha() {
     if (!window.confirm('¿Retirar este acceso? La persona deja de ver la empresa al instante.')) return;
     try {
       await retirarAcceso(boton.dataset.retirar);
-      dejarRecado({ tono: 'exito', ico: 'check_circle', titulo: 'Acceso retirado',
-        texto: 'Queda anotado en la auditoría.' });
     } catch (error) {
-      dejarRecado({ tono: 'rojo', ico: 'error', titulo: 'No se retiró', texto: error.message });
+      avisarAqui({ tono: 'rojo', ico: 'error', titulo: 'No se retiró', texto: error.message });
+      return;
     }
+    volverAAccesos = { tono: 'exito', ico: 'check_circle', titulo: 'Acceso retirado',
+      texto: 'Queda anotado en la auditoría.' };
     redibujar();
   });
 }
