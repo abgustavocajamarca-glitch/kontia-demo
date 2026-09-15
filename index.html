@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <!-- La version publicada: la pone el empaquetador y la pagina la compara con la del servidor. -->
-<meta name="kontia-version" content="47494e20da08">
+<meta name="kontia-version" content="3b271f278ea4">
 <title>Kontia</title>
 <meta name="theme-color" content="#0F7B4F">
 <link rel="manifest" href="manifiesto.json">
@@ -6022,6 +6022,35 @@ const LOGO_BLANCO = `<svg class="w-6 h-6 text-white" viewBox="0 0 24 24" fill="n
  */
 async function seleccionEmpresa() {
   const mias = await cargar.empresas();
+  // Una cuenta recién creada, o a la que le retiraron o le venció el acceso, no
+  // tiene empresa con la que trabajar. Se le dice eso, en lugar de abrirle un
+  // panel de empresa vacío que parece roto.
+  if (!mias.length) {
+    return html`
+    <div class="min-h-screen flex items-center justify-center p-6 bg-papel">
+      <div class="w-full max-w-lg">
+        <div class="flex items-center gap-3 mb-8">
+          <div class="w-10 h-10 rounded-xl bg-verde flex items-center justify-center">${crudo(LOGO_BLANCO)}</div>
+          <span class="text-2xl font-extrabold tracking-tight">Kontia</span>
+        </div>
+        <div class="bg-white border border-papel-linea rounded-2xl relieve p-6">
+          <span class="w-11 h-11 rounded-xl bg-ambar-fondo text-ambar-texto flex items-center justify-center mb-4">
+            ${icono('domain_disabled', 'text-[22px]')}
+          </span>
+          <h1 class="text-xl font-bold tracking-tight">Su cuenta todavía no tiene una empresa</h1>
+          <p class="mt-2 text-sm text-tinta-suave leading-relaxed">
+            Entró correctamente, pero nadie le ha dado acceso a una empresa, o el acceso que
+            tenía ya venció o fue retirado. Pídale al administrador de la empresa que le dé
+            acceso con este correo.
+          </p>
+          <a href="#/salir"
+             class="mt-5 inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-papel-linea text-sm font-bold hover:border-verde">
+            ${icono('logout', 'text-[18px]')} Cerrar sesión
+          </a>
+        </div>
+      </div>
+    </div>`;
+  }
   return html`
   <div class="min-h-screen flex items-center justify-center p-6 bg-papel">
     <div class="w-full max-w-2xl">
@@ -6097,7 +6126,7 @@ document.addEventListener('click', async (ev) => {
 // ---- src/vistas/resumen.js ---------------------------------------
 const __src_vistas_resumen_js = (function () {
   const { html, crudo, usd, icono, chipEstado, fechaHora, aviso } = __src_ui_js;
-  const { cargar } = __src_almacen_js;
+  const { cargar, empresaActiva } = __src_almacen_js;
   const { linea, chispa, VERDE, AMBAR, ROJO } = __src_graficos_js;
 
 /**
@@ -6141,6 +6170,8 @@ async function resumen() {
   ]);
 
   const dias = cert ? cert.diasRestantes : null;
+  const mes = new Date().toLocaleDateString('es-EC', { month: 'long', year: 'numeric' });
+  const periodo = mes.charAt(0).toUpperCase() + mes.slice(1);
 
   const tope = Math.max(...r.meses.map((m) => m.valor), 1);
 
@@ -6184,7 +6215,7 @@ async function resumen() {
       <span class="absolute inset-0" style="background:linear-gradient(90deg,rgba(7,42,28,.93) 0%,rgba(12,58,39,.72) 50%,rgba(12,58,39,.12) 100%)"></span>
       <div class="relative px-6 py-8 sm:py-10 text-white">
         <h1 class="text-2xl font-bold tracking-tight">Resumen</h1>
-        <p class="mt-1 text-sm text-white/75">Septiembre de 2026 · Agroquímicos Pérez S.A.</p>
+        <p class="mt-1 text-sm text-white/75">${periodo}${empresaActiva()?.razonSocial ? ` · ${empresaActiva().razonSocial}` : ''}</p>
       </div>
     </header>
 
@@ -12629,7 +12660,7 @@ const __src_app_js = (function () {
   const { empresaActiva } = __src_almacen_js;
   const { conexion } = __src_vistas_conexion_js;
   const { arrancar: arrancarNube, entrar: entrarEnLaNube } = __src_nube_js;
-  const { cargarPerfil } = __src_cuenta_nube_js;
+  const { cargarPerfil, perfilDeLaNube } = __src_cuenta_nube_js;
 
 /**
  * El enrutador: mira la dirección del navegador y dibuja la pantalla que toca.
@@ -12839,6 +12870,14 @@ function resolver(hash) {
   if (!sesion.activa()) return { sitio: true };
 
   const esSuper = sesion.esSuperAdmin();
+
+  // Con la cuenta de verdad y sin ninguna empresa, no hay pantalla de empresa
+  // que enseñar: solo la que explica por qué.
+  const perfil = perfilDeLaNube();
+  if (!esSuper && perfil && perfil.empresas.length === 0 && ruta !== '#/empresas') {
+    return { redirigir: '#/empresas' };
+  }
+
   if (ruta === '#/entrar' || ruta === '#/') {
     return { redirigir: esSuper ? '#/admin/empresas' : '#/resumen' };
   }
@@ -12963,7 +13002,7 @@ function ofrecerIngresoReal() {
       const cuantas = perfil?.empresas?.length ?? 0;
       location.hash = perfil?.esSuperAdmin ? '#/admin/empresas'
         : cuantas > 1 ? '#/empresas'
-          : cuantas === 1 ? '#/resumen' : '#/conexion';
+          : cuantas === 1 ? '#/resumen' : '#/empresas';
       window.dispatchEvent(new CustomEvent('kontia:redibujar'));
       return usuario;
     } catch (e) {
