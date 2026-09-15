@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <!-- La version publicada: la pone el empaquetador y la pagina la compara con la del servidor. -->
-<meta name="kontia-version" content="d20d104e7e9e">
+<meta name="kontia-version" content="47494e20da08">
 <title>Kontia</title>
 <meta name="theme-color" content="#0F7B4F">
 <link rel="manifest" href="manifiesto.json">
@@ -12367,6 +12367,9 @@ const CONSULTAS = [
  * Se lee el asunto y la empresa que pregunta, no sus libros.
  */
 async function consultasRecibidas() {
+  const vacia = sinDatosReales('Consultas legales', 'gavel',
+    'Aquí llegarán las preguntas legales y tributarias de las empresas suscritas, con su plazo de respuesta.');
+  if (vacia) return vacia;
   const COLA = [
     { empresa: 'Agroquimicos Perez S.A.', asunto: '¿El flete que cobro al cliente lleva IVA?',
       recibida: new Date(2026, 8, 9), estado: 'RESPONDIDA', horas: 6 },
@@ -12431,6 +12434,9 @@ async function consultasRecibidas() {
 }
 
 async function consultaLegal() {
+  const vacia = sinDatosReales('Consulta legal-tributaria', 'gavel',
+    'Aquí podrá preguntarle a un abogado sobre el caso que tiene delante, y ver sus respuestas.');
+  if (vacia) return vacia;
   return html`
     ${crudo(cabecera({
       titulo: 'Consulta legal-tributaria',
