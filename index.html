@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <!-- La version publicada: la pone el empaquetador y la pagina la compara con la del servidor. -->
-<meta name="kontia-version" content="dd54aed7154e">
+<meta name="kontia-version" content="452947e3ae5f">
 <title>Kontia</title>
 <meta name="theme-color" content="#0F7B4F">
 <link rel="manifest" href="manifiesto.json">
@@ -4433,7 +4433,9 @@ const cargar = {
     return esperar([...creadas, ...SEMILLA.empresasAdmin]);
   },
   empresaAdmin: (id) => cargar.empresasAdmin().then((l) => l.find((e) => e.id === id) ?? null),
-  auditoria: () => esperar(SEMILLA.auditoria),
+  // Con la cuenta de verdad, la auditoría de ejemplo no se enseña: la real vive
+  // en la tabla public.auditoria y se conecta en su propio paso.
+  auditoria: () => esperar(enLaNube() ? [] : SEMILLA.auditoria),
 };
 
 // ===========================================================================
@@ -7794,6 +7796,12 @@ async function adminEmpresas() {
   const lista = await cargar.empresasAdmin();
   const activas = lista.filter((e) => e.estado === 'ACTIVA').length;
   const total = lista.reduce((a, e) => a + e.comprobantesMes, 0);
+  // Lo que pide atención sale de la lista, no de un número escrito a mano: con
+  // la base real vacía, la tarjeta decía «2» sobre cero empresas.
+  const suspendidas = lista.filter((e) => e.estado === 'SUSPENDIDA').length;
+  const TREINTA_DIAS = 30 * 24 * 60 * 60 * 1000;
+  const porCaducar = lista.filter((e) => e.certificadoVence
+    && new Date(e.certificadoVence) - new Date() < TREINTA_DIAS).length;
 
   const resumen = [
     { ico: 'domain', etiqueta: 'Empresas', valor: lista.length, pie: `${activas} activas` },
@@ -7801,8 +7809,9 @@ async function adminEmpresas() {
       pie: 'En todas las empresas' },
     { ico: 'receipt_long', etiqueta: 'Comprobantes del mes', valor: total,
       pie: 'Cuántos, no cuáles' },
-    { ico: 'warning', etiqueta: 'Requieren atención', valor: 2,
-      pie: '1 suspendida · 1 certificado por caducar' },
+    { ico: 'warning', etiqueta: 'Requieren atención', valor: suspendidas + porCaducar,
+      pie: `${suspendidas} suspendida${suspendidas === 1 ? '' : 's'} · ` +
+           `${porCaducar} certificado${porCaducar === 1 ? '' : 's'} por caducar` },
   ];
 
   const cuerpo = lista.map((e) => html`
@@ -11878,7 +11887,8 @@ async function anexoTransaccional() {
 
 // ---- src/vistas/plataforma.js ------------------------------------
 const __src_vistas_plataforma_js = (function () {
-  const { html, crudo, usd, icono, tabla, cabecera, aviso, boton, fecha, fechaHora, dejarRecado } = __src_ui_js;
+  const { html, crudo, usd, icono, tabla, cabecera, aviso, boton, fecha, fechaHora, dejarRecado, empresaEnBlanco } = __src_ui_js;
+  const { perfilDeLaNube } = __src_cuenta_nube_js;
   const { barras, linea } = __src_graficos_js;
   const { SUSCRIPCIONES, USO_MENSUAL, SOPORTE } = __src_datos_contables_js;
   const { cargar, guardar } = __src_almacen_js;
@@ -11897,6 +11907,16 @@ const __src_vistas_plataforma_js = (function () {
  */
 
 
+
+
+/**
+ * Con la cuenta de verdad, estas pantallas no enseñan las cifras de ejemplo:
+ * serían suscripciones, consumo y tickets que no existen. Se dice qué va a
+ * haber y por qué todavía no hay.
+ */
+const sinDatosReales = (titulo, ico, texto) => (perfilDeLaNube()
+  ? html`${crudo(cabecera({ titulo }))}${empresaEnBlanco({ ico, titulo: 'Todavía sin datos reales', texto })}`
+  : null);
 
 
 
@@ -11926,6 +11946,9 @@ const ESTADO_SUSCRIPCION = {
 // ===========================================================================
 
 async function suscripciones() {
+  const vacia = sinDatosReales('Suscripciones', 'receipt_long',
+    'Aquí aparecerán los planes y los cobros de cada empresa cuando se dé de alta la primera.');
+  if (vacia) return vacia;
   const mensual = SUSCRIPCIONES
     .filter((s) => s.ciclo === 'Mensual' && s.estado === 'AL DÍA')
     .reduce((a, s) => a + Math.round(s.valor * 100), 0) / 100;
@@ -11991,6 +12014,9 @@ async function suscripciones() {
 // ===========================================================================
 
 async function usoPlataforma() {
+  const vacia = sinDatosReales('Uso de la plataforma', 'speed',
+    'Aquí se contarán los comprobantes emitidos al mes, sumando todas las empresas, cuando empiecen a facturar.');
+  if (vacia) return vacia;
   const ultimo = USO_MENSUAL[USO_MENSUAL.length - 1];
   const anterior = USO_MENSUAL[USO_MENSUAL.length - 2];
   const crecimiento = ((ultimo.comprobantes - anterior.comprobantes) / anterior.comprobantes) * 100;
@@ -12039,6 +12065,9 @@ async function usoPlataforma() {
 // ===========================================================================
 
 async function soporte() {
+  const vacia = sinDatosReales('Soporte', 'support_agent',
+    'Aquí llegarán las solicitudes de soporte de las empresas, con el acceso que cada una autorice.');
+  if (vacia) return vacia;
   const abiertos = SOPORTE.filter((s) => s.estado !== 'RESUELTO');
 
   return html`
