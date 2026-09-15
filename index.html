@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <!-- La version publicada: la pone el empaquetador y la pagina la compara con la del servidor. -->
-<meta name="kontia-version" content="0767731c5b63">
+<meta name="kontia-version" content="e1b646aff8c0">
 <title>Kontia</title>
 <meta name="theme-color" content="#0F7B4F">
 <link rel="manifest" href="manifiesto.json">
@@ -1999,8 +1999,9 @@
         <div class="separa"><span>o pruébelo ahora mismo</span></div>
 
         <!--
-          Los tres papeles. El sistema escucha estos botones por su atributo
-          data-papel, así que pulsar uno entra de verdad: no es una maqueta.
+          Un solo papel de ejemplo, el de una empresa ficticia. El sistema escucha
+          este botón por su atributo data-papel. La administración de la
+          plataforma no se ofrece como demostración: se entra con la cuenta real.
         -->
         <div class="papeles">
           <button type="button" class="papel" data-papel="administrador">
@@ -2009,22 +2010,6 @@
               <b>Juan Carlos Pérez</b>
               <i>Administrador de la empresa</i>
               <em>Ve todo lo de Agroquímicos Pérez: factura, lleva los libros, configura y crea usuarios.</em>
-            </span>
-          </button>
-          <button type="button" class="papel" data-papel="facturador">
-            <span class="ini">MV</span>
-            <span>
-              <b>María Elena Vaca</b>
-              <i>Facturadora</i>
-              <em>Emite facturas desde su punto de emisión. No toca la configuración.</em>
-            </span>
-          </button>
-          <button type="button" class="papel" data-papel="super">
-            <span class="ini">GC</span>
-            <span>
-              <b>Gustavo Cajamarca</b>
-              <i>Super administrador de la plataforma</i>
-              <em>Administra el servicio de todas las empresas y no ve los datos de ninguna. Entre aquí para comprobarlo.</em>
             </span>
           </button>
         </div>
@@ -4498,11 +4483,9 @@ const PAPELES = {
     correo: 'mvaca@agroperez.com.ec', admin: false,
     empresa: 'Agroquímicos Pérez S.A.', ruc: '0912345678001', ambiente: 'PRUEBAS',
   },
-  super: {
-    nombre: 'Gustavo Cajamarca', iniciales: 'GC', rol: 'Super administrador',
-    correo: 'gustavo@kontia.ec', admin: true,
-    empresa: 'Plataforma Kontia', ruc: '—', ambiente: '—',
-  },
+  // No hay papel de ejemplo para el super administrador: la administración de
+  // la plataforma solo se abre con la cuenta real. Un papel guardado de una
+  // versión anterior ('super') ya no existe aquí y se ignora al leer.
 };
 
 /**
@@ -4571,7 +4554,7 @@ const sesion = {
    * primer cambio de pantalla.
    */
   activa: () => leer() !== null || haySesionEnLaNube(),
-  esSuperAdmin: () => leer() === 'super' || Boolean(perfilDeLaNube()?.esSuperAdmin),
+  esSuperAdmin: () => Boolean(perfilDeLaNube()?.esSuperAdmin),
   usuario: () => deLaNube() ?? PAPELES[leer() ?? 'administrador'],
   entrar(papel) {
     if (!PAPELES[papel]) throw new Error(`Papel desconocido: ${papel}`);
