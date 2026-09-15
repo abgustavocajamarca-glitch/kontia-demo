@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <!-- La version publicada: la pone el empaquetador y la pagina la compara con la del servidor. -->
-<meta name="kontia-version" content="f1e70a010ca7">
+<meta name="kontia-version" content="87c30d2f2d96">
 <title>Kontia</title>
 <meta name="theme-color" content="#0F7B4F">
 <link rel="manifest" href="manifiesto.json">
@@ -3970,6 +3970,8 @@ const copiaDeLaSemilla = () => ({
   // La cuenta con que se registró la última compra de cada proveedor, por
   // empresa: { empresaId: { rucProveedor: cuenta } }.
   cuentasProveedor: {},
+  // Los datos de Kontia como proveedor del sistema de facturación ante el SRI.
+  plataforma: { rucProveedor: '' },
 });
 
 function leer() {
@@ -3998,6 +4000,7 @@ for (const coleccion of ['clientes', 'productos', 'comprobantes', 'puntos', 'com
   if (!Array.isArray(datos[coleccion])) datos[coleccion] = [];
 }
 if (!datos.cuentasProveedor || typeof datos.cuentasProveedor !== 'object') datos.cuentasProveedor = {};
+if (!datos.plataforma || typeof datos.plataforma !== 'object') datos.plataforma = { rucProveedor: '' };
 
 function persistir() {
   try {
@@ -4155,6 +4158,9 @@ const cargar = {
   /** Las cuentas recordadas por proveedor en la empresa activa: { ruc: cuenta }. */
   cuentasDeProveedores: () => esperar({ ...(datos.cuentasProveedor[datos.activa] ?? {}) }),
 
+  /** Los datos de la plataforma: por ahora, el RUC con que Kontia es proveedor ante el SRI. */
+  plataforma: () => esperar({ ...datos.plataforma }),
+
   /**
    * Las cifras del tablero.
    *
@@ -4304,6 +4310,22 @@ const guardar = {
   },
 
   /**
+   * El RUC del proveedor del sistema de facturación.
+   *
+   * Resolución NAC-DGERCGC26-00000027: va en cada comprobante emitido con Kontia.
+   * Se escribe una sola vez; vacío significa «todavía no se decidió», no un valor.
+   */
+  plataforma({ rucProveedor = '' } = {}) {
+    const ruc = String(rucProveedor ?? '').trim();
+    if (ruc && !rucValido(ruc)) {
+      fallo('Ese RUC no es válido. Son trece dígitos, terminan en 001 y el SRI comprueba el dígito verificador.');
+    }
+    datos.plataforma = { ...datos.plataforma, rucProveedor: ruc, actualizado: new Date().toISOString() };
+    persistir();
+    return esperar({ ...datos.plataforma });
+  },
+
+  /**
    * Da de alta una empresa.
    *
    * Nace vacía y en ambiente de PRUEBAS, las dos cosas a propósito. Vacía
@@ -4333,7 +4355,7 @@ const guardar = {
       ciudad: String(entrada.ciudad ?? '').trim(),
       regimen: entrada.regimen ?? 'General',
       plan: entrada.plan ?? 'Profesional',
-      obligadoContabilidad: true,
+      obligadoContabilidad: entrada.obligadoContabilidad !== false,
       manejaInventario: entrada.manejaInventario !== false,
       contribuyenteEspecial: false,
       agenteRetencion: false,
@@ -5299,6 +5321,7 @@ const MENU_ADMIN = [
     { ico: 'gavel', texto: 'Consultas legales', ruta: '#/admin/consultas' },
     { ico: 'verified_user', texto: 'Auditoría', ruta: '#/admin/auditoria' },
     { ico: 'shield_person', texto: 'Protección de datos', ruta: '#/admin/datos' },
+    { ico: 'badge', texto: 'Proveedor del sistema', ruta: '#/admin/proveedor' },
   ] },
 ];
 
@@ -5400,13 +5423,28 @@ const TEMA_ADMIN = {
  * @param {string} contenido  el HTML de la vista, ya construido
  * @param {object} opciones   ruta actual y si es el mundo del super admin
  */
+/**
+ * El menú según cómo lleva sus cuentas la empresa.
+ *
+ * Quien no está obligado a llevar contabilidad no ve plan de cuentas, diario ni
+ * balances, que no le sirven y lo confunden: ve su registro de ingresos y egresos.
+ */
+function menuDeEmpresa(empresa) {
+  if (empresa?.obligadoContabilidad !== false) return MENU_EMPRESA;
+  return MENU_EMPRESA.map((seccion) => (seccion.grupo === 'Contabilidad'
+    ? { grupo: 'Registro', enlaces: [
+        { ico: 'menu_book', texto: 'Ingresos y egresos', ruta: '#/ingresos-gastos' },
+      ] }
+    : seccion));
+}
+
 let ultimoMenu = [];
 let ultimaRuta = '';
 let ultimoTema = null;
 
 function marco(contenido, { ruta = '', admin = false, empresa = null } = {}) {
   const tema = admin ? TEMA_ADMIN : TEMA_EMPRESA;
-  const menu = admin ? MENU_ADMIN : MENU_EMPRESA;
+  const menu = admin ? MENU_ADMIN : menuDeEmpresa(empresa);
   ultimoMenu = menu;
   ultimaRuta = ruta;
   ultimoTema = tema;
@@ -7779,6 +7817,29 @@ async function adminAlta() {
             <option>Básico</option>
           </select>
         </label>
+        <div class="mt-4 grid gap-4 sm:grid-cols-2">
+          <label class="block">
+            <span class="text-[11px] font-bold uppercase tracking-wide text-tinta-suave">¿Lleva contabilidad?</span>
+            <select id="nueva-contabilidad" class= + SELECT + r>
+              <option value="si">Sí: compañía o persona obligada</option>
+              <option value="no">No: persona no obligada o RIMPE negocio popular</option>
+            </select>
+            <span class="mt-1.5 block text-[11px] text-tinta-suave leading-relaxed">
+              Si no lleva, ve su registro de ingresos y egresos en lugar de los libros
+              (Reglamento de la LRTI, art. 38).
+            </span>
+          </label>
+          <label class="block">
+            <span class="text-[11px] font-bold uppercase tracking-wide text-tinta-suave">¿Maneja inventario?</span>
+            <select id="nueva-inventario" class= + SELECT + r>
+              <option value="si">Sí</option>
+              <option value="no">No</option>
+            </select>
+            <span class="mt-1.5 block text-[11px] text-tinta-suave leading-relaxed">
+              Decide si la mercadería comprada va al inventario o directo al costo.
+            </span>
+          </label>
+        </div>
 
         <div class="mt-5 flex flex-wrap justify-end gap-2">
           ${boton('Cancelar', { ruta: '#/admin/empresas', tipo: 'secundario' })}
@@ -7887,6 +7948,8 @@ function conectarAlta() {
         direccion: valor('nueva-direccion'),
         correo: valor('nueva-correo'),
         plan: valor('nueva-plan'),
+        obligadoContabilidad: valor('nueva-contabilidad') !== 'no',
+        manejaInventario: valor('nueva-inventario') !== 'no',
       });
       dejarRecado({
         tono: 'info', ico: 'add_business',
@@ -10825,6 +10888,134 @@ async function compras() {
   return { compras };
 })();
 
+// ---- src/vistas/ingresos-gastos.js -------------------------------
+const __src_vistas_ingresos_gastos_js = (function () {
+  const { html, crudo, usd, fecha, cabecera, aviso, tabla, vacio, icono } = __src_ui_js;
+  const { cargar, empresaActiva } = __src_almacen_js;
+
+/**
+ * El registro de ingresos y egresos.
+ *
+ * Quien no está obligado a llevar contabilidad no lleva libros: lleva una cuenta
+ * de ingresos y egresos. Lo dice el Reglamento de la Ley de Régimen Tributario
+ * Interno en su art. 38 —con la fecha, el concepto, el número de comprobante, el
+ * valor y las observaciones, respaldada en comprobantes que se guardan siete
+ * años— y la Ley lo repite para los negocios populares del RIMPE y para los
+ * emprendedores que no estén obligados. El contador lo confirmó: no necesitan más.
+ *
+ * No se teclea nada: los ingresos salen de las facturas autorizadas y los
+ * egresos de las compras que entran por el buzón.
+ */
+
+
+
+
+const centavos = (n) => Math.round(Number(n ?? 0) * 100);
+
+async function ingresosGastos() {
+  const empresa = empresaActiva();
+  const ventas = await cargar.comprobantes({ estado: 'AUTORIZADO' });
+  const compras = (await cargar.compras()).filter((c) => c.tipo !== '07');
+
+  const movimientos = [
+    ...ventas.map((c) => ({
+      fecha: c.fecha, tipo: 'INGRESO',
+      concepto: `Venta a ${c.cliente?.razonSocial ?? 'cliente'}`,
+      comprobante: `${c.tipo ?? 'Factura'} ${c.numero}`,
+      base: c.totales?.sinImpuestos ?? 0, iva: c.totales?.iva ?? 0, total: c.totales?.total ?? 0,
+    })),
+    ...compras.map((c) => ({
+      fecha: c.fecha, tipo: 'EGRESO',
+      concepto: `Compra a ${c.proveedorNombre || c.proveedorRuc}`,
+      comprobante: `${c.tipoNombre ?? 'Factura'} ${c.numero ?? ''}`.trim(),
+      base: c.sinImpuestos ?? 0, iva: c.iva ?? 0, total: c.total ?? 0,
+    })),
+  ].sort((a, b) => new Date(a.fecha) - new Date(b.fecha));
+
+  const suma = (tipo) => movimientos.filter((m) => m.tipo === tipo)
+    .reduce((s, m) => s + centavos(m.total), 0) / 100;
+  const ingresos = suma('INGRESO');
+  const egresos = suma('EGRESO');
+  const diferencia = (centavos(ingresos) - centavos(egresos)) / 100;
+
+  const base = aviso({
+    tono: 'info', ico: 'gavel',
+    titulo: 'Lo que exige la ley a quien no lleva contabilidad',
+    texto: 'Una cuenta de ingresos y egresos con fecha, concepto, número de comprobante y valor ' +
+           '(Reglamento de la LRTI, art. 38). Los comprobantes que la respaldan se conservan siete años.',
+  });
+  const lleva = empresa?.obligadoContabilidad !== false ? aviso({
+    tono: 'ambar', ico: 'account_tree',
+    titulo: 'Esta empresa sí lleva contabilidad',
+    texto: 'Este registro es solo una vista rápida. Lo que vale para declarar son sus libros.',
+  }) : '';
+
+  const cabeza = crudo(cabecera({
+    titulo: 'Ingresos y egresos',
+    descripcion: 'El registro que llevan las personas no obligadas a llevar contabilidad y los negocios populares del RIMPE.',
+  }));
+
+  if (!movimientos.length) {
+    return html`
+      ${cabeza}
+      ${crudo(base)}
+      ${vacio({
+        ico: 'menu_book',
+        titulo: 'Todavía no hay ingresos ni egresos',
+        texto: 'Aparecen solos: los ingresos con cada factura autorizada y los egresos con cada ' +
+               'compra que entra por el buzón. Nada se teclea.',
+      })}`;
+  }
+
+  const tarjeta = (etiqueta, valor, ico, tono) => html`
+    <div class="bg-white border border-papel-linea rounded-2xl relieve p-5">
+      <div class="flex items-start justify-between">
+        <p class="text-[11px] font-bold uppercase tracking-wide text-tinta-suave">${etiqueta}</p>
+        <span class="w-9 h-9 rounded-xl flex items-center justify-center ${crudo(tono)}">
+          ${icono(ico, 'text-[18px]')}
+        </span>
+      </div>
+      <p class="mt-3 text-[26px] font-extrabold tracking-tight tabular">${usd(valor)}</p>
+    </div>`;
+
+  const filas = movimientos.map((m) => html`
+    <tr class="hover:bg-papel transition">
+      <td class="px-5 py-3 text-sm whitespace-nowrap">${fecha(m.fecha)}</td>
+      <td class="px-5 py-3 text-sm">${m.concepto}</td>
+      <td class="px-5 py-3 text-[12px] text-tinta-suave font-mono whitespace-nowrap">${m.comprobante}</td>
+      <td class="px-5 py-3 text-right text-sm tabular">${usd(m.base)}</td>
+      <td class="px-5 py-3 text-right text-sm tabular">${usd(m.iva)}</td>
+      <td class="px-5 py-3 text-right text-sm font-semibold tabular">${usd(m.total)}</td>
+      <td class="px-5 py-3 text-right">
+        <span class="text-[11px] font-bold px-2 py-1 rounded-full ${crudo(m.tipo === 'INGRESO'
+          ? 'bg-verde-claro text-verde' : 'bg-ambar-fondo text-ambar-texto')}">${m.tipo === 'INGRESO' ? 'Ingreso' : 'Egreso'}</span>
+      </td>
+    </tr>`);
+
+  return html`
+    ${cabeza}
+    ${crudo(lleva)}
+    ${crudo(base)}
+
+    <div class="grid gap-4 sm:grid-cols-3 mb-5">
+      ${tarjeta('Ingresos', ingresos, 'south_west', 'bg-verde-claro text-verde')}
+      ${tarjeta('Egresos', egresos, 'north_east', 'bg-ambar-fondo text-ambar-texto')}
+      ${tarjeta('Diferencia', diferencia, 'balance', 'bg-papel text-tinta-suave')}
+    </div>
+
+    <div class="bg-white border border-papel-linea rounded-2xl relieve overflow-hidden">
+      ${tabla([
+        { texto: 'Fecha' }, { texto: 'Concepto' }, { texto: 'Comprobante' },
+        { texto: 'Base', der: true }, { texto: 'IVA', der: true }, { texto: 'Total', der: true },
+        { texto: 'Tipo', der: true },
+      ], filas)}
+    </div>`;
+}
+
+
+  return { ingresosGastos };
+})();
+
 // ---- src/vistas/conexion.js --------------------------------------
 const __src_vistas_conexion_js = (function () {
   const { html, crudo, icono, cabecera, aviso, boton, tabla } = __src_ui_js;
@@ -11363,9 +11554,10 @@ async function anexoTransaccional() {
 
 // ---- src/vistas/plataforma.js ------------------------------------
 const __src_vistas_plataforma_js = (function () {
-  const { html, crudo, usd, icono, tabla, cabecera, aviso, boton, fecha, fechaHora } = __src_ui_js;
+  const { html, crudo, usd, icono, tabla, cabecera, aviso, boton, fecha, fechaHora, dejarRecado } = __src_ui_js;
   const { barras, linea } = __src_graficos_js;
   const { SUSCRIPCIONES, USO_MENSUAL, SOPORTE } = __src_datos_contables_js;
+  const { cargar, guardar } = __src_almacen_js;
 
 /**
  * Las pantallas que le faltaban al super administrador, y la consulta legal.
@@ -11379,6 +11571,7 @@ const __src_vistas_plataforma_js = (function () {
  * está construida para que esa puerta chirríe: motivo escrito, dos horas de
  * duración y constancia en la auditoría.
  */
+
 
 
 
@@ -11715,8 +11908,110 @@ async function consultaLegal() {
     </div>`;
 }
 
+// ===========================================================================
+//  Proveedor del sistema de facturación
+// ===========================================================================
 
-  return { suscripciones, usoPlataforma, soporte, consultasRecibidas, consultaLegal };
+/** Desde cuándo el «RUC Proveedor» es obligatorio: 60 días desde el 28-jul-2026. */
+const RIGE_RUC_PROVEEDOR = new Date(2026, 8, 26);
+
+async function proveedorSistema() {
+  const p = await cargar.plataforma();
+  const dias = Math.ceil((RIGE_RUC_PROVEEDOR - new Date()) / (24 * 60 * 60 * 1000));
+
+  const estado = p.rucProveedor
+    ? aviso({
+        tono: 'info', ico: 'verified',
+        titulo: `RUC Proveedor configurado: ${p.rucProveedor}`,
+        texto: 'Cada comprobante que se emita desde Kontia lo lleva en la información adicional ' +
+               'y en el RIDE, con el nombre exacto que pide el SRI.',
+      })
+    : aviso({
+        tono: dias <= 14 ? 'rojo' : 'ambar', ico: 'gpp_maybe',
+        titulo: dias > 0
+          ? `Falta el RUC Proveedor · es obligatorio desde el 26 de septiembre de 2026 (faltan ${dias} días)`
+          : 'Falta el RUC Proveedor · el requisito ya es obligatorio',
+        texto: 'Sin él, los comprobantes emitidos con Kontia no cumplen el Anexo 26 de la ficha técnica 2.34.',
+      });
+
+  return html`
+    ${crudo(cabecera({
+      titulo: 'Proveedor del sistema',
+      descripcion: 'Kontia ante el SRI: el RUC que va en cada comprobante que emiten las empresas.',
+    }))}
+
+    ${crudo(estado)}
+
+    <div class="grid gap-5 lg:grid-cols-3">
+      <section class="lg:col-span-2 bg-white border border-papel-linea rounded-2xl relieve p-5">
+        <h2 class="text-sm font-bold">RUC del proveedor</h2>
+        <p class="text-[11px] text-tinta-suave mt-1 mb-4">
+          El de quien quedó registrado en el RUC con la actividad CIIU J62021002. Se escribe una
+          sola vez aquí y de aquí lo toman todos los comprobantes.
+        </p>
+        <label class="block">
+          <span class="text-[11px] font-bold uppercase tracking-wide text-tinta-suave">RUC</span>
+          <input id="ruc-proveedor" value="${p.rucProveedor ?? ''}" inputmode="numeric" maxlength="13"
+                 placeholder="Trece dígitos terminados en 001"
+                 class="mt-1.5 w-full px-3.5 py-2.5 rounded-xl border border-papel-linea bg-white
+                        text-sm tabular focus:outline-none focus:border-verde">
+        </label>
+        <div class="mt-4 flex justify-end">
+          <button id="guardar-ruc-proveedor"
+                  class="boton-3d bg-verde text-white inline-flex items-center gap-2 px-4 py-2.5
+                         rounded-xl text-sm font-semibold">
+            <span class="ms text-[18px]">save</span>Guardar
+          </button>
+        </div>
+      </section>
+
+      <section class="bg-white border border-papel-linea rounded-2xl relieve p-5">
+        <div class="flex items-center gap-2 mb-3">
+          ${icono('gavel', 'text-[20px] text-verde')}
+          <h2 class="text-sm font-bold">Base legal</h2>
+        </div>
+        <ul class="space-y-3 text-[12px] text-tinta-suave leading-relaxed">
+          <li><strong class="text-tinta">Resolución NAC-DGERCGC26-00000027</strong> (R.O. 335,
+            28-jul-2026): quien desarrolla y es dueño del código de un sistema de facturación
+            para comercializarlo registra en el RUC un establecimiento exclusivo con la
+            actividad CIIU J62021002.</li>
+          <li><strong class="text-tinta">Art. 5 y Anexo 26 de la ficha técnica 2.34</strong>: cada
+            comprobante lleva un campo adicional «RUC Proveedor» con ese RUC. Plazo: 60 días desde
+            la publicación.</li>
+          <li>Desde octubre de 2026 el SRI publica cada mes la lista de proveedores registrados.</li>
+        </ul>
+      </section>
+    </div>`;
+}
+
+let proveedorConectado = false;
+
+/** Engancha el botón de guardar el RUC Proveedor. */
+function conectarProveedor() {
+  const zona = document.getElementById('raiz');
+  if (!zona || proveedorConectado) return;
+  proveedorConectado = true;
+
+  zona.addEventListener('click', async (ev) => {
+    if (!ev.target.closest('#guardar-ruc-proveedor')) return;
+    try {
+      const p = await guardar.plataforma({
+        rucProveedor: document.getElementById('ruc-proveedor')?.value ?? '',
+      });
+      dejarRecado(p.rucProveedor
+        ? { tono: 'exito', ico: 'check_circle', titulo: 'RUC Proveedor guardado',
+            texto: `Los comprobantes emitidos con Kontia llevarán ${p.rucProveedor}.` }
+        : { tono: 'ambar', ico: 'info', titulo: 'RUC Proveedor borrado',
+            texto: 'Los comprobantes no llevarán el campo hasta que se escriba uno.' });
+    } catch (error) {
+      dejarRecado({ tono: 'rojo', ico: 'error', titulo: 'No se guardó', texto: error.message });
+    }
+    window.dispatchEvent(new CustomEvent('kontia:redibujar'));
+  });
+}
+
+
+  return { suscripciones, usoPlataforma, soporte, consultasRecibidas, consultaLegal, proveedorSistema, conectarProveedor };
 })();
 
 // ---- src/app.js --------------------------------------------------
@@ -11740,9 +12035,10 @@ const __src_app_js = (function () {
   const { proveedores } = __src_vistas_proveedores_js;
   const { buzon, conectarBuzon } = __src_vistas_buzon_js;
   const { compras } = __src_vistas_compras_js;
+  const { ingresosGastos } = __src_vistas_ingresos_gastos_js;
   const { proteccionDatos } = __src_vistas_proteccion_datos_js;
   const { declaracionIva, anexoTransaccional } = __src_vistas_impuestos_js;
-  const { suscripciones, usoPlataforma, soporte, consultaLegal, consultasRecibidas } = __src_vistas_plataforma_js;
+  const { suscripciones, usoPlataforma, soporte, consultaLegal, consultasRecibidas, proveedorSistema, conectarProveedor } = __src_vistas_plataforma_js;
   const { aviso, crudo, recogerRecado } = __src_ui_js;
   const { empresaActiva } = __src_almacen_js;
   const { conexion } = __src_vistas_conexion_js;
@@ -11756,6 +12052,7 @@ const __src_app_js = (function () {
  * dato, se dibuja. Es la forma más aburrida de hacerlo, y por eso se puede leer
  * entera en una tarde.
  */
+
 
 
 
@@ -11833,6 +12130,7 @@ const RUTAS = [
   { patron: /^#\/proveedores\/?$/, vista: proveedores },
   { patron: /^#\/buzon\/?$/, vista: buzon, alDibujar: conectarBuzon },
   { patron: /^#\/compras\/?$/, vista: compras },
+  { patron: /^#\/ingresos-gastos\/?$/, vista: ingresosGastos },
   { patron: /^#\/inventario\/?$/, vista: inventario },
   { patron: /^#\/nomina\/?$/, vista: nomina },
   { patron: /^#\/activos\/?$/, vista: activosFijos },
@@ -11851,6 +12149,8 @@ const RUTAS = [
   { patron: /^#\/admin\/soporte\/?$/, vista: soporte, admin: true },
   { patron: /^#\/admin\/consultas\/?$/, vista: consultasRecibidas, admin: true },
   { patron: /^#\/admin\/datos\/?$/, vista: proteccionDatos, admin: true },
+  { patron: /^#\/admin\/proveedor\/?$/, vista: proveedorSistema, admin: true,
+    alDibujar: conectarProveedor },
 ];
 
 /** Las que todavía no están hechas. Se dicen, no se disimulan. */
@@ -11859,6 +12159,12 @@ const PENDIENTES = {
     'Los libros, los estados financieros y las declaraciones ya están. Aquí irán los ' +
     'reportes que cada empresa pida: por vendedor, por línea de producto, por sucursal.'],
 };
+
+/**
+ * Las pantallas de libros contables. Quien no está obligado a llevar contabilidad
+ * no las tiene: tiene su registro de ingresos y egresos.
+ */
+const RUTAS_DE_LIBROS = /^#\/(plan-cuentas|diario|mayor|comprobacion|resultados|situacion)(\/|$)/;
 
 const raiz = () => document.getElementById('raiz');
 const sitio = () => document.getElementById('portada');
@@ -11984,6 +12290,13 @@ async function dibujar() {
       titulo: 'Esa pantalla no existe', ico: 'help',
       imagen: 'imagenes/estado-404.webp', etiqueta: '',
       texto: `La dirección ${r.ruta} no corresponde a ninguna pantalla de Kontia.`,
+    });
+  } else if (!admin && opciones.empresa?.obligadoContabilidad === false && RUTAS_DE_LIBROS.test(r.ruta)) {
+    contenido = pendiente({
+      titulo: 'Esta empresa no lleva contabilidad', ico: 'menu_book', etiqueta: 'No aplica',
+      texto: 'Las personas no obligadas y los negocios populares del RIMPE llevan un registro de ' +
+             'ingresos y egresos (Reglamento de la LRTI, art. 38), no libros contables. Lo encuentra ' +
+             'en «Ingresos y egresos».',
     });
   } else {
     contenido = await r.coincide.vista(...r.args);
