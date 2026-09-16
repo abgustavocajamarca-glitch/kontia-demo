@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <!-- La version publicada: la pone el empaquetador y la pagina la compara con la del servidor. -->
-<meta name="kontia-version" content="a8d34cee28e5">
+<meta name="kontia-version" content="f1fd3792b7a5">
 <title>Kontia</title>
 <meta name="theme-color" content="#0F7B4F">
 <link rel="manifest" href="manifiesto.json">
@@ -4998,6 +4998,258 @@ const PLANTILLA_PRODUCTOS = [
   return { leerCsv, tipoDeIdentificacion, tarifaDeIva, numero, prepararClientes, prepararProductos, PLANTILLA_CLIENTES, PLANTILLA_PRODUCTOS };
 })();
 
+// ---- src/conciliacion.js -----------------------------------------
+const __src_conciliacion_js = (function () {
+  const { leerCsv, numero } = __src_importar_js;
+
+/**
+ * La conciliación bancaria: lo que dicen los libros frente a lo que dice el
+ * banco, y la explicación de cada diferencia.
+ *
+ * CÓMO SE HACE. Se toman los movimientos de la cuenta de bancos en el libro
+ * mayor y los del estado de cuenta, y se emparejan solos: mismo valor y fechas
+ * cercanas (el banco registra un cheque el día que se cobra, no el día que se
+ * gira). Lo que queda sin pareja es justo lo que hay que explicar:
+ *
+ *   - En libros y todavía no en el banco: cheques girados y no cobrados,
+ *     depósitos en tránsito. No se corrigen; se esperan.
+ *   - En el banco y todavía no en libros: comisiones, intereses, notas de
+ *     débito. Estos sí piden un asiento.
+ *
+ * Y el cuadro final: saldo del banco más lo de la primera lista, contra saldo de
+ * libros más lo de la segunda. Si no dan lo mismo, hay algo que nadie ha
+ * explicado todavía, y eso es lo que el contador tiene que buscar.
+ *
+ * Todo en centavos enteros: un centavo perdido en una suma de punto flotante
+ * es exactamente la diferencia que una conciliación no puede tener.
+ */
+
+
+
+const c = (n) => Math.round(Number(n || 0) * 100);
+const d = (n) => n / 100;
+const DIA = 24 * 60 * 60 * 1000;
+
+/** Cuántos días puede tardar el banco en registrar lo que ya está en libros. */
+const TOLERANCIA_DIAS = 10;
+
+/**
+ * Los movimientos de una cuenta de bancos, sacados del diario.
+ * El asiento de apertura no es un movimiento: es el saldo inicial.
+ */
+function movimientosDeLibros(diario, cuenta = '10101') {
+  let saldoInicial = 0;
+  const movimientos = [];
+  for (const a of diario) {
+    a.lineas.forEach((l, i) => {
+      if (l.cuenta !== cuenta) return;
+      const valor = c(l.debe) - c(l.haber);
+      if (a.tipo === 'APERTURA') { saldoInicial += valor; return; }
+      movimientos.push({
+        id: `L${a.numero}-${i}`,
+        fecha: new Date(a.fecha),
+        concepto: l.detalle ? `${a.glosa} · ${l.detalle}` : a.glosa,
+        valor: d(valor),
+        asiento: a.numero,
+        enlace: a.enlace ?? null,
+      });
+    });
+  }
+  return { saldoInicial: d(saldoInicial), movimientos };
+}
+
+/**
+ * Empareja y explica.
+ *
+ * @param saldoInicialLibros  el saldo de la cuenta al empezar el período
+ * @param libros              movimientos de la cuenta en el mayor
+ * @param banco               movimientos del estado de cuenta ({fecha, concepto, valor})
+ * @param saldoBanco          el saldo final que dice el estado de cuenta
+ */
+function conciliar({ saldoInicialLibros = 0, libros = [], banco = [], saldoBanco }) {
+  const libres = libros.map((m) => ({ ...m, centavos: c(m.valor) }));
+  const pares = [];
+  const soloBanco = [];
+
+  // Del banco hacia los libros, en orden de fecha: cada movimiento del banco
+  // busca el de libros con el mismo valor más cercano en el tiempo, y que no
+  // sea posterior a él por más de un par de días (el banco no registra antes
+  // de que exista el pago).
+  const ordenBanco = banco
+    .map((m, i) => ({ ...m, id: m.id ?? `B${i + 1}`, fecha: new Date(m.fecha), centavos: c(m.valor) }))
+    .sort((x, y) => x.fecha - y.fecha);
+
+  for (const mb of ordenBanco) {
+    let mejor = -1;
+    let distancia = Infinity;
+    libres.forEach((ml, i) => {
+      if (ml.centavos !== mb.centavos) return;
+      const dias = (mb.fecha - ml.fecha) / DIA;
+      if (dias < -2 || dias > TOLERANCIA_DIAS) return;
+      if (Math.abs(dias) < distancia) { distancia = Math.abs(dias); mejor = i; }
+    });
+    if (mejor >= 0) {
+      pares.push({ libros: libres[mejor], banco: mb });
+      libres.splice(mejor, 1);
+    } else {
+      soloBanco.push(mb);
+    }
+  }
+  const soloLibros = libres;
+
+  // Un movimiento que está en los dos lados con un valor apenas distinto casi
+  // nunca son dos movimientos: es un número mal digitado (559,13 contra 559,31).
+  // Las partidas se «explican» entre sí y la diferencia daría cero, así que se
+  // señalan aparte: una conciliación con esto pendiente no está terminada.
+  const sospechosos = [];
+  for (const mb of soloBanco) {
+    const parecido = soloLibros.find((ml) => Math.sign(ml.centavos) === Math.sign(mb.centavos)
+      && ml.centavos !== mb.centavos
+      && Math.abs(ml.centavos - mb.centavos) <= Math.max(100, Math.abs(mb.centavos) * 0.02)
+      && Math.abs((mb.fecha - ml.fecha) / DIA) <= TOLERANCIA_DIAS);
+    if (parecido) {
+      sospechosos.push({ libros: parecido, banco: mb, diferencia: d(mb.centavos - parecido.centavos) });
+    }
+  }
+
+  const saldoLibros = c(saldoInicialLibros) + libros.reduce((s, m) => s + c(m.valor), 0);
+  const banco$ = c(saldoBanco);
+  // Saldo del banco, más lo que está en libros y el banco todavía no ve.
+  const bancoAjustado = banco$ + soloLibros.reduce((s, m) => s + m.centavos, 0);
+  // Saldo de libros, más lo que está en el banco y los libros todavía no tienen.
+  const librosAjustado = saldoLibros + soloBanco.reduce((s, m) => s + m.centavos, 0);
+
+  return {
+    pares,
+    soloLibros,
+    soloBanco,
+    saldoLibros: d(saldoLibros),
+    saldoBanco: d(banco$),
+    bancoAjustado: d(bancoAjustado),
+    librosAjustado: d(librosAjustado),
+    diferencia: d(bancoAjustado - librosAjustado),
+    sospechosos,
+    conciliado: bancoAjustado === librosAjustado && sospechosos.length === 0,
+  };
+}
+
+/** Qué es cada partida sin pareja, dicho como lo diría el contador. */
+function queEs(movimiento, lado) {
+  const v = Number(movimiento.valor);
+  if (lado === 'libros') {
+    return v < 0 ? 'Cheque o pago girado que el banco todavía no cobra' : 'Depósito en tránsito';
+  }
+  return v < 0 ? 'Débito del banco sin registrar en libros' : 'Crédito del banco sin registrar en libros';
+}
+
+/**
+ * El asiento que propone la conciliación para lo que solo está en el banco.
+ *
+ * Un débito del banco (comisión, cargo) va a gastos; un crédito (intereses,
+ * depósito no identificado) no se decide aquí: puede ser un ingreso financiero
+ * o un cobro de un cliente, y eso lo sabe el contador, no el sistema.
+ */
+function asientoDeAjuste(mb, cuentaBanco = '10101') {
+  const v = Math.abs(Number(mb.valor));
+  if (Number(mb.valor) < 0) {
+    return {
+      fecha: new Date(mb.fecha),
+      tipo: 'AJUSTE',
+      glosa: `Ajuste por conciliación · ${mb.concepto}`,
+      lineas: [
+        { cuenta: '520228', debe: v, haber: 0, detalle: `Gasto bancario · ${mb.concepto}` },
+        { cuenta: cuentaBanco, debe: 0, haber: v, detalle: 'Débito del banco según estado de cuenta' },
+      ],
+    };
+  }
+  return null;
+}
+
+/**
+ * Un estado de cuenta en CSV, como lo baja cualquier banca en línea.
+ *
+ * Entiende una columna «valor» con signo, o dos columnas «débito» y «crédito».
+ * La fecha puede venir como 30/09/2026 o 2026-09-30. Devuelve los movimientos
+ * y las filas que no se pudieron leer, con su número de línea.
+ */
+function leerEstadoDeCuenta(texto) {
+  const filas = leerCsv(texto);
+  if (!filas.length) return { movimientos: [], problemas: [], faltan: ['fecha', 'valor'] };
+
+  const llano = (t) => String(t ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .toLowerCase().replace(/[^a-z]+/g, ' ').trim();
+  const cab = filas[0].map(llano);
+  const col = (...nombres) => cab.findIndex((h) => nombres.includes(h));
+  const iFecha = col('fecha', 'fecha movimiento', 'fecha de movimiento', 'fecha valor');
+  const iConcepto = col('concepto', 'descripcion', 'detalle', 'referencia');
+  const iValor = col('valor', 'monto', 'importe');
+  const iDebito = col('debito', 'debitos', 'cargo', 'retiro', 'retiros');
+  const iCredito = col('credito', 'creditos', 'abono', 'deposito', 'depositos');
+  const iSaldo = col('saldo', 'saldo disponible', 'saldo contable', 'saldo final');
+
+  const faltan = [];
+  if (iFecha < 0) faltan.push('fecha');
+  if (iValor < 0 && (iDebito < 0 || iCredito < 0)) faltan.push('valor (o débito y crédito)');
+  if (faltan.length) return { movimientos: [], problemas: [], faltan };
+
+  const aFecha = (t) => {
+    const s = String(t ?? '').trim();
+    let m = /^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/.exec(s);
+    if (m) return new Date(Number(m[3]), Number(m[2]) - 1, Number(m[1]));
+    m = /^(\d{4})-(\d{1,2})-(\d{1,2})/.exec(s);
+    if (m) return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+    return null;
+  };
+
+  const movimientos = [];
+  const problemas = [];
+  filas.slice(1).forEach((f, i) => {
+    const linea = i + 2;
+    const fecha = aFecha(f[iFecha]);
+    if (!fecha) { problemas.push({ linea, porque: `"${f[iFecha] ?? ''}" no es una fecha` }); return; }
+    let valor;
+    if (iValor >= 0) {
+      valor = numero(f[iValor]);
+    } else {
+      const deb = numero(f[iDebito]);
+      const cre = numero(f[iCredito]);
+      valor = (Number.isFinite(cre) ? cre : 0) - (Number.isFinite(deb) ? Math.abs(deb) : 0);
+      if (!Number.isFinite(deb) && !Number.isFinite(cre)) valor = NaN;
+    }
+    if (!Number.isFinite(valor) || valor === 0) {
+      problemas.push({ linea, porque: 'No tiene un valor que se pueda leer' });
+      return;
+    }
+    const saldo = iSaldo >= 0 ? numero(f[iSaldo]) : NaN;
+    movimientos.push({
+      id: `B${linea}`,
+      fecha,
+      concepto: iConcepto >= 0 ? String(f[iConcepto] ?? '').trim() : 'Movimiento',
+      valor: Math.round(valor * 100) / 100,
+      ...(Number.isFinite(saldo) ? { saldo } : {}),
+    });
+  });
+  // El saldo que informa el banco, si el archivo lo trae: el de la última
+  // fila del período. Es el dato contra el que se concilia; sumar los
+  // movimientos del mismo archivo daría siempre lo mismo que los movimientos.
+  const conSaldo = movimientos.filter((m) => m.saldo !== undefined);
+  const saldoFinal = conSaldo.length
+    ? conSaldo.reduce((u, m) => (m.fecha >= u.fecha ? m : u)).saldo
+    : null;
+  return { movimientos, problemas, faltan: [], saldoFinal };
+}
+
+/** La plantilla del estado de cuenta, con los mismos nombres que se leen. */
+const PLANTILLA_ESTADO_DE_CUENTA = [
+  'fecha;concepto;debito;credito;saldo',
+  '08/09/2026;Transferencia a Fertilizantes del Pacifico;9492,00;;8928,55',
+  '21/09/2026;Transferencia recibida Consorcio Agricola;;12400,00;21328,55',
+].join('\n') + '\n';
+
+
+  return { TOLERANCIA_DIAS, movimientosDeLibros, conciliar, queEs, asientoDeAjuste, leerEstadoDeCuenta, PLANTILLA_ESTADO_DE_CUENTA };
+})();
+
 // ---- src/avisos.js -----------------------------------------------
 const __src_avisos_js = (function () {
 
@@ -6319,7 +6571,7 @@ const MANUALES = [
     lineas: [
       { cuenta: '520109', debe: 1200.00, haber: 0, detalle: 'Bodega Km 14.5' },
       { cuenta: '1010501', debe: 180.00, haber: 0, detalle: 'IVA en compras 15%' },
-      { cuenta: '10101', debe: 0, haber: 1380.00, detalle: 'Transferencia bancaria' },
+      { cuenta: '10101', debe: 0, haber: 1380.00, detalle: 'Cheque 004821' },
     ],
   },
   {
@@ -6344,7 +6596,7 @@ const MANUALES = [
       { cuenta: '520112', debe: 640.00, haber: 0, detalle: 'Diésel' },
       { cuenta: '520108', debe: 380.00, haber: 0, detalle: 'Cambio de aceite y frenos' },
       { cuenta: '1010501', debe: 153.00, haber: 0, detalle: 'IVA en compras 15%' },
-      { cuenta: '10101', debe: 0, haber: 1173.00, detalle: 'Pago en efectivo' },
+      { cuenta: '10101', debe: 0, haber: 1173.00, detalle: 'Tarjeta de débito de la cuenta corriente' },
     ],
   },
   {
@@ -6651,24 +6903,37 @@ const CARTERA_PAGAR = [
 ];
 
 /**
- * Los bancos. La suma de `saldoLibros` tiene que ser exactamente el saldo de la
- * cuenta 10101 en el mayor: si la pantalla de bancos dice una cosa y los libros
- * otra, una de las dos miente y no se sabe cuál.
+ * Las cuentas bancarias y su estado de cuenta del mes.
  *
- * La diferencia con `saldoBanco` sí es normal: son cheques girados que el
- * beneficiario todavía no cobró y depósitos que el banco aún no acreditó. Eso
- * es lo que resuelve una conciliación.
+ * El saldo en libros NO se escribe aquí: sale del libro mayor (cuenta
+ * `cuentaContable`). Antes estaba escrito a mano y se desencuadró en cuanto un
+ * asiento cambió; una pantalla de bancos que dice una cosa y unos libros que
+ * dicen otra no sirven para conciliar.
+ *
+ * El estado de cuenta es el del banco: lo que el banco registró, en la fecha en
+ * que lo registró. El cheque 004821 (arriendo del día 10) no aparece porque el
+ * beneficiario todavía no lo cobra, y la comisión del día 30 no está en libros
+ * porque nadie la registró aún. Son las dos partidas que explica la
+ * conciliación.
  */
 const BANCOS = [
-  { banco: 'Banco Pichincha', cuenta: '2100••••4471', tipo: 'Corriente',
-    saldoLibros: 49848.42, saldoBanco: 51228.42,
-    partidas: [
-      { concepto: 'Cheque 004821 girado y no cobrado', valor: -1380.00 },
-      { concepto: 'Nota de débito por comisiones', valor: 0 },
-    ] },
-  { banco: 'Banco Bolivariano', cuenta: '0850••••1192', tipo: 'Ahorros',
-    saldoLibros: 6200.00, saldoBanco: 6200.00, partidas: [] },
+  {
+    banco: 'Banco Pichincha', cuenta: '2100••••4471', tipo: 'Corriente', cuentaContable: '10101',
+    saldoInicialBanco: 18420.55,
+    estadoDeCuenta: [
+      { fecha: new Date(2026, 8, 8), concepto: 'Transferencia a Fertilizantes del Pacífico', valor: -9492.00 },
+      { fecha: new Date(2026, 8, 13), concepto: 'Débito automático CNEL y CNT', valor: -559.13 },
+      { fecha: new Date(2026, 8, 15), concepto: 'Consumo con tarjeta de débito', valor: -1173.00 },
+      { fecha: new Date(2026, 8, 20), concepto: 'Transferencia recibida Consorcio Agrícola Daule', valor: 12400.00 },
+      { fecha: new Date(2026, 8, 30), concepto: 'Depósitos de clientes', valor: 38000.00 },
+      { fecha: new Date(2026, 8, 30), concepto: 'Comisión por mantenimiento de cuenta', valor: -3.50 },
+    ],
+  },
 ];
+
+/** El saldo final que dice el banco: el inicial más lo que registró en el mes. */
+const saldoFinalDelBanco = (b, movimientos = b.estadoDeCuenta) =>
+  Math.round((b.saldoInicialBanco * 100) + movimientos.reduce((s, m) => s + Math.round(m.valor * 100), 0)) / 100;
 
 const INVENTARIO = [
   { codigo: 'FERT-UREA-01', descripcion: 'Urea fertilizante granulada 50kg', unidad: 'SACO', cantidad: 268, costo: 24.10, precio: 28.50, minimo: 80 },
@@ -7001,7 +7266,7 @@ function formulario104(saldos = balanceDeComprobacion(), compras = []) {
 }
 
 
-  return { CUENTAS, cuenta, nombreCuenta, AUX_IVA_COBRADO, asientoDeFactura, asientoDeCompra, diarioCon, diarioDelMes, balanceDeComprobacion, mayorDe, CARTERA_COBRAR, PROVEEDORES, CARTERA_PAGAR, BANCOS, INVENTARIO, EMPLEADOS, ACTIVOS_FIJOS, SUSCRIPCIONES, USO_MENSUAL, SOPORTE, RETENCIONES, NOTAS_CREDITO, GUIAS_REMISION, valoresDeRetencion, asientoDeRetencionEmitida, asientoDeNotaCredito, comprasDelLibro, asientoDelDocumento, formulario104 };
+  return { CUENTAS, cuenta, nombreCuenta, AUX_IVA_COBRADO, asientoDeFactura, asientoDeCompra, diarioCon, diarioDelMes, balanceDeComprobacion, mayorDe, CARTERA_COBRAR, PROVEEDORES, CARTERA_PAGAR, BANCOS, saldoFinalDelBanco, INVENTARIO, EMPLEADOS, ACTIVOS_FIJOS, SUSCRIPCIONES, USO_MENSUAL, SOPORTE, RETENCIONES, NOTAS_CREDITO, GUIAS_REMISION, valoresDeRetencion, asientoDeRetencionEmitida, asientoDeNotaCredito, comprasDelLibro, asientoDelDocumento, formulario104 };
 })();
 
 // ---- src/disposicion.js ------------------------------------------
@@ -7457,18 +7722,21 @@ const __src_vistas_asiento_js = (function () {
  * @param asiento   el asiento (con sus líneas)
  * @param numero    su número en el diario, si ya está en los libros
  * @param nota      una línea de explicación opcional, debajo del título
+ * @param vistaPrevia  true si el asiento todavía no está en los libros
+ * @param id           el id de la sección (hay pantallas con más de un asiento)
  */
-function registroContable(asiento, { numero = null, nota = '' } = {}) {
+function registroContable(asiento, { numero = null, nota = '', vistaPrevia = false, id = 'registro-contable' } = {}) {
   if (!asiento) return '';
   const debe = asiento.lineas.reduce((s, l) => s + Number(l.debe || 0), 0);
   const haber = asiento.lineas.reduce((s, l) => s + Number(l.haber || 0), 0);
 
   return html`
-    <section class="bg-white border border-papel-linea rounded-2xl relieve overflow-hidden" id="registro-contable">
+    <section class="bg-white border ${crudo(vistaPrevia ? 'border-dashed border-ambar-borde' : 'border-papel-linea')} rounded-2xl relieve overflow-hidden" id="${id}">
       <header class="flex flex-wrap items-start justify-between gap-3 px-5 py-4 border-b border-papel-linea">
         <div class="min-w-0">
           <h2 class="text-sm font-bold flex items-center gap-2">
-            ${icono('account_tree', 'text-[18px] text-verde')} Registro contable
+            ${icono('account_tree', 'text-[18px] text-verde')} ${vistaPrevia ? 'Asiento que se registrará' : 'Registro contable'}
+            ${vistaPrevia ? crudo('<span class="text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-full bg-ambar-fondo text-ambar-texto">Vista previa · no está en los libros</span>') : ''}
           </h2>
           <p class="mt-0.5 text-[12px] text-tinta-suave">${asiento.glosa}</p>
           ${nota ? html`<p class="mt-1 text-[11px] text-tinta-suave">${nota}</p>` : ''}
@@ -8055,17 +8323,23 @@ async function comprobante(numero) {
         : 'Así queda registrada en los libros de la empresa.',
     });
   } else if (c.estado === 'BORRADOR') {
-    registro = sinRegistroContable('Todavía no tiene asiento',
-      'El asiento se genera cuando el SRI autoriza la factura. Un borrador no existe para el ' +
-      'fisco, así que tampoco para los libros.');
+    // Se enseña cómo quedará, marcado como vista previa: todavía no está en los
+    // libros porque un borrador no existe para el fisco.
+    registro = registroContable(asientoDeFactura(c), {
+      vistaPrevia: true,
+      nota: 'Así se registrará cuando el SRI autorice la factura. Mientras sea borrador no ' +
+            'entra a los libros: si se anula o se corrige, no hay nada que revertir.',
+    });
   } else if (c.estado === 'DEVUELTO' || c.estado === 'NO_AUTORIZADO') {
     registro = sinRegistroContable('No genera asiento',
       'El SRI la rechazó: no existe para el fisco ni para los libros. Cuando se corrija y se ' +
       'autorice, tendrá su asiento.');
   } else {
-    registro = sinRegistroContable('Pendiente de la autorización',
-      'El asiento se genera cuando el SRI la autorice. Mientras tanto no se registra nada, ' +
-      'para no tener que revertirlo si la rechaza.');
+    registro = registroContable(asientoDeFactura(c), {
+      vistaPrevia: true,
+      nota: 'El SRI todavía no la autoriza. El asiento entra a los libros en cuanto la autorice; ' +
+            'si la rechaza, no hay nada que revertir.',
+    });
   }
 
   const explicacionRechazo = c.motivoRechazo ? aviso({
@@ -11463,10 +11737,12 @@ async function guiasRemision() {
 
 // ---- src/vistas/finanzas.js --------------------------------------
 const __src_vistas_finanzas_js = (function () {
-  const { html, crudo, usd, dinero, icono, tabla, cabecera, aviso, boton, fecha, empresaEnBlanco } = __src_ui_js;
+  const { html, crudo, esc, usd, dinero, icono, tabla, cabecera, aviso, boton, fecha, empresaEnBlanco, dejarRecado } = __src_ui_js;
   const { dona, leyenda, barraCompuesta, VERDE, AMBAR, ROJO } = __src_graficos_js;
-  const { CARTERA_COBRAR, CARTERA_PAGAR, BANCOS } = __src_datos_contables_js;
-  const { esLaDeEjemplo } = __src_almacen_js;
+  const { CARTERA_COBRAR, CARTERA_PAGAR, BANCOS, saldoFinalDelBanco, diarioCon } = __src_datos_contables_js;
+  const { esLaDeEjemplo, cargar } = __src_almacen_js;
+  const { movimientosDeLibros, conciliar, asientoDeAjuste, queEs, leerEstadoDeCuenta, PLANTILLA_ESTADO_DE_CUENTA, TOLERANCIA_DIAS } = __src_conciliacion_js;
+  const { registroContable } = __src_vistas_asiento_js;
 
 /**
  * Cartera y bancos: a quién hay que cobrarle, a quién hay que pagarle y cuánto
@@ -11477,6 +11753,8 @@ const __src_vistas_finanzas_js = (function () {
  * llevo esperando demasiado". Un cobro de hace noventa días no es una cuenta
  * por cobrar: es un problema.
  */
+
+
 
 
 
@@ -11643,6 +11921,190 @@ const cuentasPorPagar = async () => (esLaDeEjemplo() ? pantallaCartera({
 //  Bancos
 // ===========================================================================
 
+/**
+ * Los estados de cuenta cargados desde un archivo, por cuenta bancaria. Viven
+ * mientras la pestaña esté abierta: al volver, se usa otra vez el de ejemplo.
+ */
+const cargados = {};
+
+const enlaceAsiento = (numero) => (numero ? crudo(
+  `<a href="#/diario/${esc(numero)}" class="text-[12px] font-semibold text-verde hover:underline whitespace-nowrap">#${esc(numero)}</a>`) : '');
+
+const filaPartida = (m, lado) => html`
+  <tr>
+    <td class="px-5 py-2.5 text-sm whitespace-nowrap">${fecha(m.fecha)}</td>
+    <td class="px-3 py-2.5">
+      <span class="block text-sm">${m.concepto}</span>
+      <span class="block text-[11px] text-tinta-suave">${queEs(m, lado)}</span>
+    </td>
+    <td class="px-3 py-2.5 text-right">${lado === 'libros' ? enlaceAsiento(m.asiento) : ''}</td>
+    <td class="px-5 py-2.5 text-right text-sm font-semibold tabular whitespace-nowrap">${dinero(m.valor)}</td>
+  </tr>`;
+
+const lineaCuadro = (texto, valor, { fuerte = false, sangria = false, enlace = '' } = {}) => html`
+  <div class="flex items-baseline justify-between gap-4 py-2 ${crudo(fuerte ? 'border-t-2 border-tinta mt-1' : 'border-t border-papel-linea')}">
+    <span class="text-sm ${crudo(fuerte ? 'font-extrabold' : 'text-tinta-suave')} ${crudo(sangria ? 'pl-4' : '')}">
+      ${texto} ${enlace ? crudo(enlace) : ''}
+    </span>
+    <span class="text-sm tabular whitespace-nowrap ${crudo(fuerte ? 'font-extrabold text-base' : 'font-semibold')}">${dinero(valor)}</span>
+  </div>`;
+
+function conciliacionDe(b, indice, diario) {
+  const { saldoInicial, movimientos } = movimientosDeLibros(diario, b.cuentaContable);
+  const cargado = cargados[b.cuenta];
+  const extracto = cargado?.movimientos ?? b.estadoDeCuenta;
+  const r = conciliar({
+    saldoInicialLibros: saldoInicial,
+    libros: movimientos,
+    banco: extracto,
+    // El saldo que informa el banco manda. Solo si el archivo no lo trae se
+    // calcula con el saldo inicial y los movimientos, y se dice.
+    saldoBanco: cargado?.saldoFinal ?? saldoFinalDelBanco(b, extracto),
+  });
+  const saldoCalculado = Boolean(cargado) && cargado.saldoFinal == null;
+  const plantilla = 'data:text/csv;charset=utf-8,' + encodeURIComponent(PLANTILLA_ESTADO_DE_CUENTA);
+  // Lo que parece un número mal digitado no es un cargo del banco: no se le
+  // propone asiento, se corrige.
+  const enRevision = new Set(r.sospechosos.map((x) => x.banco));
+  const ajustes = r.soloBanco
+    .filter((m) => !enRevision.has(m))
+    .map((m) => ({ m, asiento: asientoDeAjuste(m, b.cuentaContable) }));
+
+  return { r, html: html`
+    <section class="bg-white border border-papel-linea rounded-2xl relieve overflow-hidden" data-banco="${b.cuenta}">
+      <header class="flex flex-wrap items-center gap-4 px-5 py-4 border-b border-papel-linea">
+        <span class="w-11 h-11 rounded-xl bg-verde-claro text-verde flex items-center justify-center">
+          ${icono('account_balance', 'text-[22px]')}
+        </span>
+        <div class="min-w-0 flex-1">
+          <p class="text-sm font-bold">${b.banco}</p>
+          <p class="text-[11px] text-tinta-suave tabular">
+            ${b.cuenta} · ${b.tipo} · cuenta contable
+            ${crudo(`<a href="#/mayor/${esc(b.cuentaContable)}" class="font-bold text-verde hover:underline">${esc(b.cuentaContable)}</a>`)}
+          </p>
+        </div>
+        <span class="text-[11px] font-bold px-2.5 py-1 rounded-full ${crudo(r.conciliado
+          ? 'bg-verde-claro text-verde' : 'bg-rojo-fondo text-rojo-texto')}">
+          ${r.conciliado ? 'Conciliado'
+            : r.diferencia !== 0 ? `Faltan ${dinero(Math.abs(r.diferencia))} por explicar`
+            : `${r.sospechosos.length} por revisar`}
+        </span>
+      </header>
+
+      <div class="px-5 py-4 border-b border-papel-linea bg-papel/40 flex flex-wrap items-center gap-3">
+        <p class="text-[12px] text-tinta-suave flex-1 min-w-[220px]">
+          ${cargado
+            ? html`Estado de cuenta cargado desde <strong class="text-tinta">${cargado.archivo}</strong> · ${String(cargado.movimientos.length)} movimientos.
+                ${saldoCalculado ? html`<span class="block text-ambar-texto font-semibold">El archivo no trae la columna de saldo: el saldo del banco se calculó con los movimientos. Para conciliar de verdad, use un estado de cuenta con saldo.</span>` : ''}`
+            : html`Estado de cuenta de ejemplo del banco · ${String(extracto.length)} movimientos.`}
+        </p>
+        <label class="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-verde text-white text-xs font-bold cursor-pointer hover:bg-verde-oscuro">
+          ${icono('upload_file', 'text-[16px]')} Cargar estado de cuenta (CSV)
+          <input type="file" accept=".csv,text/csv,text/plain" class="hidden"
+                 data-estado-cuenta="${b.cuenta}" id="estado-cuenta-${String(indice)}">
+        </label>
+        <a href="${plantilla}" download="plantilla-estado-de-cuenta.csv"
+           class="px-3.5 py-2 rounded-xl border border-papel-linea text-xs font-bold hover:border-verde">Plantilla</a>
+        ${cargado ? crudo(`<button type="button" data-volver-ejemplo="${esc(b.cuenta)}"
+           class="px-3.5 py-2 rounded-xl border border-papel-linea text-xs font-bold hover:border-verde">Usar el de ejemplo</button>`) : ''}
+      </div>
+
+      <div class="grid gap-6 lg:grid-cols-2 p-5">
+        <div>
+          <h3 class="text-[11px] font-bold uppercase tracking-wide text-tinta-suave mb-1">Según el banco</h3>
+          ${lineaCuadro('Saldo según el estado de cuenta', r.saldoBanco)}
+          ${r.soloLibros.map((m) => lineaCuadro(m.concepto, m.valor, { sangria: true, enlace: m.asiento
+            ? `<a href="#/diario/${esc(m.asiento)}" class="text-[11px] font-bold text-verde hover:underline">#${esc(m.asiento)}</a>` : '' }))}
+          ${lineaCuadro('Saldo del banco conciliado', r.bancoAjustado, { fuerte: true })}
+        </div>
+        <div>
+          <h3 class="text-[11px] font-bold uppercase tracking-wide text-tinta-suave mb-1">Según los libros</h3>
+          ${lineaCuadro('Saldo en el libro mayor', r.saldoLibros, {
+            enlace: `<a href="#/mayor/${esc(b.cuentaContable)}" class="text-[11px] font-bold text-verde hover:underline">ver mayor</a>` })}
+          ${r.soloBanco.map((m) => lineaCuadro(m.concepto, m.valor, { sangria: true }))}
+          ${lineaCuadro('Saldo de libros conciliado', r.librosAjustado, { fuerte: true })}
+        </div>
+      </div>
+      <div class="px-5 pb-5">
+        <div class="flex items-baseline justify-between rounded-xl px-4 py-3 ${crudo(r.conciliado
+          ? 'bg-verde-claro text-verde' : 'bg-rojo-fondo text-rojo-texto')}">
+          <span class="text-sm font-extrabold">Diferencia sin explicar</span>
+          <span class="text-base font-extrabold tabular">${dinero(r.diferencia)}</span>
+        </div>
+      </div>
+
+      ${r.sospechosos.length ? html`
+        <div class="border-t border-papel-linea bg-rojo-fondo/40">
+          <h3 class="px-5 pt-4 text-sm font-bold text-rojo-texto">Revisar: parecen el mismo movimiento con otro valor</h3>
+          <p class="px-5 text-[12px] text-tinta-suave">Casi siempre es un número mal digitado, en los libros o en el banco. Corríjalo antes de dar por conciliada la cuenta.</p>
+          ${crudo(tabla([{ texto: 'En libros' }, { texto: 'En el banco' }, { texto: 'Asiento', der: true }, { texto: 'Diferencia', der: true }],
+            r.sospechosos.map((x) => html`
+              <tr>
+                <td class="px-5 py-2.5"><span class="block text-sm">${x.libros.concepto}</span>
+                  <span class="block text-[11px] text-tinta-suave">${fecha(x.libros.fecha)} · ${dinero(x.libros.valor)}</span></td>
+                <td class="px-3 py-2.5"><span class="block text-sm">${x.banco.concepto}</span>
+                  <span class="block text-[11px] text-tinta-suave">${fecha(x.banco.fecha)} · ${dinero(x.banco.valor)}</span></td>
+                <td class="px-3 py-2.5 text-right">${enlaceAsiento(x.libros.asiento)}</td>
+                <td class="px-5 py-2.5 text-right text-sm font-bold tabular text-rojo-texto">${dinero(x.diferencia)}</td>
+              </tr>`)))}
+        </div>` : ''}
+
+      ${r.soloLibros.length ? html`
+        <div class="border-t border-papel-linea">
+          <h3 class="px-5 pt-4 text-sm font-bold">En libros y todavía no en el banco</h3>
+          <p class="px-5 text-[12px] text-tinta-suave">No se corrigen: se esperan. Cuando el banco las registre, se emparejan solas.</p>
+          ${crudo(tabla([{ texto: 'Fecha' }, { texto: 'Concepto' }, { texto: 'Asiento', der: true }, { texto: 'Valor', der: true }],
+            r.soloLibros.map((m) => filaPartida(m, 'libros'))))}
+        </div>` : ''}
+
+      ${r.soloBanco.length ? html`
+        <div class="border-t border-papel-linea">
+          <h3 class="px-5 pt-4 text-sm font-bold">En el banco y todavía no en los libros</h3>
+          <p class="px-5 text-[12px] text-tinta-suave">Estos sí piden un asiento. Debajo está el que se propone.</p>
+          ${crudo(tabla([{ texto: 'Fecha' }, { texto: 'Concepto' }, { texto: '' }, { texto: 'Valor', der: true }],
+            r.soloBanco.map((m) => filaPartida(m, 'banco'))))}
+          <div class="p-5 space-y-4">
+            ${ajustes.map(({ m, asiento }, i) => (asiento
+              ? registroContable(asiento, {
+                  vistaPrevia: true, id: `ajuste-${String(indice)}-${String(i)}`,
+                  nota: 'Asiento propuesto por la conciliación. La cuenta 520228 es la de otros gastos de ' +
+                        'administración; el contador puede preferir otra.',
+                })
+              : crudo(aviso({
+                  tono: 'ambar', ico: 'help',
+                  titulo: `${m.concepto}: lo decide el contador`,
+                  texto: 'Un crédito del banco puede ser un interés ganado o el cobro de un cliente. El ' +
+                         'sistema no lo adivina: hay que registrarlo contra la cuenta que corresponda.',
+                }))))}
+          </div>
+        </div>` : ''}
+
+      <details class="border-t border-papel-linea">
+        <summary class="px-5 py-4 cursor-pointer text-sm font-bold">
+          Emparejados automáticamente (${String(r.pares.length)})
+          <span class="block text-[11px] font-normal text-tinta-suave">
+            Mismo valor, y el banco lo registró hasta ${String(TOLERANCIA_DIAS)} días después que los libros.
+          </span>
+        </summary>
+        ${crudo(tabla([
+          { texto: 'En libros' }, { texto: 'En el banco' }, { texto: 'Asiento', der: true }, { texto: 'Valor', der: true },
+        ], r.pares.map((p) => html`
+          <tr>
+            <td class="px-5 py-2.5">
+              <span class="block text-sm">${p.libros.concepto}</span>
+              <span class="block text-[11px] text-tinta-suave">${fecha(p.libros.fecha)}</span>
+            </td>
+            <td class="px-3 py-2.5">
+              <span class="block text-sm">${p.banco.concepto}</span>
+              <span class="block text-[11px] text-tinta-suave">${fecha(p.banco.fecha)}</span>
+            </td>
+            <td class="px-3 py-2.5 text-right">${enlaceAsiento(p.libros.asiento)}</td>
+            <td class="px-5 py-2.5 text-right text-sm tabular">${dinero(p.libros.valor)}</td>
+          </tr>`)))}
+      </details>
+    </section>` };
+}
+
 async function bancos() {
   // Los libros de la empresa de ejemplo no son de ninguna otra.
   if (!esLaDeEjemplo()) {
@@ -11652,30 +12114,34 @@ async function bancos() {
     })}`;
   }
 
-  const libros = BANCOS.reduce((s, b) => s + Math.round(b.saldoLibros * 100), 0) / 100;
-  const banco = BANCOS.reduce((s, b) => s + Math.round(b.saldoBanco * 100), 0) / 100;
-  const diferencia = Math.round((banco - libros) * 100) / 100;
+  const diario = diarioCon(await cargar.compras());
+  const cuentas = BANCOS.map((b, i) => conciliacionDe(b, i, diario));
+  const suma = (campo) => cuentas.reduce((s, x) => s + Math.round(x.r[campo] * 100), 0) / 100;
+  const sinExplicar = suma('diferencia');
+  const porRevisar = cuentas.reduce((s, x) => s + x.r.sospechosos.length, 0);
 
   return html`
     ${crudo(cabecera({
       titulo: 'Bancos y conciliación',
-      descripcion: 'Lo que dicen los libros frente a lo que dice el banco, y por qué no coinciden.',
-      acciones: boton('Importar estado de cuenta', { ico: 'upload_file', tipo: 'secundario' }),
+      descripcion: 'Lo que dicen los libros frente a lo que dice el banco, y la explicación de cada diferencia.',
     }))}
 
     ${crudo(aviso({
       tono: 'info', ico: 'compare_arrows',
-      titulo: 'Que no coincidan no significa que esté mal',
-      texto: 'Un cheque girado sale de los libros el día que se firma, pero del banco el día ' +
-             'que alguien lo cobra. Entre esos dos días los saldos difieren, y es normal. ' +
-             'Conciliar es explicar la diferencia línea por línea; lo preocupante es una ' +
-             'diferencia que nadie puede explicar.',
+      titulo: 'Cómo se concilia aquí',
+      texto: 'Cargue el estado de cuenta que baja de su banca en línea (CSV). El sistema empareja solo ' +
+             'cada movimiento del banco con el del libro mayor y aparta lo que no coincide: lo que está ' +
+             'en libros y el banco todavía no registra —un cheque sin cobrar— y lo que el banco ' +
+             'registró y los libros todavía no —una comisión—. La conciliación está hecha cuando la ' +
+             'diferencia sin explicar es cero.',
     }))}
 
     <div class="grid gap-4 sm:grid-cols-3 mb-5">
-      ${[['Saldo en libros', usd(libros), 'menu_book'],
-         ['Saldo en el banco', usd(banco), 'account_balance'],
-         ['Diferencia por conciliar', usd(Math.abs(diferencia)), 'compare_arrows']].map(([t, v, i]) => html`
+      ${[['Saldo en libros', usd(suma('saldoLibros')), 'menu_book', ''],
+         ['Saldo según el banco', usd(suma('saldoBanco')), 'account_balance', ''],
+         ['Diferencia sin explicar', usd(Math.abs(sinExplicar)), 'compare_arrows',
+          sinExplicar !== 0 ? 'Hay algo que nadie ha explicado'
+            : porRevisar ? `${porRevisar} movimiento${porRevisar === 1 ? '' : 's'} por revisar` : 'Todo explicado']].map(([t, v, i, pie]) => html`
         <div class="bg-white border border-papel-linea rounded-2xl relieve p-5">
           <div class="flex items-start justify-between">
             <p class="text-[11px] font-bold uppercase tracking-wide text-tinta-suave">${t}</p>
@@ -11684,47 +12150,60 @@ async function bancos() {
             </span>
           </div>
           <p class="mt-3 text-[26px] font-extrabold tracking-tight tabular">${v}</p>
+          ${pie ? html`<p class="mt-1 text-xs text-tinta-suave">${pie}</p>` : ''}
         </div>`)}
     </div>
 
-    <div class="space-y-5">
-      ${BANCOS.map((b) => html`
-        <section class="bg-white border border-papel-linea rounded-2xl relieve overflow-hidden">
-          <header class="flex flex-wrap items-center gap-4 px-5 py-4 border-b border-papel-linea">
-            <span class="w-11 h-11 rounded-xl bg-verde-claro text-verde flex items-center justify-center">
-              ${icono('account_balance', 'text-[22px]')}
-            </span>
-            <div class="min-w-0 flex-1">
-              <p class="text-sm font-bold">${b.banco}</p>
-              <p class="text-[11px] text-tinta-suave tabular">${b.cuenta} · ${b.tipo}</p>
-            </div>
-            <div class="text-right">
-              <p class="text-[11px] font-bold uppercase tracking-wide text-tinta-suave">En libros</p>
-              <p class="text-lg font-extrabold tabular">${usd(b.saldoLibros)}</p>
-            </div>
-          </header>
+    <div class="space-y-5">${cuentas.map((x) => x.html)}</div>`;
+}
 
-          <div class="p-5">
-            <div class="flex items-baseline justify-between py-2">
-              <span class="text-sm text-tinta-suave">Saldo según el banco</span>
-              <span class="text-sm font-semibold tabular">${dinero(b.saldoBanco)}</span>
-            </div>
-            ${b.partidas.filter((p) => p.valor !== 0).map((p) => html`
-              <div class="flex items-baseline justify-between py-2 border-t border-papel-linea">
-                <span class="text-sm text-tinta-suave pl-4">${p.concepto}</span>
-                <span class="text-sm font-semibold tabular">${dinero(p.valor)}</span>
-              </div>`)}
-            <div class="flex items-baseline justify-between py-3 mt-1 border-t-2 border-tinta">
-              <span class="text-sm font-extrabold">Saldo conciliado</span>
-              <span class="text-base font-extrabold tabular">${dinero(b.saldoLibros)}</span>
-            </div>
-          </div>
-        </section>`)}
-    </div>`;
+let bancosConectados = false;
+
+/** Cargar un estado de cuenta, o volver al de ejemplo. */
+function conectarBancos() {
+  const zona = document.getElementById('raiz');
+  if (!zona || bancosConectados) return;
+  bancosConectados = true;
+  const redibujar = () => window.dispatchEvent(new CustomEvent('kontia:redibujar'));
+
+  zona.addEventListener('change', async (ev) => {
+    const entrada = ev.target.closest('[data-estado-cuenta]');
+    const archivo = entrada?.files?.[0];
+    if (!entrada || !archivo) return;
+    const cuenta = entrada.dataset.estadoCuenta;
+    try {
+      const r = leerEstadoDeCuenta(await archivo.text());
+      if (r.faltan.length) {
+        dejarRecado({ tono: 'rojo', ico: 'error', titulo: 'No se pudo leer el estado de cuenta',
+          texto: `Falta la columna de ${r.faltan.join(' y ')}. La primera fila debe tener los nombres de las columnas.` });
+      } else if (!r.movimientos.length) {
+        dejarRecado({ tono: 'ambar', ico: 'rule', titulo: 'El archivo no tiene movimientos',
+          texto: 'Se leyó, pero ninguna fila tenía fecha y valor.' });
+      } else {
+        cargados[cuenta] = { archivo: archivo.name, movimientos: r.movimientos, saldoFinal: r.saldoFinal };
+        dejarRecado(r.problemas.length
+          ? { tono: 'ambar', ico: 'rule', titulo: `Se cargaron ${r.movimientos.length} movimientos`,
+              texto: `${r.problemas.length} filas no se pudieron leer: ` +
+                     r.problemas.slice(0, 4).map((p) => `línea ${p.linea} (${p.porque})`).join('; ') }
+          : { tono: 'exito', ico: 'check_circle', titulo: `Se cargaron ${r.movimientos.length} movimientos`,
+              texto: 'La conciliación de abajo ya usa este estado de cuenta.' });
+      }
+    } catch (error) {
+      dejarRecado({ tono: 'rojo', ico: 'error', titulo: 'No se pudo leer el archivo', texto: error.message });
+    }
+    redibujar();
+  });
+
+  zona.addEventListener('click', (ev) => {
+    const b = ev.target.closest('[data-volver-ejemplo]');
+    if (!b) return;
+    delete cargados[b.dataset.volverEjemplo];
+    redibujar();
+  });
 }
 
 
-  return { cuentasPorCobrar, cuentasPorPagar, bancos };
+  return { cuentasPorCobrar, cuentasPorPagar, bancos, conectarBancos };
 })();
 
 // ---- src/vistas/operaciones.js -----------------------------------
@@ -14914,7 +15393,7 @@ const __src_app_js = (function () {
   const { planDeCuentas, libroDiario, libroMayor, balanceComprobacion, enfocarAsiento } = __src_vistas_contabilidad_js;
   const { estadoResultados, balanceGeneral } = __src_vistas_estados_js;
   const { retenciones, retencion, notasCredito, notaCredito, guiasRemision } = __src_vistas_documentos_js;
-  const { cuentasPorCobrar, cuentasPorPagar, bancos } = __src_vistas_finanzas_js;
+  const { cuentasPorCobrar, cuentasPorPagar, bancos, conectarBancos } = __src_vistas_finanzas_js;
   const { inventario, nomina, activosFijos } = __src_vistas_operaciones_js;
   const { proveedores, proveedor } = __src_vistas_proveedores_js;
   const { buzon, conectarBuzon } = __src_vistas_buzon_js;
@@ -15017,7 +15496,7 @@ const RUTAS = [
 
   { patron: /^#\/por-cobrar\/?$/, vista: cuentasPorCobrar },
   { patron: /^#\/por-pagar\/?$/, vista: cuentasPorPagar },
-  { patron: /^#\/bancos\/?$/, vista: bancos },
+  { patron: /^#\/bancos\/?$/, vista: bancos, alDibujar: conectarBancos },
 
   { patron: /^#\/proveedores\/?$/, vista: proveedores },
   { patron: /^#\/proveedores\/(\d{13})\/?$/, vista: proveedor },
