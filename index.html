@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <!-- La version publicada: la pone el empaquetador y la pagina la compara con la del servidor. -->
-<meta name="kontia-version" content="000b9a5d12ca">
+<meta name="kontia-version" content="547f6cdf7995">
 <title>Kontia</title>
 <meta name="theme-color" content="#0F7B4F">
 <link rel="manifest" href="manifiesto.json">
@@ -5263,9 +5263,8 @@ function queEs(movimiento, lado) {
  *   - Depósitos que nadie identifica: un pasivo, 20113 Otros pasivos
  *     corrientes, con el auxiliar «Depósitos no identificados», hasta saber de
  *     quién son. Entonces se reclasifican (normalmente contra el cliente).
- *
- * Un interés que el banco ACREDITA es un ingreso, y la cuenta de ingresos
- * financieros no está confirmada: ese no se propone solo.
+ *   - Intereses que el banco acredita: otros ingresos, 4302 Intereses
+ *     financieros.
  */
 function asientoDeAjuste(mb, cuentaBanco = '10101') {
   const v = Math.abs(Number(mb.valor));
@@ -5284,7 +5283,17 @@ function asientoDeAjuste(mb, cuentaBanco = '10101') {
       ],
     };
   }
-  if (esInteres) return null;
+  if (esInteres) {
+    return {
+      fecha: new Date(mb.fecha),
+      tipo: 'AJUSTE',
+      glosa: `Intereses ganados · ${mb.concepto}`,
+      lineas: [
+        { cuenta: cuentaBanco, debe: v, haber: 0, detalle: `Crédito del banco según estado de cuenta${ref}` },
+        { cuenta: '4302', debe: 0, haber: v, detalle: `Intereses financieros · ${mb.concepto}` },
+      ],
+    };
+  }
   return {
     fecha: new Date(mb.fecha),
     tipo: 'AJUSTE',
@@ -5722,775 +5731,6 @@ const sesion = {
   return { sesion };
 })();
 
-// ---- src/almacen.js ----------------------------------------------
-const __src_almacen_js = (function () {
-  const { SEMILLA, totalizar, TARIFAS_IVA, TIPOS_IDENTIFICACION } = __src_datos_js;
-  const { perfilDeLaNube, altaDeEmpresa, cargarPerfil } = __src_cuenta_nube_js;
-  const { clientesDeLaNube, clienteDeLaNube, guardarClienteEnLaNube, productosDeLaNube, productoDeLaNube, guardarProductoEnLaNube } = __src_catalogo_nube_js;
-  const { puntosDeLaNube, comprobantesDeLaNube, comprobanteDeLaNube, borradorEnLaNube, emisionSimuladaNoPermitida } = __src_comprobantes_nube_js;
-
-/**
- * El almacén: lo único que sabe dónde están los datos y cómo se guardan.
- *
- * Las pantallas le piden cosas y nunca hablan con el origen directamente. Hoy
- * ese origen es el navegador —los datos de ejemplo, más lo que usted cree,
- * guardado en su propio equipo—. Mañana será Supabase, y el cambio será este
- * archivo y ninguno más.
- *
- * TRES REGLAS QUE NO SON DE ESTILO:
- *
- * 1. Todo devuelve promesas aunque hoy la respuesta sea inmediata. Si las
- *    pantallas supusieran que el dato ya está, habría que reescribirlas todas
- *    el día que haya que esperar a la red.
- *
- * 2. Lo que se guarda se comprueba ANTES de guardarlo, y el error dice qué
- *    hacer. Un RUC de doce dígitos tiene que fallar aquí, no tres pasos después
- *    cuando el SRI devuelva el comprobante sin explicar por qué.
- *
- * 3. Un comprobante que ya salió de BORRADOR no se modifica. Lo impone la base
- *    de datos (migración 0007) y se repite aquí para que la pantalla no ofrezca
- *    algo que el servidor va a rechazar.
- */
-
-
-
-
-
-
-const CLAVE = 'kontia.datos.v1';
-const esperar = (valor) => Promise.resolve(valor);
-
-// Campos que llevan fecha. Hacen falta enumerados porque JSON no distingue una
-// fecha de un texto: sin esta lista, al recargar la página las fechas vuelven
-// como cadenas y cualquier resta entre ellas da NaN.
-const FECHAS = new Set([
-  'fecha', 'fechaAutorizacion', 'alta', 'cuando', 'desde', 'hasta', 'certificadoVence',
-]);
-
-function reviir(clave, valor) {
-  if (FECHAS.has(clave) && typeof valor === 'string') return new Date(valor);
-  return valor;
-}
-
-// ===========================================================================
-//  Carga y persistencia
-// ===========================================================================
-
-/** La empresa de los datos de ejemplo. Todo lo de la semilla le pertenece. */
-const EMPRESA_SEMILLA = SEMILLA.empresa.id;
-
-/**
- * El almacén guarda VARIAS empresas, y cada dato lleva a cuál pertenece.
- *
- * Ese `empresaId` en cada fila no es contabilidad extra: es la misma columna
- * que tiene cada tabla en Supabase, y sobre la que se apoyan las políticas de
- * aislamiento (migración 0004). Aquí filtra; allá impide. Que el modelo sea el
- * mismo en los dos sitios es lo que evita sorpresas el día de la conexión.
- *
- * Una empresa nueva nace SIN NADA: sin clientes, sin productos, sin
- * comprobantes. Eso no es una carencia de la demostración, es lo correcto —y
- * de paso es la única forma de ver las pantallas de estado vacío, que son las
- * que ve de verdad un cliente el primer día.
- */
-const copiaDeLaSemilla = () => ({
-  empresas: [{ ...SEMILLA.empresa, semilla: true }],
-  activa: EMPRESA_SEMILLA,
-  clientes: SEMILLA.clientes.map((c) => ({ ...c, empresaId: EMPRESA_SEMILLA, semilla: true })),
-  productos: SEMILLA.productos.map((p) => ({ ...p, empresaId: EMPRESA_SEMILLA, semilla: true })),
-  comprobantes: SEMILLA.comprobantes.map((c) => ({ ...c, empresaId: EMPRESA_SEMILLA, semilla: true })),
-  puntos: SEMILLA.puntos.map((p) => ({ ...p, empresaId: EMPRESA_SEMILLA })),
-  // Las compras no se siembran: entran por el buzon, y lo que se quiere
-  // ensenar es justamente ese recorrido —soltar el XML y verlo registrado—.
-  compras: [],
-  // La cuenta con que se registró la última compra de cada proveedor, por
-  // empresa: { empresaId: { rucProveedor: cuenta } }.
-  cuentasProveedor: {},
-  // Los datos de Kontia como proveedor del sistema de facturación ante el SRI.
-  plataforma: { rucProveedor: '' },
-});
-
-function leer() {
-  try {
-    const guardado = localStorage.getItem(CLAVE);
-    if (guardado) {
-      const leido = JSON.parse(guardado, reviir);
-      // Lo guardado por una versión anterior no tiene empresas. Antes de
-      // usarlo a medias, que es como salen los errores raros, se descarta.
-      if (Array.isArray(leido.empresas) && leido.empresas.length) return leido;
-    }
-  } catch {
-    // Navegador sin almacenamiento, o datos de una versión anterior que ya no
-    // encajan. En los dos casos se empieza de cero: perder unos datos de
-    // ejemplo no es grave, quedarse con la pantalla en blanco sí.
-  }
-  return copiaDeLaSemilla();
-}
-
-let datos = leer();
-
-// Una coleccion nueva no existe en lo que guardo una version anterior. Sin
-// esto, quien ya tenia datos en el navegador abriria el buzon y le explotaria
-// en la cara por un `undefined`.
-for (const coleccion of ['clientes', 'productos', 'comprobantes', 'puntos', 'compras']) {
-  if (!Array.isArray(datos[coleccion])) datos[coleccion] = [];
-}
-if (!datos.cuentasProveedor || typeof datos.cuentasProveedor !== 'object') datos.cuentasProveedor = {};
-if (!datos.plataforma || typeof datos.plataforma !== 'object') datos.plataforma = { rucProveedor: '' };
-
-function persistir() {
-  try {
-    localStorage.setItem(CLAVE, JSON.stringify(datos));
-  } catch {
-    // Sin almacenamiento se sigue trabajando en memoria: lo que haga se verá
-    // hasta que recargue. Es mejor que negarle el uso de la aplicación.
-  }
-  window.dispatchEvent(new CustomEvent('kontia:datos-cambiaron'));
-}
-
-/** Vuelve a los datos de ejemplo. Para poder enseñar la aplicación limpia. */
-function reiniciar() {
-  datos = copiaDeLaSemilla();
-  persistir();
-}
-
-// ===========================================================================
-//  Comprobaciones
-// ===========================================================================
-
-/**
- * El dígito verificador de una cédula o un RUC ecuatoriano.
- *
- * No es una formalidad: el SRI lo comprueba y devuelve el comprobante si no
- * cuadra. Vale la pena hacerlo aquí, mientras la persona todavía tiene el
- * documento delante y puede mirarlo otra vez.
- */
-function cedulaValida(id) {
-  if (!/^[0-9]{10}$/.test(id)) return false;
-  const provincia = Number(id.slice(0, 2));
-  if (provincia < 1 || (provincia > 24 && provincia !== 30)) return false;
-  let suma = 0;
-  for (let i = 0; i < 9; i++) {
-    let n = Number(id[i]) * (i % 2 === 0 ? 2 : 1);
-    if (n > 9) n -= 9;
-    suma += n;
-  }
-  const verificador = (10 - (suma % 10)) % 10;
-  return verificador === Number(id[9]);
-}
-
-function rucValido(ruc) {
-  if (!/^[0-9]{13}$/.test(ruc)) return false;
-  if (!ruc.endsWith('001')) return false;
-  const tercero = Number(ruc[2]);
-  // Persona natural: los diez primeros dígitos son una cédula válida.
-  if (tercero < 6) return cedulaValida(ruc.slice(0, 10));
-  // Sociedad privada (9) o pública (6): el dígito verificador va en otra
-  // posición y con otros coeficientes. Aquí se comprueba la estructura, que es
-  // lo que evita los errores de tecleo; del resto se encarga el SRI.
-  return tercero === 6 || tercero === 9;
-}
-
-const fallo = (mensaje) => { throw new Error(mensaje); };
-
-function comprobarCliente(c) {
-  const identificacion = String(c.identificacion ?? '').trim();
-  const razonSocial = String(c.razonSocial ?? '').trim();
-
-  if (razonSocial.length < 3) {
-    fallo('La razón social tiene que tener al menos tres letras.');
-  }
-  if (!TIPOS_IDENTIFICACION[c.tipo]) {
-    fallo(`"${c.tipo}" no es un tipo de identificación válido.`);
-  }
-  if (c.tipo === 'RUC' && !rucValido(identificacion)) {
-    fallo('Ese RUC no es válido. Son trece dígitos y terminan en 001 para la ' +
-          'matriz. Revise que no se haya saltado ninguno.');
-  }
-  if (c.tipo === 'CEDULA' && !cedulaValida(identificacion)) {
-    fallo('Esa cédula no es válida: el último dígito no cuadra con los otros ' +
-          'nueve. Suele ser un número cambiado de sitio.');
-  }
-  if (c.tipo === 'CONSUMIDOR_FINAL' && identificacion !== '9999999999999') {
-    fallo('El consumidor final se identifica siempre con trece nueves.');
-  }
-  if (c.correo && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(c.correo)) {
-    fallo('Ese correo no tiene forma de correo. Es a donde llegará la factura.');
-  }
-
-  const repetido = datos.clientes.find(
-    (x) => x.empresaId === idActiva() && x.identificacion === identificacion && x.id !== c.id);
-  if (repetido) {
-    fallo(`Ya existe un cliente con esa identificación: ${repetido.razonSocial}. ` +
-          'Dos fichas del mismo cliente acaban con dos correos distintos.');
-  }
-  return { identificacion, razonSocial };
-}
-
-function comprobarProducto(p) {
-  const codigo = String(p.codigo ?? '').trim();
-  const descripcion = String(p.descripcion ?? '').trim();
-
-  if (!codigo) fallo('El producto necesita un código. Es lo que viaja en el XML.');
-  if (descripcion.length < 2) fallo('La descripción no puede quedar vacía.');
-  if (!(Number(p.precio) >= 0)) fallo('El precio tiene que ser un número de cero para arriba.');
-  if (!TARIFAS_IVA.some((t) => t.tarifa === Number(p.iva))) {
-    fallo(`${p.iva}% no es una tarifa de IVA vigente.`);
-  }
-
-  const repetido = datos.productos.find(
-    (x) => x.empresaId === idActiva() && x.codigo === codigo
-           && x.codigoOriginal !== p.codigoOriginal);
-  if (repetido && codigo !== p.codigoOriginal) {
-    fallo(`Ya hay un producto con el código ${codigo}: ${repetido.descripcion}.`);
-  }
-  return { codigo, descripcion };
-}
-
-// ===========================================================================
-//  Lectura
-// ===========================================================================
-
-const activos = (lista) => lista.filter((x) => x.activo !== false);
-
-/** Lo de la empresa con la que se está trabajando, y nada más. */
-const deLaActiva = (lista) => lista.filter((x) => x.empresaId === idActiva());
-
-/*
- * Con una cuenta de verdad, las empresas no salen del navegador: salen del
- * perfil que entregó la base de datos. La elegida se recuerda solo mientras
- * dura la pestaña, porque al volver a entrar la base puede haber cambiado.
- */
-const CLAVE_ACTIVA_NUBE = 'kontia.nube.activa';
-const enLaNube = () => Boolean(perfilDeLaNube());
-
-function idActiva() {
-  if (!enLaNube()) return datos.activa;
-  const empresas = perfilDeLaNube().empresas;
-  let elegida = null;
-  try { elegida = sessionStorage.getItem(CLAVE_ACTIVA_NUBE); } catch { /* sin almacenamiento */ }
-  return (empresas.find((e) => e.id === elegida) ?? empresas[0])?.id ?? null;
-}
-
-function recordarActivaNube(id) {
-  try { sessionStorage.setItem(CLAVE_ACTIVA_NUBE, id); } catch { /* vive hasta recargar */ }
-}
-
-/** La empresa con la que se trabaja ahora mismo. */
-const empresaActiva = () => (enLaNube()
-  ? (perfilDeLaNube().empresas.find((e) => e.id === idActiva()) ?? null)
-  : (datos.empresas.find((e) => e.id === datos.activa) ?? datos.empresas[0]));
-
-/** Si la empresa activa es la de los datos de ejemplo. */
-const esLaDeEjemplo = () => !enLaNube() && datos.activa === EMPRESA_SEMILLA;
-
-const cargar = {
-  empresa: () => esperar(empresaActiva()),
-  empresas: () => esperar(enLaNube() ? perfilDeLaNube().empresas : datos.empresas),
-  certificado: () => esperar(esLaDeEjemplo() ? SEMILLA.certificado : null),
-  usuarios: () => esperar(esLaDeEjemplo() ? SEMILLA.usuarios : [
-    { nombre: 'Juan Carlos Pérez', correo: 'jperez@agroperez.com.ec', rol: 'Administrador',
-      puntos: 'Todos', ultimoAcceso: 'Ahora', activo: true },
-  ]),
-  puntos: () => (enLaNube() ? puntosDeLaNube(idActiva()) : esperar(deLaActiva(datos.puntos))),
-
-  // Con la cuenta de verdad, clientes y productos se leen de la base: son de la
-  // empresa, no de este navegador.
-  clientes: () => (enLaNube() ? clientesDeLaNube(idActiva())
-    : esperar(activos(deLaActiva(datos.clientes)))),
-  cliente: (id) => (enLaNube() ? clienteDeLaNube(idActiva(), id)
-    : esperar(deLaActiva(datos.clientes).find((c) => c.id === id) ?? null)),
-
-  productos: () => (enLaNube() ? productosDeLaNube(idActiva())
-    : esperar(activos(deLaActiva(datos.productos)))),
-  producto: (codigo) => (enLaNube() ? productoDeLaNube(idActiva(), codigo)
-    : esperar(deLaActiva(datos.productos).find((p) => p.codigo === codigo) ?? null)),
-
-  comprobantes: (filtro = {}) => (enLaNube() ? comprobantesDeLaNube(idActiva(), filtro) : esperar(
-    deLaActiva(datos.comprobantes)
-      .filter((c) => !filtro.estado || c.estado === filtro.estado)
-      .slice()
-      .sort((a, b) => new Date(b.fecha) - new Date(a.fecha)))),
-  comprobante: (numero) => (enLaNube() ? comprobanteDeLaNube(idActiva(), numero)
-    : esperar(deLaActiva(datos.comprobantes).find((c) => c.numero === numero) ?? null)),
-
-  /** Las compras registradas, la mas reciente primero. */
-  compras: () => esperar(
-    deLaActiva(datos.compras).slice().sort((a, b) => new Date(b.fecha) - new Date(a.fecha))),
-
-  /** Las cuentas recordadas por proveedor en la empresa activa: { ruc: cuenta }. */
-  cuentasDeProveedores: () => esperar({ ...(datos.cuentasProveedor[idActiva()] ?? {}) }),
-
-  /** Los datos de la plataforma: por ahora, el RUC con que Kontia es proveedor ante el SRI. */
-  plataforma: () => esperar({ ...datos.plataforma }),
-
-  /**
-   * Las cifras del tablero.
-   *
-   * Las de la semilla son el mes en curso completo —ciento cuarenta y ocho
-   * comprobantes—, del que la lista solo enseña los últimos. Lo que usted emita
-   * se suma encima, para que el tablero reaccione a lo que hace en lugar de
-   * quedarse en una foto.
-   */
-  resumen: () => {
-    // Una empresa nueva empieza en cero de verdad: sin las cifras de ejemplo
-    // de Agroquímicos Pérez, que no son suyas.
-    const base = esLaDeEjemplo() ? SEMILLA.resumen : {
-      autorizados: 0, pendientes: 0, devueltos: 0, comprobantesDelMes: 0,
-      base15: 0, base0: 0, ventasDelMes: 0, ivaGenerado: 0,
-      ingresosAnio: 0, mesesTranscurridos: 1, promedioMensual: 0,
-      meses: [{ mes: 'Sep', valor: 0 }],
-    };
-    const nuevos = deLaActiva(datos.comprobantes).filter((c) => !c.semilla);
-    const cuenta = (estado) => nuevos.filter((c) => c.estado === estado).length;
-    // Las bases se suman por separado y de ellas sale todo lo demás. Si el
-    // titular dijera una cosa y el pie otra —ventas del mes que no salen de la
-    // suma de sus bases— el tablero se contradiría a sí mismo, y a partir de
-    // ahí ninguna cifra merece crédito.
-    const emitidos = nuevos.filter((c) => c.estado === 'AUTORIZADO');
-    const base15 = base.base15 + emitidos.reduce((a, c) => a + c.totales.base15, 0);
-    const base0 = base.base0 + emitidos.reduce((a, c) => a + c.totales.base0, 0);
-    const centavos = (n) => Math.round(n * 100);
-
-    return esperar({
-      ...base,
-      autorizados: base.autorizados + cuenta('AUTORIZADO'),
-      pendientes: base.pendientes + cuenta('ENVIADO') + cuenta('RECIBIDO'),
-      devueltos: base.devueltos + cuenta('DEVUELTO'),
-      borradores: cuenta('BORRADOR'),
-      emitidosAqui: nuevos.length,
-      comprobantesDelMes: base.comprobantesDelMes + nuevos.filter((c) => c.estado !== 'BORRADOR').length,
-      base15, base0,
-      ventasDelMes: (centavos(base15) + centavos(base0)) / 100,
-      ivaGenerado: Math.round(centavos(base15) * 0.15) / 100,
-      promedioMensual: base.promedioMensual,
-    });
-  },
-
-  /**
-   * El directorio del super administrador.
-   *
-   * Junta las empresas de ejemplo con las que se hayan dado de alta, para que
-   * una empresa nueva aparezca en la lista en cuanto se crea. Sigue sin traer
-   * ni una factura ni un cliente: plan, estado y CUÁNTOS comprobantes.
-   */
-  empresasAdmin: () => {
-    // Con una cuenta de verdad, el directorio es el que entrega la base: la
-    // política deja al super administrador ver las empresas, no sus datos.
-    if (enLaNube()) {
-      return esperar(perfilDeLaNube().empresas.map((e) => ({
-        id: e.id, razonSocial: e.razonSocial, ruc: e.ruc, ciudad: e.ciudad || '—',
-        plan: e.plan, estado: e.estado, alta: e.alta, usuarios: 0, comprobantesMes: 0,
-        ambiente: e.ambiente, certificadoVence: null,
-      })));
-    }
-    const creadas = datos.empresas
-      .filter((e) => !e.semilla)
-      .map((e) => ({
-        id: e.id, razonSocial: e.razonSocial, ruc: e.ruc, ciudad: e.ciudad || '—',
-        plan: e.plan, estado: e.estado ?? 'PRUEBA', alta: e.alta,
-        usuarios: e.usuarios ?? 1,
-        comprobantesMes: datos.comprobantes.filter(
-          (c) => c.empresaId === e.id && c.estado !== 'BORRADOR').length,
-        ambiente: e.ambiente, certificadoVence: e.certificadoVence ?? null,
-      }));
-    return esperar([...creadas, ...SEMILLA.empresasAdmin]);
-  },
-  empresaAdmin: (id) => cargar.empresasAdmin().then((l) => l.find((e) => e.id === id) ?? null),
-  // Con la cuenta de verdad, la auditoría de ejemplo no se enseña: la real vive
-  // en la tabla public.auditoria y se conecta en su propio paso.
-  auditoria: () => esperar(enLaNube() ? [] : SEMILLA.auditoria),
-};
-
-// ===========================================================================
-//  Escritura
-// ===========================================================================
-
-const nuevoId = () => 'x' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
-
-/**
- * El siguiente número libre de un punto de emisión.
- *
- * No basta con sumar uno al contador del punto: el contador dice cuál fue el
- * último EMITIDO, y puede haber borradores con número reservado por encima. Si
- * solo se mirara el contador, la siguiente factura nacería con un número que ya
- * estaba usado — que es justo lo que pasaba con la 001-001-000000149 de los
- * datos de ejemplo, donde el contador decía 148 y el borrador ya era el 149.
- *
- * Así que se mira lo que hay de verdad, que es lo que hace también la base de
- * datos con su restricción de unicidad.
- */
-function siguienteSecuencial(punto) {
-  const usados = deLaActiva(datos.comprobantes)
-    .filter((c) => c.numero?.startsWith(punto.codigo + '-'))
-    .map((c) => Number(c.numero.split('-')[2]))
-    .filter(Number.isFinite);
-  return Math.max(punto.ultimo, ...usados, 0) + 1;
-}
-
-const guardar = {
-  /**
-   * Registra un lote de compras leidas de sus XML.
-   *
-   * DOS DEFENSAS QUE NO SON ADORNO. La clave de acceso tiene que estar
-   * completa: es lo unico que identifica a un comprobante en todo el Ecuador y
-   * sin ella no hay forma de saber si esta repetido. Y lo repetido no se
-   * guarda: registrar dos veces la misma factura de compra infla el gasto y el
-   * credito tributario, que es exactamente lo que el SRI encuentra en una
-   * revision.
-   *
-   * Devuelve cuantas entraron de verdad.
-   */
-  async compras(lote) {
-    const yaEstan = new Set(deLaActiva(datos.compras).map((c) => c.clave));
-    const nuevas = [];
-
-    for (const c of lote ?? []) {
-      const clave = String(c.clave ?? '');
-      if (!/^[0-9]{49}$/.test(clave)) {
-        fallo('Una compra sin clave de acceso de 49 digitos no se puede registrar.');
-      }
-      if (yaEstan.has(clave)) continue;
-      yaEstan.add(clave);
-      nuevas.push({
-        ...c,
-        id: 'c' + clave.slice(-12),
-        empresaId: idActiva(),
-        registrada: new Date(),
-      });
-    }
-
-    datos.compras = [...datos.compras, ...nuevas];
-    persistir();
-    return esperar(nuevas.length);
-  },
-
-  /**
-   * Recuerda la cuenta con que se registró la compra de cada proveedor.
-   *
-   * El contador: el proveedor frecuente queda vinculado a su cuenta y sus
-   * facturas van solas. Se guarda la última confirmada, que es la que un
-   * usuario cambiaría si el proveedor empezó a vender otra cosa.
-   */
-  cuentasDeProveedores(mapa) {
-    const validas = Object.entries(mapa ?? {})
-      .filter(([ruc, cuenta]) => /^\d{10,13}$/.test(ruc) && /^\d{4,9}$/.test(String(cuenta)));
-    datos.cuentasProveedor[idActiva()] = {
-      ...(datos.cuentasProveedor[idActiva()] ?? {}),
-      ...Object.fromEntries(validas),
-    };
-    persistir();
-    return esperar(validas.length);
-  },
-
-  /**
-   * El RUC del proveedor del sistema de facturación.
-   *
-   * Resolución NAC-DGERCGC26-00000027: va en cada comprobante emitido con Kontia.
-   * Se escribe una sola vez; vacío significa «todavía no se decidió», no un valor.
-   */
-  plataforma({ rucProveedor = '' } = {}) {
-    const ruc = String(rucProveedor ?? '').trim();
-    if (ruc && !rucValido(ruc)) {
-      fallo('Ese RUC no es válido. Son trece dígitos, terminan en 001 y el SRI comprueba el dígito verificador.');
-    }
-    datos.plataforma = { ...datos.plataforma, rucProveedor: ruc, actualizado: new Date().toISOString() };
-    persistir();
-    return esperar({ ...datos.plataforma });
-  },
-
-  /**
-   * Da de alta una empresa.
-   *
-   * Nace vacía y en ambiente de PRUEBAS, las dos cosas a propósito. Vacía
-   * porque los datos de otra empresa no son suyos; en pruebas porque pasar a
-   * producción es una decisión que no se deshace —a partir de ahí cada factura
-   * existe para el SRI— y esa decisión la toma la empresa, no quien la da de
-   * alta.
-   */
-  empresa(entrada) {
-    if (enLaNube()) return altaEnLaNube(entrada);
-    const ruc = String(entrada.ruc ?? '').trim();
-    const razonSocial = String(entrada.razonSocial ?? '').trim();
-
-    if (!rucValido(ruc)) {
-      fallo('Ese RUC no es válido. Son trece dígitos y terminan en 001 para la matriz.');
-    }
-    if (razonSocial.length < 3) fallo('La razón social no puede quedar vacía.');
-    if (datos.empresas.some((e) => e.ruc === ruc)) {
-      fallo(`Ya hay una empresa con el RUC ${ruc}. Una empresa no se da de alta dos veces.`);
-    }
-
-    const empresa = {
-      id: 'e' + Date.now().toString(36),
-      razonSocial,
-      nombreComercial: String(entrada.nombreComercial ?? '').trim() || razonSocial,
-      ruc,
-      dirMatriz: String(entrada.direccion ?? '').trim(),
-      ciudad: String(entrada.ciudad ?? '').trim(),
-      regimen: entrada.regimen ?? 'General',
-      plan: entrada.plan ?? 'Profesional',
-      obligadoContabilidad: entrada.obligadoContabilidad !== false,
-      manejaInventario: entrada.manejaInventario !== false,
-      contribuyenteEspecial: false,
-      agenteRetencion: false,
-      ambiente: 'PRUEBAS',
-      correo: String(entrada.correo ?? '').trim(),
-      telefono: String(entrada.telefono ?? '').trim(),
-      estado: 'PRUEBA',
-      alta: new Date(),
-      usuarios: 1,
-      comprobantesMes: 0,
-      certificadoVence: null,
-      semilla: false,
-    };
-
-    datos.empresas.push(empresa);
-    // Un punto de emisión, que sin él no se puede facturar nada.
-    datos.puntos.push({
-      codigo: '001-001', nombre: 'Caja principal',
-      lugar: empresa.ciudad || 'Matriz', ultimo: 0, activo: true,
-      empresaId: empresa.id,
-    });
-    datos.activa = empresa.id;
-    persistir();
-    return esperar(empresa);
-  },
-
-  /** Cambia la empresa con la que se está trabajando. */
-  cambiarEmpresa(id) {
-    if (enLaNube()) {
-      if (!perfilDeLaNube().empresas.some((e) => e.id === id)) fallo('Esa empresa no es suya.');
-      recordarActivaNube(id);
-      return esperar(empresaActiva());
-    }
-    if (!datos.empresas.some((e) => e.id === id)) fallo('Esa empresa no existe.');
-    datos.activa = id;
-    persistir();
-    return esperar(empresaActiva());
-  },
-
-  /** Crea o actualiza un cliente. Devuelve el cliente tal como quedó. */
-  cliente(entrada) {
-    const { identificacion, razonSocial } = comprobarCliente(entrada);
-    if (enLaNube()) {
-      return guardarClienteEnLaNube(empresaActiva(), {
-        tipo: entrada.tipo,
-        identificacion,
-        razonSocial,
-        ciudad: String(entrada.ciudad ?? '').trim(),
-        correo: String(entrada.correo ?? '').trim(),
-        telefono: String(entrada.telefono ?? '').trim(),
-        direccion: String(entrada.direccion ?? '').trim(),
-      }, entrada.id || null);
-    }
-    const existente = datos.clientes.find((c) => c.id === entrada.id);
-
-    const cliente = {
-      ...(existente ?? {}),
-      id: existente?.id ?? nuevoId(),
-      empresaId: existente?.empresaId ?? idActiva(),
-      tipo: entrada.tipo,
-      identificacion,
-      razonSocial,
-      ciudad: String(entrada.ciudad ?? '').trim(),
-      correo: String(entrada.correo ?? '').trim(),
-      telefono: String(entrada.telefono ?? '').trim(),
-      direccion: String(entrada.direccion ?? '').trim(),
-      activo: true,
-      comprobantes: existente?.comprobantes ?? 0,
-      facturado: existente?.facturado ?? 0,
-    };
-
-    if (existente) datos.clientes[datos.clientes.indexOf(existente)] = cliente;
-    else datos.clientes.unshift(cliente);
-
-    persistir();
-    return esperar(cliente);
-  },
-
-  /** Crea o actualiza un producto. `codigoOriginal` identifica al que se edita. */
-  producto(entrada) {
-    const { codigo, descripcion } = comprobarProducto(entrada);
-    if (enLaNube()) {
-      return guardarProductoEnLaNube(empresaActiva(), {
-        codigo,
-        descripcion,
-        unidad: String(entrada.unidad ?? '').trim(),
-        tipo: entrada.tipo,
-        precio: Number(entrada.precio),
-        iva: Number(entrada.iva),
-      }, entrada.codigoOriginal || null);
-    }
-    const existente = datos.productos.find((p) => p.codigo === entrada.codigoOriginal);
-
-    const producto = {
-      ...(existente ?? {}),
-      empresaId: existente?.empresaId ?? idActiva(),
-      codigo,
-      descripcion,
-      unidad: String(entrada.unidad ?? '').trim() || 'UNIDAD',
-      tipo: entrada.tipo === 'Servicio' ? 'Servicio' : 'Bien',
-      precio: Number(entrada.precio),
-      iva: Number(entrada.iva),
-      activo: true,
-    };
-
-    if (existente) datos.productos[datos.productos.indexOf(existente)] = producto;
-    else datos.productos.unshift(producto);
-
-    persistir();
-    return esperar(producto);
-  },
-
-  /**
-   * Guarda una factura como borrador y le asigna su número.
-   *
-   * El número se reserva aquí, al crearla, y no al emitirla. Podría parecer que
-   * es mejor esperar —así no se gastan números en borradores que se tiran—,
-   * pero dos cajas facturando a la vez pedirían el mismo número. Se entrega de
-   * uno en uno y no se reutiliza: un hueco en la numeración se explica, un
-   * número repetido lo rechaza el SRI.
-   */
-  borrador(entrada) {
-    if (enLaNube()) return borradorEnLaNubeActiva(entrada);
-    const cliente = deLaActiva(datos.clientes).find((c) => c.id === entrada.clienteId);
-    if (!cliente) fallo('Hay que elegir a quién se le factura.');
-    if (!entrada.lineas?.length) fallo('Una factura sin líneas no se puede emitir.');
-
-    const mios = deLaActiva(datos.puntos);
-    const punto = mios.find((p) => p.codigo === entrada.punto && p.activo)
-      ?? mios.find((p) => p.activo);
-    if (!punto) fallo('No hay ningún punto de emisión activo.');
-
-    const secuencial = siguienteSecuencial(punto);
-    punto.ultimo = secuencial;
-    const numeroNuevo = `${punto.codigo}-${String(secuencial).padStart(9, '0')}`;
-
-    // Cinturón y tirantes. La base de datos tiene una restricción de unicidad
-    // sobre (punto, tipo, secuencial) que rechazaría esto, y el SRI rechaza dos
-    // comprobantes con el mismo número. Vale más fallar aquí, con un mensaje
-    // que se entiende, que descubrirlo cuando el documento ya salió.
-    if (deLaActiva(datos.comprobantes).some((c) => c.numero === numeroNuevo)) {
-      fallo(`Ya existe un comprobante ${numeroNuevo}. La numeración de un punto de ` +
-            'emisión no puede repetirse: el SRI lo rechaza.');
-    }
-
-    const comprobante = {
-      id: nuevoId(),
-      empresaId: idActiva(),
-      numero: numeroNuevo,
-      tipo: 'Factura',
-      estado: 'BORRADOR',
-      cliente,
-      fecha: new Date(),
-      fechaAutorizacion: null,
-      // La clave de acceso se asigna al firmar, porque va dentro de lo firmado.
-      // Un borrador todavía no tiene ninguna, y fabricar una aquí sería
-      // enseñar un número que después no coincidiría con el de verdad.
-      claveAcceso: null,
-      autorizacion: null,
-      formaPago: entrada.formaPago,
-      lineas: entrada.lineas.map((l) => ({ ...l })),
-      totales: totalizar(entrada.lineas),
-      simulado: false,
-    };
-
-    datos.comprobantes.unshift(comprobante);
-    persistir();
-    return esperar(comprobante);
-  },
-
-  /**
-   * La emisión simulada.
-   *
-   * Recorre los estados igual que el sistema de verdad, pero **sin firmar y sin
-   * hablar con el SRI**, porque ni el certificado ni la conexión están
-   * enchufados todavía. Por eso el comprobante queda marcado como simulado y lo
-   * dice en todas las pantallas donde aparece: un documento que parece
-   * autorizado sin estarlo es peor que no tener ninguno.
-   */
-  emitirSimulado(numero) {
-    if (enLaNube()) return emisionSimuladaNoPermitida();
-    const c = deLaActiva(datos.comprobantes).find((x) => x.numero === numero);
-    if (!c) fallo(`No existe el comprobante ${numero}.`);
-    if (c.estado !== 'BORRADOR') {
-      fallo(`El comprobante ${numero} ya salió de borrador y no se puede volver a emitir. ` +
-            'Un comprobante emitido se corrige con una nota de crédito, no editándolo.');
-    }
-    c.estado = 'AUTORIZADO';
-    c.fechaAutorizacion = new Date();
-    c.simulado = true;
-    persistir();
-    return esperar(c);
-  },
-};
-
-/**
- * Una factura en borrador con la cuenta de verdad: el cliente y el punto se
- * leen de la base en ese momento, no de lo que la pantalla tenía en memoria.
- */
-async function borradorEnLaNubeActiva(entrada) {
-  const empresaId = idActiva();
-  const [cliente, puntos] = await Promise.all([
-    clienteDeLaNube(empresaId, entrada.clienteId), puntosDeLaNube(empresaId),
-  ]);
-  const punto = puntos.find((p) => p.codigo === entrada.punto && p.activo)
-    ?? puntos.find((p) => p.activo);
-  const c = await borradorEnLaNube({
-    empresa: empresaActiva(), cliente, punto, lineas: entrada.lineas, formaPago: entrada.formaPago,
-  });
-  window.dispatchEvent(new CustomEvent('kontia:datos-cambiaron'));
-  return c;
-}
-
-/**
- * El alta de una empresa en la base de datos.
- *
- * Mismas comprobaciones que en el navegador, más la dirección: la tabla la exige
- * y el SRI la imprime en cada comprobante. Después se vuelve a pedir el perfil,
- * para que la empresa nueva aparezca en el directorio sin recargar.
- */
-async function altaEnLaNube(entrada) {
-  const ruc = String(entrada.ruc ?? '').trim();
-  const razonSocial = String(entrada.razonSocial ?? '').trim();
-  const direccion = String(entrada.direccion ?? '').trim();
-
-  if (!rucValido(ruc)) {
-    fallo('Ese RUC no es válido. Son trece dígitos y terminan en 001 para la matriz.');
-  }
-  if (razonSocial.length < 3) fallo('La razón social no puede quedar vacía.');
-  if (direccion.length < 5) {
-    fallo('La dirección matriz es obligatoria: el SRI la exige en cada comprobante.');
-  }
-  if (perfilDeLaNube().empresas.some((e) => e.ruc === ruc)) {
-    fallo(`Ya hay una empresa con el RUC ${ruc}. Una empresa no se da de alta dos veces.`);
-  }
-
-  let empresa;
-  try {
-    empresa = await altaDeEmpresa({
-      ruc,
-      razonSocial,
-      nombreComercial: String(entrada.nombreComercial ?? '').trim(),
-      direccion,
-      correo: String(entrada.correo ?? '').trim(),
-      obligadoContabilidad: entrada.obligadoContabilidad !== false,
-      plan: entrada.plan,
-    });
-  } finally {
-    // Aunque el punto de emisión haya fallado, la empresa puede existir ya:
-    // el directorio tiene que enseñarla.
-    await cargarPerfil().catch(() => null);
-  }
-  recordarActivaNube(empresa.id);
-  window.dispatchEvent(new CustomEvent('kontia:datos-cambiaron'));
-  return empresa;
-}
-
-
-  return { reiniciar, empresaActiva, esLaDeEjemplo, cargar, guardar };
-})();
-
 // ---- src/datos-contables.js --------------------------------------
 const __src_datos_contables_js = (function () {
   const { fechaLimite } = __src_avisos_js;
@@ -6558,6 +5798,9 @@ const CUENTAS = [
   { codigo: '4102', nombre: 'Prestación de servicios', tipo: 'DETALLE', naturaleza: 'ACREEDORA' },
   { codigo: '4110', nombre: '(-) Descuento en ventas', tipo: 'DETALLE', naturaleza: 'DEUDORA' },
   { codigo: '4111', nombre: '(-) Devoluciones en ventas', tipo: 'DETALLE', naturaleza: 'DEUDORA' },
+  // Contador, 16-sep-2026: los intereses que acredita el banco.
+  { codigo: '43', nombre: 'Otros ingresos', tipo: 'TOTAL', naturaleza: 'ACREEDORA' },
+  { codigo: '4302', nombre: 'Intereses financieros', tipo: 'DETALLE', naturaleza: 'ACREEDORA' },
 
   { codigo: '51', nombre: 'COSTO DE VENTAS Y PRODUCCIÓN', tipo: 'TOTAL', naturaleza: 'DEUDORA' },
   { codigo: '510102', nombre: '(+) Compras netas locales de bienes no producidos por la compañía', tipo: 'DETALLE', naturaleza: 'DEUDORA' },
@@ -6947,9 +6190,10 @@ function asientoDeCompra(c) {
  * saben, las piden al almacen y las pasan. El dia que los datos vengan de
  * Supabase, este archivo no cambia.
  */
-function diarioCon(compras = []) {
+function diarioCon(compras = [], pagos = []) {
   const deCompras = (compras ?? []).map(asientoDeCompra);
-  return numerar([...MANUALES, ...DE_VENTAS, ...DE_RETENCIONES, ...DE_NOTAS, ...deCompras]);
+  const dePagos = (pagos ?? []).map(asientoDePago);
+  return numerar([...MANUALES, ...DE_VENTAS, ...DE_RETENCIONES, ...DE_NOTAS, ...deCompras, ...dePagos]);
 }
 
 // Se arma la primera vez que se pide: las retenciones y las notas de crédito
@@ -7329,6 +6573,101 @@ function comprasDelLibro(diario = diarioDelMes()) {
     });
 }
 
+// ===========================================================================
+//  Pagos a proveedores, uno o masivos
+// ===========================================================================
+
+/**
+ * Lo que queda por pagar de cada factura, restando los pagos ya registrados.
+ */
+function pendientesDePago(cartera = CARTERA_PAGAR, pagos = []) {
+  const cent = (n) => Math.round(Number(n || 0) * 100);
+  return cartera.map((x) => {
+    const pagado = (pagos ?? []).flatMap((p) => p.documentos ?? [])
+      .filter((d) => d.documento === x.documento)
+      .reduce((s, d) => s + cent(d.valor), 0);
+    return {
+      ...x,
+      pagado: pagado / 100,
+      abonado: (cent(x.abonado) + pagado) / 100,
+      saldo: (cent(x.monto) - cent(x.abonado) - pagado) / 100,
+    };
+  });
+}
+
+/**
+ * Comprueba y ordena un pago antes de guardarlo.
+ *
+ * UN PAGO, VARIAS FACTURAS (contador, 16-sep-2026). Cuando la empresa paga por
+ * cash management, el banco muestra un solo débito aunque cancele varias
+ * facturas. Si el sistema obligara a registrar un pago por factura, habría
+ * varios movimientos contra uno en la conciliación. Así, el pago se registra
+ * igual que en el banco: una sola salida, con su referencia.
+ */
+function prepararPago(entrada, pendientes) {
+  const fecha = entrada.fecha instanceof Date ? entrada.fecha : new Date(`${entrada.fecha}T12:00:00`);
+  if (Number.isNaN(fecha.getTime())) throw new Error('Falta la fecha del pago, tal como sale en el banco.');
+
+  const elegidos = (entrada.documentos ?? []).filter((d) => Number(d.valor) > 0);
+  if (!elegidos.length) throw new Error('Elija al menos una factura y el valor que se le paga.');
+
+  const vistos = new Set();
+  const documentos = elegidos.map((d) => {
+    if (vistos.has(d.documento)) throw new Error(`La factura ${d.documento} está dos veces en el mismo pago.`);
+    vistos.add(d.documento);
+    const pendiente = pendientes.find((x) => x.documento === d.documento);
+    if (!pendiente) throw new Error(`La factura ${d.documento} no está entre las cuentas por pagar.`);
+    const valor = Math.round(Number(d.valor) * 100) / 100;
+    if (valor > pendiente.saldo + 0.004) {
+      throw new Error(`A la factura ${d.documento} le quedan ${pendiente.saldo.toFixed(2)}: no se le puede pagar ${valor.toFixed(2)}.`);
+    }
+    return { documento: d.documento, proveedor: pendiente.proveedor, valor };
+  });
+
+  const total = documentos.reduce((s, d) => s + Math.round(d.valor * 100), 0) / 100;
+  return {
+    fecha,
+    referencia: String(entrada.referencia ?? '').trim() || null,
+    cuentaBanco: entrada.cuentaBanco ?? '10101',
+    documentos,
+    total,
+  };
+}
+
+/**
+ * El asiento de un pago: una línea por factura en proveedores y UNA sola
+ * salida del banco, con la referencia del banco. Esa única línea es la que la
+ * conciliación empareja, uno a uno, con el débito del estado de cuenta.
+ */
+function asientoDePago(p) {
+  const docs = p.documentos ?? [];
+  const masivo = docs.length > 1;
+  const proveedores = [...new Set(docs.map((d) => d.proveedor))];
+  const total = docs.reduce((s, d) => s + Math.round(Number(d.valor) * 100), 0) / 100;
+  const ref = p.referencia ? ` · ref. ${p.referencia}` : '';
+  return {
+    numero: null,
+    fecha: new Date(p.fecha),
+    tipo: 'PAGO',
+    origen: p.referencia || p.id || null,
+    documentos: docs.map((d) => d.documento),
+    enlace: '#/por-pagar',
+    enlaceTexto: 'Ver cuentas por pagar',
+    glosa: masivo
+      ? `Pago masivo de ${docs.length} facturas a ${proveedores.length === 1 ? proveedores[0] : `${proveedores.length} proveedores`}`
+      : `Pago a ${proveedores[0] ?? 'proveedor'}`,
+    lineas: [
+      ...docs.map((d) => ({
+        cuenta: '2010301', debe: d.valor, haber: 0, detalle: `${d.proveedor} · factura ${d.documento}`,
+      })),
+      { cuenta: p.cuentaBanco ?? '10101', debe: 0, haber: total,
+        detalle: `${masivo ? 'Pago masivo (cash management)' : 'Pago'}${ref}`,
+        referencia: p.referencia ?? null },
+    ],
+    generado: true,
+  };
+}
+
 /** El número de asiento de un documento, para ir del documento a los libros. */
 function asientoDelDocumento(diario, origen, tipo = null) {
   return diario.find((a) => a.origen === origen && (!tipo || a.tipo === tipo)) ?? null;
@@ -7439,7 +6778,810 @@ function formulario104(saldos = balanceDeComprobacion(), compras = []) {
 }
 
 
-  return { CUENTAS, cuenta, nombreCuenta, AUX_IVA_COBRADO, asientoDeFactura, asientoDeCompra, diarioCon, diarioDelMes, balanceDeComprobacion, mayorDe, CARTERA_COBRAR, PROVEEDORES, CARTERA_PAGAR, BANCOS, saldoFinalDelBanco, INVENTARIO, EMPLEADOS, ACTIVOS_FIJOS, SUSCRIPCIONES, USO_MENSUAL, SOPORTE, RETENCIONES, NOTAS_CREDITO, GUIAS_REMISION, valoresDeRetencion, asientoDeRetencionEmitida, asientoDeNotaCredito, comprasDelLibro, asientoDelDocumento, formulario104 };
+  return { CUENTAS, cuenta, nombreCuenta, AUX_IVA_COBRADO, asientoDeFactura, asientoDeCompra, diarioCon, diarioDelMes, balanceDeComprobacion, mayorDe, CARTERA_COBRAR, PROVEEDORES, CARTERA_PAGAR, BANCOS, saldoFinalDelBanco, INVENTARIO, EMPLEADOS, ACTIVOS_FIJOS, SUSCRIPCIONES, USO_MENSUAL, SOPORTE, RETENCIONES, NOTAS_CREDITO, GUIAS_REMISION, valoresDeRetencion, asientoDeRetencionEmitida, asientoDeNotaCredito, comprasDelLibro, pendientesDePago, prepararPago, asientoDePago, asientoDelDocumento, formulario104 };
+})();
+
+// ---- src/almacen.js ----------------------------------------------
+const __src_almacen_js = (function () {
+  const { SEMILLA, totalizar, TARIFAS_IVA, TIPOS_IDENTIFICACION } = __src_datos_js;
+  const { perfilDeLaNube, altaDeEmpresa, cargarPerfil } = __src_cuenta_nube_js;
+  const { clientesDeLaNube, clienteDeLaNube, guardarClienteEnLaNube, productosDeLaNube, productoDeLaNube, guardarProductoEnLaNube } = __src_catalogo_nube_js;
+  const { puntosDeLaNube, comprobantesDeLaNube, comprobanteDeLaNube, borradorEnLaNube, emisionSimuladaNoPermitida } = __src_comprobantes_nube_js;
+  const { diarioCon, pendientesDePago, prepararPago, asientoDePago, CARTERA_PAGAR } = __src_datos_contables_js;
+
+/**
+ * El almacén: lo único que sabe dónde están los datos y cómo se guardan.
+ *
+ * Las pantallas le piden cosas y nunca hablan con el origen directamente. Hoy
+ * ese origen es el navegador —los datos de ejemplo, más lo que usted cree,
+ * guardado en su propio equipo—. Mañana será Supabase, y el cambio será este
+ * archivo y ninguno más.
+ *
+ * TRES REGLAS QUE NO SON DE ESTILO:
+ *
+ * 1. Todo devuelve promesas aunque hoy la respuesta sea inmediata. Si las
+ *    pantallas supusieran que el dato ya está, habría que reescribirlas todas
+ *    el día que haya que esperar a la red.
+ *
+ * 2. Lo que se guarda se comprueba ANTES de guardarlo, y el error dice qué
+ *    hacer. Un RUC de doce dígitos tiene que fallar aquí, no tres pasos después
+ *    cuando el SRI devuelva el comprobante sin explicar por qué.
+ *
+ * 3. Un comprobante que ya salió de BORRADOR no se modifica. Lo impone la base
+ *    de datos (migración 0007) y se repite aquí para que la pantalla no ofrezca
+ *    algo que el servidor va a rechazar.
+ */
+
+
+
+
+
+
+
+const CLAVE = 'kontia.datos.v1';
+const esperar = (valor) => Promise.resolve(valor);
+
+// Campos que llevan fecha. Hacen falta enumerados porque JSON no distingue una
+// fecha de un texto: sin esta lista, al recargar la página las fechas vuelven
+// como cadenas y cualquier resta entre ellas da NaN.
+const FECHAS = new Set([
+  'fecha', 'fechaAutorizacion', 'alta', 'cuando', 'desde', 'hasta', 'certificadoVence',
+]);
+
+function reviir(clave, valor) {
+  if (FECHAS.has(clave) && typeof valor === 'string') return new Date(valor);
+  return valor;
+}
+
+// ===========================================================================
+//  Carga y persistencia
+// ===========================================================================
+
+/** La empresa de los datos de ejemplo. Todo lo de la semilla le pertenece. */
+const EMPRESA_SEMILLA = SEMILLA.empresa.id;
+
+/**
+ * El almacén guarda VARIAS empresas, y cada dato lleva a cuál pertenece.
+ *
+ * Ese `empresaId` en cada fila no es contabilidad extra: es la misma columna
+ * que tiene cada tabla en Supabase, y sobre la que se apoyan las políticas de
+ * aislamiento (migración 0004). Aquí filtra; allá impide. Que el modelo sea el
+ * mismo en los dos sitios es lo que evita sorpresas el día de la conexión.
+ *
+ * Una empresa nueva nace SIN NADA: sin clientes, sin productos, sin
+ * comprobantes. Eso no es una carencia de la demostración, es lo correcto —y
+ * de paso es la única forma de ver las pantallas de estado vacío, que son las
+ * que ve de verdad un cliente el primer día.
+ */
+const copiaDeLaSemilla = () => ({
+  empresas: [{ ...SEMILLA.empresa, semilla: true }],
+  activa: EMPRESA_SEMILLA,
+  clientes: SEMILLA.clientes.map((c) => ({ ...c, empresaId: EMPRESA_SEMILLA, semilla: true })),
+  productos: SEMILLA.productos.map((p) => ({ ...p, empresaId: EMPRESA_SEMILLA, semilla: true })),
+  comprobantes: SEMILLA.comprobantes.map((c) => ({ ...c, empresaId: EMPRESA_SEMILLA, semilla: true })),
+  puntos: SEMILLA.puntos.map((p) => ({ ...p, empresaId: EMPRESA_SEMILLA })),
+  // Las compras no se siembran: entran por el buzon, y lo que se quiere
+  // ensenar es justamente ese recorrido —soltar el XML y verlo registrado—.
+  compras: [],
+  // Los pagos a proveedores registrados aquí (uno o masivos).
+  pagos: [],
+  // La cuenta con que se registró la última compra de cada proveedor, por
+  // empresa: { empresaId: { rucProveedor: cuenta } }.
+  cuentasProveedor: {},
+  // Los datos de Kontia como proveedor del sistema de facturación ante el SRI.
+  plataforma: { rucProveedor: '' },
+});
+
+function leer() {
+  try {
+    const guardado = localStorage.getItem(CLAVE);
+    if (guardado) {
+      const leido = JSON.parse(guardado, reviir);
+      // Lo guardado por una versión anterior no tiene empresas. Antes de
+      // usarlo a medias, que es como salen los errores raros, se descarta.
+      if (Array.isArray(leido.empresas) && leido.empresas.length) return leido;
+    }
+  } catch {
+    // Navegador sin almacenamiento, o datos de una versión anterior que ya no
+    // encajan. En los dos casos se empieza de cero: perder unos datos de
+    // ejemplo no es grave, quedarse con la pantalla en blanco sí.
+  }
+  return copiaDeLaSemilla();
+}
+
+let datos = leer();
+
+// Una coleccion nueva no existe en lo que guardo una version anterior. Sin
+// esto, quien ya tenia datos en el navegador abriria el buzon y le explotaria
+// en la cara por un `undefined`.
+for (const coleccion of ['clientes', 'productos', 'comprobantes', 'puntos', 'compras', 'pagos']) {
+  if (!Array.isArray(datos[coleccion])) datos[coleccion] = [];
+}
+if (!datos.cuentasProveedor || typeof datos.cuentasProveedor !== 'object') datos.cuentasProveedor = {};
+if (!datos.plataforma || typeof datos.plataforma !== 'object') datos.plataforma = { rucProveedor: '' };
+
+function persistir() {
+  try {
+    localStorage.setItem(CLAVE, JSON.stringify(datos));
+  } catch {
+    // Sin almacenamiento se sigue trabajando en memoria: lo que haga se verá
+    // hasta que recargue. Es mejor que negarle el uso de la aplicación.
+  }
+  window.dispatchEvent(new CustomEvent('kontia:datos-cambiaron'));
+}
+
+/** Vuelve a los datos de ejemplo. Para poder enseñar la aplicación limpia. */
+function reiniciar() {
+  datos = copiaDeLaSemilla();
+  persistir();
+}
+
+// ===========================================================================
+//  Comprobaciones
+// ===========================================================================
+
+/**
+ * El dígito verificador de una cédula o un RUC ecuatoriano.
+ *
+ * No es una formalidad: el SRI lo comprueba y devuelve el comprobante si no
+ * cuadra. Vale la pena hacerlo aquí, mientras la persona todavía tiene el
+ * documento delante y puede mirarlo otra vez.
+ */
+function cedulaValida(id) {
+  if (!/^[0-9]{10}$/.test(id)) return false;
+  const provincia = Number(id.slice(0, 2));
+  if (provincia < 1 || (provincia > 24 && provincia !== 30)) return false;
+  let suma = 0;
+  for (let i = 0; i < 9; i++) {
+    let n = Number(id[i]) * (i % 2 === 0 ? 2 : 1);
+    if (n > 9) n -= 9;
+    suma += n;
+  }
+  const verificador = (10 - (suma % 10)) % 10;
+  return verificador === Number(id[9]);
+}
+
+function rucValido(ruc) {
+  if (!/^[0-9]{13}$/.test(ruc)) return false;
+  if (!ruc.endsWith('001')) return false;
+  const tercero = Number(ruc[2]);
+  // Persona natural: los diez primeros dígitos son una cédula válida.
+  if (tercero < 6) return cedulaValida(ruc.slice(0, 10));
+  // Sociedad privada (9) o pública (6): el dígito verificador va en otra
+  // posición y con otros coeficientes. Aquí se comprueba la estructura, que es
+  // lo que evita los errores de tecleo; del resto se encarga el SRI.
+  return tercero === 6 || tercero === 9;
+}
+
+const fallo = (mensaje) => { throw new Error(mensaje); };
+
+function comprobarCliente(c) {
+  const identificacion = String(c.identificacion ?? '').trim();
+  const razonSocial = String(c.razonSocial ?? '').trim();
+
+  if (razonSocial.length < 3) {
+    fallo('La razón social tiene que tener al menos tres letras.');
+  }
+  if (!TIPOS_IDENTIFICACION[c.tipo]) {
+    fallo(`"${c.tipo}" no es un tipo de identificación válido.`);
+  }
+  if (c.tipo === 'RUC' && !rucValido(identificacion)) {
+    fallo('Ese RUC no es válido. Son trece dígitos y terminan en 001 para la ' +
+          'matriz. Revise que no se haya saltado ninguno.');
+  }
+  if (c.tipo === 'CEDULA' && !cedulaValida(identificacion)) {
+    fallo('Esa cédula no es válida: el último dígito no cuadra con los otros ' +
+          'nueve. Suele ser un número cambiado de sitio.');
+  }
+  if (c.tipo === 'CONSUMIDOR_FINAL' && identificacion !== '9999999999999') {
+    fallo('El consumidor final se identifica siempre con trece nueves.');
+  }
+  if (c.correo && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(c.correo)) {
+    fallo('Ese correo no tiene forma de correo. Es a donde llegará la factura.');
+  }
+
+  const repetido = datos.clientes.find(
+    (x) => x.empresaId === idActiva() && x.identificacion === identificacion && x.id !== c.id);
+  if (repetido) {
+    fallo(`Ya existe un cliente con esa identificación: ${repetido.razonSocial}. ` +
+          'Dos fichas del mismo cliente acaban con dos correos distintos.');
+  }
+  return { identificacion, razonSocial };
+}
+
+function comprobarProducto(p) {
+  const codigo = String(p.codigo ?? '').trim();
+  const descripcion = String(p.descripcion ?? '').trim();
+
+  if (!codigo) fallo('El producto necesita un código. Es lo que viaja en el XML.');
+  if (descripcion.length < 2) fallo('La descripción no puede quedar vacía.');
+  if (!(Number(p.precio) >= 0)) fallo('El precio tiene que ser un número de cero para arriba.');
+  if (!TARIFAS_IVA.some((t) => t.tarifa === Number(p.iva))) {
+    fallo(`${p.iva}% no es una tarifa de IVA vigente.`);
+  }
+
+  const repetido = datos.productos.find(
+    (x) => x.empresaId === idActiva() && x.codigo === codigo
+           && x.codigoOriginal !== p.codigoOriginal);
+  if (repetido && codigo !== p.codigoOriginal) {
+    fallo(`Ya hay un producto con el código ${codigo}: ${repetido.descripcion}.`);
+  }
+  return { codigo, descripcion };
+}
+
+// ===========================================================================
+//  Lectura
+// ===========================================================================
+
+const activos = (lista) => lista.filter((x) => x.activo !== false);
+
+/** Lo de la empresa con la que se está trabajando, y nada más. */
+const deLaActiva = (lista) => lista.filter((x) => x.empresaId === idActiva());
+
+/*
+ * Con una cuenta de verdad, las empresas no salen del navegador: salen del
+ * perfil que entregó la base de datos. La elegida se recuerda solo mientras
+ * dura la pestaña, porque al volver a entrar la base puede haber cambiado.
+ */
+const CLAVE_ACTIVA_NUBE = 'kontia.nube.activa';
+const enLaNube = () => Boolean(perfilDeLaNube());
+
+function idActiva() {
+  if (!enLaNube()) return datos.activa;
+  const empresas = perfilDeLaNube().empresas;
+  let elegida = null;
+  try { elegida = sessionStorage.getItem(CLAVE_ACTIVA_NUBE); } catch { /* sin almacenamiento */ }
+  return (empresas.find((e) => e.id === elegida) ?? empresas[0])?.id ?? null;
+}
+
+function recordarActivaNube(id) {
+  try { sessionStorage.setItem(CLAVE_ACTIVA_NUBE, id); } catch { /* vive hasta recargar */ }
+}
+
+/** La empresa con la que se trabaja ahora mismo. */
+const empresaActiva = () => (enLaNube()
+  ? (perfilDeLaNube().empresas.find((e) => e.id === idActiva()) ?? null)
+  : (datos.empresas.find((e) => e.id === datos.activa) ?? datos.empresas[0]));
+
+/** Si la empresa activa es la de los datos de ejemplo. */
+const esLaDeEjemplo = () => !enLaNube() && datos.activa === EMPRESA_SEMILLA;
+
+const cargar = {
+  empresa: () => esperar(empresaActiva()),
+  empresas: () => esperar(enLaNube() ? perfilDeLaNube().empresas : datos.empresas),
+  certificado: () => esperar(esLaDeEjemplo() ? SEMILLA.certificado : null),
+  usuarios: () => esperar(esLaDeEjemplo() ? SEMILLA.usuarios : [
+    { nombre: 'Juan Carlos Pérez', correo: 'jperez@agroperez.com.ec', rol: 'Administrador',
+      puntos: 'Todos', ultimoAcceso: 'Ahora', activo: true },
+  ]),
+  puntos: () => (enLaNube() ? puntosDeLaNube(idActiva()) : esperar(deLaActiva(datos.puntos))),
+
+  // Con la cuenta de verdad, clientes y productos se leen de la base: son de la
+  // empresa, no de este navegador.
+  clientes: () => (enLaNube() ? clientesDeLaNube(idActiva())
+    : esperar(activos(deLaActiva(datos.clientes)))),
+  cliente: (id) => (enLaNube() ? clienteDeLaNube(idActiva(), id)
+    : esperar(deLaActiva(datos.clientes).find((c) => c.id === id) ?? null)),
+
+  productos: () => (enLaNube() ? productosDeLaNube(idActiva())
+    : esperar(activos(deLaActiva(datos.productos)))),
+  producto: (codigo) => (enLaNube() ? productoDeLaNube(idActiva(), codigo)
+    : esperar(deLaActiva(datos.productos).find((p) => p.codigo === codigo) ?? null)),
+
+  comprobantes: (filtro = {}) => (enLaNube() ? comprobantesDeLaNube(idActiva(), filtro) : esperar(
+    deLaActiva(datos.comprobantes)
+      .filter((c) => !filtro.estado || c.estado === filtro.estado)
+      .slice()
+      .sort((a, b) => new Date(b.fecha) - new Date(a.fecha)))),
+  comprobante: (numero) => (enLaNube() ? comprobanteDeLaNube(idActiva(), numero)
+    : esperar(deLaActiva(datos.comprobantes).find((c) => c.numero === numero) ?? null)),
+
+  /** Las compras registradas, la mas reciente primero. */
+  compras: () => esperar(
+    deLaActiva(datos.compras).slice().sort((a, b) => new Date(b.fecha) - new Date(a.fecha))),
+
+  /** Los pagos a proveedores de la empresa activa. */
+  pagos: () => esperar(deLaActiva(datos.pagos)),
+
+  /** Las cuentas por pagar, con lo ya pagado descontado. */
+  porPagar: () => esperar(esLaDeEjemplo() ? pendientesDePago(CARTERA_PAGAR, deLaActiva(datos.pagos)) : []),
+
+  /**
+   * Los libros del mes: los asientos de ejemplo, las compras del buzón y los
+   * pagos registrados. Todas las pantallas contables piden esto.
+   */
+  librosDelMes: async () => diarioCon(
+    deLaActiva(datos.compras), deLaActiva(datos.pagos)),
+
+  /** Las cuentas recordadas por proveedor en la empresa activa: { ruc: cuenta }. */
+  cuentasDeProveedores: () => esperar({ ...(datos.cuentasProveedor[idActiva()] ?? {}) }),
+
+  /** Los datos de la plataforma: por ahora, el RUC con que Kontia es proveedor ante el SRI. */
+  plataforma: () => esperar({ ...datos.plataforma }),
+
+  /**
+   * Las cifras del tablero.
+   *
+   * Las de la semilla son el mes en curso completo —ciento cuarenta y ocho
+   * comprobantes—, del que la lista solo enseña los últimos. Lo que usted emita
+   * se suma encima, para que el tablero reaccione a lo que hace en lugar de
+   * quedarse en una foto.
+   */
+  resumen: () => {
+    // Una empresa nueva empieza en cero de verdad: sin las cifras de ejemplo
+    // de Agroquímicos Pérez, que no son suyas.
+    const base = esLaDeEjemplo() ? SEMILLA.resumen : {
+      autorizados: 0, pendientes: 0, devueltos: 0, comprobantesDelMes: 0,
+      base15: 0, base0: 0, ventasDelMes: 0, ivaGenerado: 0,
+      ingresosAnio: 0, mesesTranscurridos: 1, promedioMensual: 0,
+      meses: [{ mes: 'Sep', valor: 0 }],
+    };
+    const nuevos = deLaActiva(datos.comprobantes).filter((c) => !c.semilla);
+    const cuenta = (estado) => nuevos.filter((c) => c.estado === estado).length;
+    // Las bases se suman por separado y de ellas sale todo lo demás. Si el
+    // titular dijera una cosa y el pie otra —ventas del mes que no salen de la
+    // suma de sus bases— el tablero se contradiría a sí mismo, y a partir de
+    // ahí ninguna cifra merece crédito.
+    const emitidos = nuevos.filter((c) => c.estado === 'AUTORIZADO');
+    const base15 = base.base15 + emitidos.reduce((a, c) => a + c.totales.base15, 0);
+    const base0 = base.base0 + emitidos.reduce((a, c) => a + c.totales.base0, 0);
+    const centavos = (n) => Math.round(n * 100);
+
+    return esperar({
+      ...base,
+      autorizados: base.autorizados + cuenta('AUTORIZADO'),
+      pendientes: base.pendientes + cuenta('ENVIADO') + cuenta('RECIBIDO'),
+      devueltos: base.devueltos + cuenta('DEVUELTO'),
+      borradores: cuenta('BORRADOR'),
+      emitidosAqui: nuevos.length,
+      comprobantesDelMes: base.comprobantesDelMes + nuevos.filter((c) => c.estado !== 'BORRADOR').length,
+      base15, base0,
+      ventasDelMes: (centavos(base15) + centavos(base0)) / 100,
+      ivaGenerado: Math.round(centavos(base15) * 0.15) / 100,
+      promedioMensual: base.promedioMensual,
+    });
+  },
+
+  /**
+   * El directorio del super administrador.
+   *
+   * Junta las empresas de ejemplo con las que se hayan dado de alta, para que
+   * una empresa nueva aparezca en la lista en cuanto se crea. Sigue sin traer
+   * ni una factura ni un cliente: plan, estado y CUÁNTOS comprobantes.
+   */
+  empresasAdmin: () => {
+    // Con una cuenta de verdad, el directorio es el que entrega la base: la
+    // política deja al super administrador ver las empresas, no sus datos.
+    if (enLaNube()) {
+      return esperar(perfilDeLaNube().empresas.map((e) => ({
+        id: e.id, razonSocial: e.razonSocial, ruc: e.ruc, ciudad: e.ciudad || '—',
+        plan: e.plan, estado: e.estado, alta: e.alta, usuarios: 0, comprobantesMes: 0,
+        ambiente: e.ambiente, certificadoVence: null,
+      })));
+    }
+    const creadas = datos.empresas
+      .filter((e) => !e.semilla)
+      .map((e) => ({
+        id: e.id, razonSocial: e.razonSocial, ruc: e.ruc, ciudad: e.ciudad || '—',
+        plan: e.plan, estado: e.estado ?? 'PRUEBA', alta: e.alta,
+        usuarios: e.usuarios ?? 1,
+        comprobantesMes: datos.comprobantes.filter(
+          (c) => c.empresaId === e.id && c.estado !== 'BORRADOR').length,
+        ambiente: e.ambiente, certificadoVence: e.certificadoVence ?? null,
+      }));
+    return esperar([...creadas, ...SEMILLA.empresasAdmin]);
+  },
+  empresaAdmin: (id) => cargar.empresasAdmin().then((l) => l.find((e) => e.id === id) ?? null),
+  // Con la cuenta de verdad, la auditoría de ejemplo no se enseña: la real vive
+  // en la tabla public.auditoria y se conecta en su propio paso.
+  auditoria: () => esperar(enLaNube() ? [] : SEMILLA.auditoria),
+};
+
+// ===========================================================================
+//  Escritura
+// ===========================================================================
+
+const nuevoId = () => 'x' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+
+/**
+ * El siguiente número libre de un punto de emisión.
+ *
+ * No basta con sumar uno al contador del punto: el contador dice cuál fue el
+ * último EMITIDO, y puede haber borradores con número reservado por encima. Si
+ * solo se mirara el contador, la siguiente factura nacería con un número que ya
+ * estaba usado — que es justo lo que pasaba con la 001-001-000000149 de los
+ * datos de ejemplo, donde el contador decía 148 y el borrador ya era el 149.
+ *
+ * Así que se mira lo que hay de verdad, que es lo que hace también la base de
+ * datos con su restricción de unicidad.
+ */
+function siguienteSecuencial(punto) {
+  const usados = deLaActiva(datos.comprobantes)
+    .filter((c) => c.numero?.startsWith(punto.codigo + '-'))
+    .map((c) => Number(c.numero.split('-')[2]))
+    .filter(Number.isFinite);
+  return Math.max(punto.ultimo, ...usados, 0) + 1;
+}
+
+const guardar = {
+  /**
+   * Registra un pago a proveedores: una o varias facturas, una sola salida del
+   * banco. Devuelve el pago y su asiento.
+   */
+  pagoProveedores(entrada) {
+    if (enLaNube()) fallo('Con la cuenta de verdad, los pagos se habilitan cuando la contabilidad esté en la base.');
+    const pendientes = pendientesDePago(CARTERA_PAGAR, deLaActiva(datos.pagos));
+    const pago = {
+      id: nuevoId(),
+      empresaId: idActiva(),
+      ...prepararPago(entrada, pendientes),
+    };
+    datos.pagos.push({ ...pago, fecha: pago.fecha.toISOString() });
+    persistir();
+    return esperar({ pago, asiento: asientoDePago(pago) });
+  },
+
+  /**
+   * Registra un lote de compras leidas de sus XML.
+   *
+   * DOS DEFENSAS QUE NO SON ADORNO. La clave de acceso tiene que estar
+   * completa: es lo unico que identifica a un comprobante en todo el Ecuador y
+   * sin ella no hay forma de saber si esta repetido. Y lo repetido no se
+   * guarda: registrar dos veces la misma factura de compra infla el gasto y el
+   * credito tributario, que es exactamente lo que el SRI encuentra en una
+   * revision.
+   *
+   * Devuelve cuantas entraron de verdad.
+   */
+  async compras(lote) {
+    const yaEstan = new Set(deLaActiva(datos.compras).map((c) => c.clave));
+    const nuevas = [];
+
+    for (const c of lote ?? []) {
+      const clave = String(c.clave ?? '');
+      if (!/^[0-9]{49}$/.test(clave)) {
+        fallo('Una compra sin clave de acceso de 49 digitos no se puede registrar.');
+      }
+      if (yaEstan.has(clave)) continue;
+      yaEstan.add(clave);
+      nuevas.push({
+        ...c,
+        id: 'c' + clave.slice(-12),
+        empresaId: idActiva(),
+        registrada: new Date(),
+      });
+    }
+
+    datos.compras = [...datos.compras, ...nuevas];
+    persistir();
+    return esperar(nuevas.length);
+  },
+
+  /**
+   * Recuerda la cuenta con que se registró la compra de cada proveedor.
+   *
+   * El contador: el proveedor frecuente queda vinculado a su cuenta y sus
+   * facturas van solas. Se guarda la última confirmada, que es la que un
+   * usuario cambiaría si el proveedor empezó a vender otra cosa.
+   */
+  cuentasDeProveedores(mapa) {
+    const validas = Object.entries(mapa ?? {})
+      .filter(([ruc, cuenta]) => /^\d{10,13}$/.test(ruc) && /^\d{4,9}$/.test(String(cuenta)));
+    datos.cuentasProveedor[idActiva()] = {
+      ...(datos.cuentasProveedor[idActiva()] ?? {}),
+      ...Object.fromEntries(validas),
+    };
+    persistir();
+    return esperar(validas.length);
+  },
+
+  /**
+   * El RUC del proveedor del sistema de facturación.
+   *
+   * Resolución NAC-DGERCGC26-00000027: va en cada comprobante emitido con Kontia.
+   * Se escribe una sola vez; vacío significa «todavía no se decidió», no un valor.
+   */
+  plataforma({ rucProveedor = '' } = {}) {
+    const ruc = String(rucProveedor ?? '').trim();
+    if (ruc && !rucValido(ruc)) {
+      fallo('Ese RUC no es válido. Son trece dígitos, terminan en 001 y el SRI comprueba el dígito verificador.');
+    }
+    datos.plataforma = { ...datos.plataforma, rucProveedor: ruc, actualizado: new Date().toISOString() };
+    persistir();
+    return esperar({ ...datos.plataforma });
+  },
+
+  /**
+   * Da de alta una empresa.
+   *
+   * Nace vacía y en ambiente de PRUEBAS, las dos cosas a propósito. Vacía
+   * porque los datos de otra empresa no son suyos; en pruebas porque pasar a
+   * producción es una decisión que no se deshace —a partir de ahí cada factura
+   * existe para el SRI— y esa decisión la toma la empresa, no quien la da de
+   * alta.
+   */
+  empresa(entrada) {
+    if (enLaNube()) return altaEnLaNube(entrada);
+    const ruc = String(entrada.ruc ?? '').trim();
+    const razonSocial = String(entrada.razonSocial ?? '').trim();
+
+    if (!rucValido(ruc)) {
+      fallo('Ese RUC no es válido. Son trece dígitos y terminan en 001 para la matriz.');
+    }
+    if (razonSocial.length < 3) fallo('La razón social no puede quedar vacía.');
+    if (datos.empresas.some((e) => e.ruc === ruc)) {
+      fallo(`Ya hay una empresa con el RUC ${ruc}. Una empresa no se da de alta dos veces.`);
+    }
+
+    const empresa = {
+      id: 'e' + Date.now().toString(36),
+      razonSocial,
+      nombreComercial: String(entrada.nombreComercial ?? '').trim() || razonSocial,
+      ruc,
+      dirMatriz: String(entrada.direccion ?? '').trim(),
+      ciudad: String(entrada.ciudad ?? '').trim(),
+      regimen: entrada.regimen ?? 'General',
+      plan: entrada.plan ?? 'Profesional',
+      obligadoContabilidad: entrada.obligadoContabilidad !== false,
+      manejaInventario: entrada.manejaInventario !== false,
+      contribuyenteEspecial: false,
+      agenteRetencion: false,
+      ambiente: 'PRUEBAS',
+      correo: String(entrada.correo ?? '').trim(),
+      telefono: String(entrada.telefono ?? '').trim(),
+      estado: 'PRUEBA',
+      alta: new Date(),
+      usuarios: 1,
+      comprobantesMes: 0,
+      certificadoVence: null,
+      semilla: false,
+    };
+
+    datos.empresas.push(empresa);
+    // Un punto de emisión, que sin él no se puede facturar nada.
+    datos.puntos.push({
+      codigo: '001-001', nombre: 'Caja principal',
+      lugar: empresa.ciudad || 'Matriz', ultimo: 0, activo: true,
+      empresaId: empresa.id,
+    });
+    datos.activa = empresa.id;
+    persistir();
+    return esperar(empresa);
+  },
+
+  /** Cambia la empresa con la que se está trabajando. */
+  cambiarEmpresa(id) {
+    if (enLaNube()) {
+      if (!perfilDeLaNube().empresas.some((e) => e.id === id)) fallo('Esa empresa no es suya.');
+      recordarActivaNube(id);
+      return esperar(empresaActiva());
+    }
+    if (!datos.empresas.some((e) => e.id === id)) fallo('Esa empresa no existe.');
+    datos.activa = id;
+    persistir();
+    return esperar(empresaActiva());
+  },
+
+  /** Crea o actualiza un cliente. Devuelve el cliente tal como quedó. */
+  cliente(entrada) {
+    const { identificacion, razonSocial } = comprobarCliente(entrada);
+    if (enLaNube()) {
+      return guardarClienteEnLaNube(empresaActiva(), {
+        tipo: entrada.tipo,
+        identificacion,
+        razonSocial,
+        ciudad: String(entrada.ciudad ?? '').trim(),
+        correo: String(entrada.correo ?? '').trim(),
+        telefono: String(entrada.telefono ?? '').trim(),
+        direccion: String(entrada.direccion ?? '').trim(),
+      }, entrada.id || null);
+    }
+    const existente = datos.clientes.find((c) => c.id === entrada.id);
+
+    const cliente = {
+      ...(existente ?? {}),
+      id: existente?.id ?? nuevoId(),
+      empresaId: existente?.empresaId ?? idActiva(),
+      tipo: entrada.tipo,
+      identificacion,
+      razonSocial,
+      ciudad: String(entrada.ciudad ?? '').trim(),
+      correo: String(entrada.correo ?? '').trim(),
+      telefono: String(entrada.telefono ?? '').trim(),
+      direccion: String(entrada.direccion ?? '').trim(),
+      activo: true,
+      comprobantes: existente?.comprobantes ?? 0,
+      facturado: existente?.facturado ?? 0,
+    };
+
+    if (existente) datos.clientes[datos.clientes.indexOf(existente)] = cliente;
+    else datos.clientes.unshift(cliente);
+
+    persistir();
+    return esperar(cliente);
+  },
+
+  /** Crea o actualiza un producto. `codigoOriginal` identifica al que se edita. */
+  producto(entrada) {
+    const { codigo, descripcion } = comprobarProducto(entrada);
+    if (enLaNube()) {
+      return guardarProductoEnLaNube(empresaActiva(), {
+        codigo,
+        descripcion,
+        unidad: String(entrada.unidad ?? '').trim(),
+        tipo: entrada.tipo,
+        precio: Number(entrada.precio),
+        iva: Number(entrada.iva),
+      }, entrada.codigoOriginal || null);
+    }
+    const existente = datos.productos.find((p) => p.codigo === entrada.codigoOriginal);
+
+    const producto = {
+      ...(existente ?? {}),
+      empresaId: existente?.empresaId ?? idActiva(),
+      codigo,
+      descripcion,
+      unidad: String(entrada.unidad ?? '').trim() || 'UNIDAD',
+      tipo: entrada.tipo === 'Servicio' ? 'Servicio' : 'Bien',
+      precio: Number(entrada.precio),
+      iva: Number(entrada.iva),
+      activo: true,
+    };
+
+    if (existente) datos.productos[datos.productos.indexOf(existente)] = producto;
+    else datos.productos.unshift(producto);
+
+    persistir();
+    return esperar(producto);
+  },
+
+  /**
+   * Guarda una factura como borrador y le asigna su número.
+   *
+   * El número se reserva aquí, al crearla, y no al emitirla. Podría parecer que
+   * es mejor esperar —así no se gastan números en borradores que se tiran—,
+   * pero dos cajas facturando a la vez pedirían el mismo número. Se entrega de
+   * uno en uno y no se reutiliza: un hueco en la numeración se explica, un
+   * número repetido lo rechaza el SRI.
+   */
+  borrador(entrada) {
+    if (enLaNube()) return borradorEnLaNubeActiva(entrada);
+    const cliente = deLaActiva(datos.clientes).find((c) => c.id === entrada.clienteId);
+    if (!cliente) fallo('Hay que elegir a quién se le factura.');
+    if (!entrada.lineas?.length) fallo('Una factura sin líneas no se puede emitir.');
+
+    const mios = deLaActiva(datos.puntos);
+    const punto = mios.find((p) => p.codigo === entrada.punto && p.activo)
+      ?? mios.find((p) => p.activo);
+    if (!punto) fallo('No hay ningún punto de emisión activo.');
+
+    const secuencial = siguienteSecuencial(punto);
+    punto.ultimo = secuencial;
+    const numeroNuevo = `${punto.codigo}-${String(secuencial).padStart(9, '0')}`;
+
+    // Cinturón y tirantes. La base de datos tiene una restricción de unicidad
+    // sobre (punto, tipo, secuencial) que rechazaría esto, y el SRI rechaza dos
+    // comprobantes con el mismo número. Vale más fallar aquí, con un mensaje
+    // que se entiende, que descubrirlo cuando el documento ya salió.
+    if (deLaActiva(datos.comprobantes).some((c) => c.numero === numeroNuevo)) {
+      fallo(`Ya existe un comprobante ${numeroNuevo}. La numeración de un punto de ` +
+            'emisión no puede repetirse: el SRI lo rechaza.');
+    }
+
+    const comprobante = {
+      id: nuevoId(),
+      empresaId: idActiva(),
+      numero: numeroNuevo,
+      tipo: 'Factura',
+      estado: 'BORRADOR',
+      cliente,
+      fecha: new Date(),
+      fechaAutorizacion: null,
+      // La clave de acceso se asigna al firmar, porque va dentro de lo firmado.
+      // Un borrador todavía no tiene ninguna, y fabricar una aquí sería
+      // enseñar un número que después no coincidiría con el de verdad.
+      claveAcceso: null,
+      autorizacion: null,
+      formaPago: entrada.formaPago,
+      lineas: entrada.lineas.map((l) => ({ ...l })),
+      totales: totalizar(entrada.lineas),
+      simulado: false,
+    };
+
+    datos.comprobantes.unshift(comprobante);
+    persistir();
+    return esperar(comprobante);
+  },
+
+  /**
+   * La emisión simulada.
+   *
+   * Recorre los estados igual que el sistema de verdad, pero **sin firmar y sin
+   * hablar con el SRI**, porque ni el certificado ni la conexión están
+   * enchufados todavía. Por eso el comprobante queda marcado como simulado y lo
+   * dice en todas las pantallas donde aparece: un documento que parece
+   * autorizado sin estarlo es peor que no tener ninguno.
+   */
+  emitirSimulado(numero) {
+    if (enLaNube()) return emisionSimuladaNoPermitida();
+    const c = deLaActiva(datos.comprobantes).find((x) => x.numero === numero);
+    if (!c) fallo(`No existe el comprobante ${numero}.`);
+    if (c.estado !== 'BORRADOR') {
+      fallo(`El comprobante ${numero} ya salió de borrador y no se puede volver a emitir. ` +
+            'Un comprobante emitido se corrige con una nota de crédito, no editándolo.');
+    }
+    c.estado = 'AUTORIZADO';
+    c.fechaAutorizacion = new Date();
+    c.simulado = true;
+    persistir();
+    return esperar(c);
+  },
+};
+
+/**
+ * Una factura en borrador con la cuenta de verdad: el cliente y el punto se
+ * leen de la base en ese momento, no de lo que la pantalla tenía en memoria.
+ */
+async function borradorEnLaNubeActiva(entrada) {
+  const empresaId = idActiva();
+  const [cliente, puntos] = await Promise.all([
+    clienteDeLaNube(empresaId, entrada.clienteId), puntosDeLaNube(empresaId),
+  ]);
+  const punto = puntos.find((p) => p.codigo === entrada.punto && p.activo)
+    ?? puntos.find((p) => p.activo);
+  const c = await borradorEnLaNube({
+    empresa: empresaActiva(), cliente, punto, lineas: entrada.lineas, formaPago: entrada.formaPago,
+  });
+  window.dispatchEvent(new CustomEvent('kontia:datos-cambiaron'));
+  return c;
+}
+
+/**
+ * El alta de una empresa en la base de datos.
+ *
+ * Mismas comprobaciones que en el navegador, más la dirección: la tabla la exige
+ * y el SRI la imprime en cada comprobante. Después se vuelve a pedir el perfil,
+ * para que la empresa nueva aparezca en el directorio sin recargar.
+ */
+async function altaEnLaNube(entrada) {
+  const ruc = String(entrada.ruc ?? '').trim();
+  const razonSocial = String(entrada.razonSocial ?? '').trim();
+  const direccion = String(entrada.direccion ?? '').trim();
+
+  if (!rucValido(ruc)) {
+    fallo('Ese RUC no es válido. Son trece dígitos y terminan en 001 para la matriz.');
+  }
+  if (razonSocial.length < 3) fallo('La razón social no puede quedar vacía.');
+  if (direccion.length < 5) {
+    fallo('La dirección matriz es obligatoria: el SRI la exige en cada comprobante.');
+  }
+  if (perfilDeLaNube().empresas.some((e) => e.ruc === ruc)) {
+    fallo(`Ya hay una empresa con el RUC ${ruc}. Una empresa no se da de alta dos veces.`);
+  }
+
+  let empresa;
+  try {
+    empresa = await altaDeEmpresa({
+      ruc,
+      razonSocial,
+      nombreComercial: String(entrada.nombreComercial ?? '').trim(),
+      direccion,
+      correo: String(entrada.correo ?? '').trim(),
+      obligadoContabilidad: entrada.obligadoContabilidad !== false,
+      plan: entrada.plan,
+    });
+  } finally {
+    // Aunque el punto de emisión haya fallado, la empresa puede existir ya:
+    // el directorio tiene que enseñarla.
+    await cargarPerfil().catch(() => null);
+  }
+  recordarActivaNube(empresa.id);
+  window.dispatchEvent(new CustomEvent('kontia:datos-cambiaron'));
+  return empresa;
+}
+
+
+  return { reiniciar, empresaActiva, esLaDeEjemplo, cargar, guardar };
 })();
 
 // ---- src/disposicion.js ------------------------------------------
@@ -8370,7 +8512,7 @@ const FILTROS = [
 async function comprobantes() {
   const lista = await cargar.comprobantes();
   // El número de asiento de cada factura, para ir de la lista al diario.
-  const diario = esLaDeEjemplo() ? diarioCon(await cargar.compras()) : null;
+  const diario = esLaDeEjemplo() ? (await cargar.librosDelMes()) : null;
   const asientoDe = (c) => (diario && c.estado === 'AUTORIZADO'
     ? asientoDelDocumento(diario, c.numero, 'VENTA') : null);
 
@@ -8488,7 +8630,7 @@ async function comprobante(numero) {
   let registro;
   if (c.estado === 'AUTORIZADO') {
     const enLibros = esLaDeEjemplo()
-      ? asientoDelDocumento(diarioCon(await cargar.compras()), c.numero, 'VENTA') : null;
+      ? asientoDelDocumento((await cargar.librosDelMes()), c.numero, 'VENTA') : null;
     registro = registroContable(enLibros ?? asientoDeFactura(c), {
       numero: enLibros?.numero ?? null,
       nota: enLibros
@@ -10942,7 +11084,7 @@ async function libroDiario(elegido = null) {
 
   // El diario incluye lo que entro por el buzon: las compras son asientos como
   // cualquier otro y tienen que estar aqui, en su fecha y con su numero.
-  const DIARIO = diarioCon(await cargar.compras());
+  const DIARIO = (await cargar.librosDelMes());
   const totalDebe = DIARIO.reduce((s, a) => s + a.debe, 0);
   const generados = DIARIO.filter((a) => a.generado).length;
 
@@ -11044,7 +11186,7 @@ async function libroMayor(codigo) {
     })}`;
   }
 
-  const libro = diarioCon(await cargar.compras());
+  const libro = (await cargar.librosDelMes());
   const conMovimiento = balanceDeComprobacion(libro);
   const elegida = codigo && conMovimiento.some((c) => c.codigo === codigo)
     ? codigo : conMovimiento[0]?.codigo;
@@ -11135,7 +11277,7 @@ async function balanceComprobacion() {
     })}`;
   }
 
-  const filas = balanceDeComprobacion(diarioCon(await cargar.compras()));
+  const filas = balanceDeComprobacion((await cargar.librosDelMes()));
   const centavos = (n) => Math.round(n * 100);
   const suma = (campo) => filas.reduce((s, f) => s + centavos(f[campo]), 0);
 
@@ -11336,7 +11478,7 @@ async function estadoResultados() {
     })}`;
   }
 
-  const por = agrupar(balanceDeComprobacion(diarioCon(await cargar.compras())));
+  const por = agrupar(balanceDeComprobacion((await cargar.librosDelMes())));
   const ingresos = totalDelGrupo(por['4'], 4);
   const costo = totalDelGrupo(por['5']?.filter((f) => f.codigo.startsWith('51')), 5);
   const gastos = totalDelGrupo(por['5']?.filter((f) => f.codigo.startsWith('52')), 5);
@@ -11455,7 +11597,7 @@ async function balanceGeneral() {
     })}`;
   }
 
-  const por = agrupar(balanceDeComprobacion(diarioCon(await cargar.compras())));
+  const por = agrupar(balanceDeComprobacion((await cargar.librosDelMes())));
   const activo = totalDelGrupo(por['1'], 1);
   const pasivo = totalDelGrupo(por['2'], 2);
 
@@ -11612,7 +11754,7 @@ async function retenciones() {
     iva: Math.round(r.baseIVA * r.porcentajeIVA) / 100,
   });
   const lista = RETENCIONES.map(con);
-  const diario = diarioCon(await cargar.compras());
+  const diario = (await cargar.librosDelMes());
   // Las tarjetas hablan del mes que se va a declarar (septiembre). Una
   // retención de agosto se ve en la lista, pero ya se declaró con agosto.
   const esDelMes = (r) => r.fecha.getFullYear() === 2026 && r.fecha.getMonth() === 8;
@@ -11720,7 +11862,7 @@ async function retencion(numero) {
   if (!r) return noExiste('esa retención', numero, '#/retenciones');
 
   const v = valoresDeRetencion(r);
-  const libro = diarioCon(await cargar.compras());
+  const libro = (await cargar.librosDelMes());
   const enLibros = asientoDelDocumento(libro, r.numero, 'RETENCION');
   const compra = asientoDelDocumento(libro, r.sustento);
 
@@ -11751,7 +11893,7 @@ async function notaCredito(numero) {
   const n = esLaDeEjemplo() ? NOTAS_CREDITO.find((x) => x.numero === numero) : null;
   if (!n) return noExiste('esa nota de crédito', numero, '#/notas-credito');
 
-  const libro = diarioCon(await cargar.compras());
+  const libro = (await cargar.librosDelMes());
   const enLibros = asientoDelDocumento(libro, n.numero, 'NOTA_CREDITO');
   const factura = await cargar.comprobante(n.modifica);
 
@@ -11789,7 +11931,7 @@ async function notasCredito() {
   }
 
   const total = NOTAS_CREDITO.reduce((s, n) => s + n.base + n.iva, 0);
-  const diario = diarioCon(await cargar.compras());
+  const diario = (await cargar.librosDelMes());
 
   const cuerpo = NOTAS_CREDITO.map((n) => html`
     <tr class="hover:bg-papel transition cursor-pointer" onclick="location.hash='#/notas-credito/${n.numero}'">
@@ -11999,7 +12141,8 @@ function pantallaCartera({ lista, campo, titulo, descripcion, etiquetaContrapart
   return html`
     ${crudo(cabecera({
       titulo, descripcion,
-      acciones: boton(cobrar ? 'Registrar cobro' : 'Registrar pago', { ico: 'payments' }),
+      acciones: cobrar ? boton('Registrar cobro', { ico: 'payments' })
+        : boton('Registrar pago', { ico: 'payments', ruta: '#/por-pagar/pagar' }),
     }))}
 
     ${vencido > 0 ? crudo(aviso({
@@ -12080,7 +12223,8 @@ const cuentasPorCobrar = async () => (esLaDeEjemplo() ? pantallaCartera({
 })}`);
 
 const cuentasPorPagar = async () => (esLaDeEjemplo() ? pantallaCartera({
-  lista: CARTERA_PAGAR, campo: 'proveedor', cobrar: false, ico: 'credit_card',
+  // Con los pagos registrados ya descontados.
+  lista: (await cargar.porPagar()).filter((x) => x.saldo > 0.004), campo: 'proveedor', cobrar: false, ico: 'credit_card',
   titulo: 'Cuentas por pagar',
   descripcion: 'Lo que la empresa debe a sus proveedores.',
   etiquetaContraparte: 'Proveedor',
@@ -12252,14 +12396,16 @@ function conciliacionDe(b, indice, diario) {
                   vistaPrevia: true, id: `ajuste-${String(indice)}-${String(i)}`,
                   nota: m.valor < 0
                     ? 'Asiento propuesto por la conciliación: gasto financiero (5203), como indicó el contador.'
-                    : 'Asiento propuesto: el depósito queda en un pasivo (20113, «Depósitos no identificados») ' +
-                      'hasta saber de quién es; entonces se reclasifica, normalmente contra el cliente.',
+                    : /inter[eé]s/i.test(m.concepto)
+                      ? 'Asiento propuesto: intereses ganados a otros ingresos (4302 Intereses financieros), como indicó el contador.'
+                      : 'Asiento propuesto: el depósito queda en un pasivo (20113, «Depósitos no identificados») ' +
+                        'hasta saber de quién es; entonces se reclasifica, normalmente contra el cliente.',
                 })
               : crudo(aviso({
                   tono: 'ambar', ico: 'help',
-                  titulo: `${m.concepto}: confirme la cuenta de ingreso`,
-                  texto: 'Un interés que el banco acredita es un ingreso financiero. Esa cuenta todavía no ' +
-                         'está confirmada con el contador, así que el sistema no propone el asiento.',
+                  titulo: `${m.concepto}: sin asiento propuesto`,
+                  texto: 'Este crédito del banco no encaja en ninguna regla. Regístrelo contra la cuenta ' +
+                         'que corresponda.',
                 }))))}
           </div>
         </div>` : ''}
@@ -12336,7 +12482,7 @@ async function bancos() {
     })}`;
   }
 
-  const diario = diarioCon(await cargar.compras());
+  const diario = (await cargar.librosDelMes());
   const cuentas = BANCOS.map((b, i) => conciliacionDe(b, i, diario));
   const suma = (campo) => cuentas.reduce((s, x) => s + Math.round(x.r[campo] * 100), 0) / 100;
   const sinExplicar = suma('diferencia');
@@ -12427,6 +12573,225 @@ function conectarBancos() {
 
 
   return { cuentasPorCobrar, cuentasPorPagar, bancos, conectarBancos };
+})();
+
+// ---- src/vistas/pagos.js -----------------------------------------
+const __src_vistas_pagos_js = (function () {
+  const { html, crudo, esc, icono, usd, dinero, fecha, cabecera, boton, aviso, vacio, dejarRecado } = __src_ui_js;
+  const { cargar, guardar, esLaDeEjemplo } = __src_almacen_js;
+  const { prepararPago, asientoDePago } = __src_datos_contables_js;
+  const { registroContable } = __src_vistas_asiento_js;
+
+/**
+ * Registrar un pago a proveedores: una factura o varias en un solo pago.
+ *
+ * Se registra como sale en el banco (contador, 16-sep-2026): si el banco
+ * muestra un débito de 1.000 que cancela tres facturas, en los libros queda un
+ * solo pago de 1.000, con la misma fecha y la misma referencia. Así la
+ * conciliación lo empareja uno a uno, sin sumar nada.
+ */
+
+
+
+
+
+
+async function registrarPago() {
+  const pendientes = esLaDeEjemplo() ? (await cargar.porPagar()).filter((x) => x.saldo > 0.004) : [];
+
+  if (!pendientes.length) {
+    return html`
+      ${crudo(cabecera({ titulo: 'Registrar pago' }))}
+      <section class="bg-white border border-papel-linea rounded-2xl relieve">
+        ${crudo(vacio({
+          ico: 'task_alt', titulo: 'No hay facturas pendientes de pago',
+          texto: 'Todo lo que se debe a los proveedores está pagado.',
+          accion: boton('Volver a cuentas por pagar', { ruta: '#/por-pagar', tipo: 'secundario' }),
+        }))}
+      </section>`;
+  }
+
+  const hoy = new Date(2026, 8, 30).toISOString().slice(0, 10);
+
+  return html`
+    <a href="#/por-pagar" class="inline-flex items-center gap-1.5 text-xs font-bold text-tinta-suave hover:text-verde mb-4">
+      ${icono('arrow_back', 'text-[16px]')} Cuentas por pagar
+    </a>
+    ${crudo(cabecera({
+      titulo: 'Registrar pago',
+      descripcion: 'Una factura o varias en un solo pago, registrado igual que en el banco.',
+    }))}
+
+    ${crudo(aviso({
+      tono: 'info', ico: 'account_balance',
+      titulo: 'Un pago masivo es un solo pago',
+      texto: 'Si el banco muestra un solo débito que cancela varias facturas (cash management), ' +
+             'elíjalas todas aquí: queda un solo pago con la fecha y la referencia del banco, y la ' +
+             'conciliación lo empareja uno a uno.',
+    }))}
+
+    <form id="forma-pago" class="space-y-5">
+      <section class="bg-white border border-papel-linea rounded-2xl relieve p-5 grid gap-4 sm:grid-cols-3">
+        <label class="block">
+          <span class="text-[11px] font-bold uppercase tracking-wide text-tinta-suave">Fecha del pago</span>
+          <input id="pago-fecha" type="date" value="${hoy}"
+                 class="mt-1.5 w-full px-3.5 py-2.5 rounded-xl border border-papel-linea bg-white text-sm focus:outline-none focus:border-verde">
+        </label>
+        <label class="block sm:col-span-2">
+          <span class="text-[11px] font-bold uppercase tracking-wide text-tinta-suave">Referencia del banco</span>
+          <input id="pago-referencia" type="text" autocomplete="off" placeholder="Ej.: CM-20260930 o número de transferencia"
+                 class="mt-1.5 w-full px-3.5 py-2.5 rounded-xl border border-papel-linea bg-white text-sm focus:outline-none focus:border-verde">
+          <span class="mt-1 block text-[11px] text-tinta-suave">
+            La que aparece en el estado de cuenta. Con ella, la conciliación encuentra el pago aunque el banco lo registre otro día.
+          </span>
+        </label>
+      </section>
+
+      <section class="bg-white border border-papel-linea rounded-2xl relieve overflow-hidden">
+        <header class="px-5 py-4 border-b border-papel-linea">
+          <h2 class="text-sm font-bold">Facturas que se pagan</h2>
+          <p class="text-[11px] text-tinta-suave mt-0.5">Marque cada una y ajuste el valor si es un pago parcial.</p>
+        </header>
+        <div class="overflow-x-auto">
+          <table class="w-full text-sm min-w-[600px]">
+            <thead>
+              <tr class="text-[11px] uppercase tracking-wide text-tinta-suave">
+                <th class="px-5 py-2 w-10"></th>
+                <th class="px-2 py-2 text-left font-bold">Proveedor y factura</th>
+                <th class="px-3 py-2 text-left font-bold">Vence</th>
+                <th class="px-3 py-2 text-right font-bold">Saldo</th>
+                <th class="px-5 py-2 text-right font-bold w-40">Se paga</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-papel-linea">
+              ${pendientes.map((x, i) => html`
+                <tr>
+                  <td class="px-5 py-3">
+                    <input type="checkbox" id="pago-marca-${String(i)}" data-pago-marca="${x.documento}" class="accent-[#0C3A27] w-4 h-4">
+                  </td>
+                  <td class="px-2 py-3">
+                    <label for="pago-marca-${String(i)}" class="block cursor-pointer">
+                      <span class="block font-semibold">${x.proveedor}</span>
+                      <span class="block text-[11px] text-tinta-suave tabular">Factura ${x.documento}</span>
+                    </label>
+                  </td>
+                  <td class="px-3 py-3 whitespace-nowrap text-tinta-suave">${fecha(x.vence)}</td>
+                  <td class="px-3 py-3 text-right tabular">${dinero(x.saldo)}</td>
+                  <td class="px-5 py-3 text-right">
+                    <input type="number" step="0.01" min="0" max="${String(x.saldo)}" value="${x.saldo.toFixed(2)}"
+                           id="pago-valor-${String(i)}" data-pago-valor="${x.documento}"
+                           class="w-32 px-3 py-2 rounded-lg border border-papel-linea text-right tabular focus:outline-none focus:border-verde">
+                  </td>
+                </tr>`)}
+            </tbody>
+          </table>
+        </div>
+        <div class="flex flex-wrap items-center justify-between gap-3 px-5 py-4 border-t border-papel-linea bg-papel/60">
+          <span class="text-sm text-tinta-suave" id="pago-cuantas">Ninguna factura elegida</span>
+          <span class="text-lg font-extrabold tabular" id="pago-total">${usd(0)}</span>
+        </div>
+      </section>
+
+      <div id="pago-vista-previa"></div>
+      <div id="pago-recado"></div>
+
+      <div class="flex flex-wrap justify-end gap-2">
+        ${boton('Cancelar', { ruta: '#/por-pagar', tipo: 'secundario' })}
+        <button type="submit" class="px-5 py-2.5 rounded-xl bg-verde text-white text-sm font-bold hover:bg-verde-oscuro transition">
+          Registrar pago
+        </button>
+      </div>
+    </form>`;
+}
+
+// ===========================================================================
+//  La parte viva
+// ===========================================================================
+
+function leerFormulario() {
+  const documentos = [...document.querySelectorAll('[data-pago-marca]')]
+    .filter((m) => m.checked)
+    .map((m) => {
+      const campo = document.querySelector(`[data-pago-valor="${CSS.escape(m.dataset.pagoMarca)}"]`);
+      return { documento: m.dataset.pagoMarca, valor: Number(campo?.value || 0) };
+    });
+  return {
+    fecha: document.getElementById('pago-fecha')?.value,
+    referencia: document.getElementById('pago-referencia')?.value,
+    documentos,
+  };
+}
+
+async function actualizarVistaPrevia() {
+  const entrada = leerFormulario();
+  const cuantas = document.getElementById('pago-cuantas');
+  const total = document.getElementById('pago-total');
+  const previa = document.getElementById('pago-vista-previa');
+  const recado = document.getElementById('pago-recado');
+  if (recado) recado.innerHTML = '';
+
+  const suma = entrada.documentos.reduce((s, d) => s + Math.round(d.valor * 100), 0) / 100;
+  if (total) total.textContent = usd(suma);
+  if (cuantas) {
+    const n = entrada.documentos.length;
+    cuantas.textContent = n === 0 ? 'Ninguna factura elegida'
+      : n === 1 ? '1 factura · un pago'
+        : `${n} facturas · un solo pago masivo`;
+  }
+  if (!previa) return;
+  if (!entrada.documentos.length) { previa.innerHTML = ''; return; }
+  try {
+    const pendientes = (await cargar.porPagar()).filter((x) => x.saldo > 0.004);
+    const pago = prepararPago(entrada, pendientes);
+    previa.innerHTML = String(registroContable(asientoDePago(pago), {
+      vistaPrevia: true, id: 'pago-asiento',
+      nota: 'Una línea por factura en proveedores y una sola salida del banco, como en el estado de cuenta.',
+    }));
+  } catch (error) {
+    previa.innerHTML = String(aviso({ tono: 'ambar', ico: 'rule', titulo: 'Revise el pago', texto: error.message }));
+  }
+}
+
+let conectado = false;
+
+function conectarPago() {
+  const zona = document.getElementById('raiz');
+  if (!zona || conectado) return;
+  conectado = true;
+
+  const siEsDelPago = (ev) => ev.target.closest('#forma-pago');
+  zona.addEventListener('change', (ev) => { if (siEsDelPago(ev)) actualizarVistaPrevia(); });
+  zona.addEventListener('input', (ev) => { if (siEsDelPago(ev)) actualizarVistaPrevia(); });
+
+  zona.addEventListener('submit', async (ev) => {
+    if (!ev.target.closest('#forma-pago')) return;
+    ev.preventDefault();
+    try {
+      const { pago, asiento } = await guardar.pagoProveedores(leerFormulario());
+      const libros = await cargar.librosDelMes();
+      const enLibros = libros.find((a) => a.tipo === 'PAGO' && a.origen === asiento.origen
+        && String(a.fecha) === String(asiento.fecha));
+      dejarRecado({
+        tono: 'exito', ico: 'check_circle',
+        titulo: pago.documentos.length > 1
+          ? `Pago masivo registrado: ${pago.documentos.length} facturas por ${usd(pago.total)}`
+          : `Pago registrado por ${usd(pago.total)}`,
+        texto: `Queda como una sola salida del banco${pago.referencia ? ` con la referencia ${pago.referencia}` : ''}` +
+               (enLibros ? `, en el asiento #${enLibros.numero} del diario.` : '.'),
+      });
+      location.hash = '#/por-pagar';
+    } catch (error) {
+      const recado = document.getElementById('pago-recado');
+      if (recado) {
+        recado.innerHTML = String(aviso({ tono: 'rojo', ico: 'error', titulo: 'No se registró el pago', texto: error.message }));
+        recado.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
+    }
+  });
+}
+
+
+  return { registrarPago, conectarPago };
 })();
 
 // ---- src/vistas/operaciones.js -----------------------------------
@@ -12945,14 +13310,14 @@ async function proveedor(ruc) {
 
   const buzon = await cargar.compras();
   const compras = [
-    ...comprasDelLibro(diarioCon(buzon)).filter((c) => c.proveedorRuc === ruc),
+    ...comprasDelLibro(diarioCon(buzon, await cargar.pagos())).filter((c) => c.proveedorRuc === ruc),
     ...buzon.filter((c) => c.proveedorRuc === ruc && c.tipo !== '07').map((c) => ({
       numero: c.numero, fecha: c.fecha, sinImpuestos: c.sinImpuestos, iva: c.iva, total: c.total,
       glosa: 'Desde el buzón',
     })),
   ];
   const retenciones = RETENCIONES.filter((r) => r.ruc === ruc);
-  const porPagar = CARTERA_PAGAR.filter((x) => x.proveedor === p.razonSocial);
+  const porPagar = (await cargar.porPagar()).filter((x) => x.proveedor === p.razonSocial);
 
   const enlace = (ruta, texto) => crudo(
     `<a href="${esc(ruta)}" class="text-sm font-semibold tabular hover:text-verde">${esc(texto)}</a>`);
@@ -14137,7 +14502,8 @@ async function compras() {
   const lista = await cargar.compras();
   // Las registradas en los libros también son compras, aunque no hayan
   // entrado por el buzón.
-  const libro = esLaDeEjemplo() ? comprasDelLibro(diarioCon(lista)) : [];
+  const pagos = await cargar.pagos();
+  const libro = esLaDeEjemplo() ? comprasDelLibro(diarioCon(lista, pagos)) : [];
 
   if (!lista.length && !libro.length) {
     return html`
@@ -14167,7 +14533,7 @@ async function compras() {
   ];
 
   // Para saltar de cada compra a su asiento en el diario.
-  const diarioCompleto = esLaDeEjemplo() ? diarioCon(lista) : null;
+  const diarioCompleto = esLaDeEjemplo() ? diarioCon(lista, pagos) : null;
 
   const filas = lista.map((c) => {
     const asiento = asientoDeCompra(c);
@@ -14287,7 +14653,7 @@ async function compras() {
 async function compra(numero) {
   const lista = await cargar.compras();
   const deBuzon = lista.find((c) => c.numero === numero) ?? null;
-  const diario = esLaDeEjemplo() ? diarioCon(lista) : null;
+  const diario = esLaDeEjemplo() ? diarioCon(lista, await cargar.pagos()) : null;
   const delLibro = diario ? comprasDelLibro(diario).find((c) => c.numero === numero) ?? null : null;
 
   if (!deBuzon && !delLibro) {
@@ -14319,7 +14685,8 @@ async function compra(numero) {
   const enLibros = diario ? asientoDelDocumento(diario, numero) : null;
   const asiento = enLibros ?? (deBuzon ? asientoDeCompra(deBuzon) : delLibro.asiento);
   const retenciones = RETENCIONES.filter((r) => r.sustento === numero);
-  const pagos = diario ? diario.filter((a) => a.tipo === 'PAGO' && a.enlace === `#/compras/${numero}`) : [];
+  const pagos = diario ? diario.filter((a) => a.tipo === 'PAGO'
+    && (a.enlace === `#/compras/${numero}` || (a.documentos ?? []).includes(numero))) : [];
 
   return html`
     <a href="#/compras" class="inline-flex items-center gap-1.5 text-xs font-bold text-tinta-suave hover:text-verde mb-4">
@@ -14365,7 +14732,9 @@ async function compra(numero) {
           ${pagos.map((a) => html`
             <li class="flex flex-wrap justify-between gap-2">
               ${crudo(`<a href="#/diario/${a.numero}" class="font-semibold text-verde hover:underline">Pago · asiento #${a.numero}</a>`)}
-              <span class="tabular">${fecha(a.fecha)} · ${usd(a.debe)}</span>
+              <span class="tabular">${fecha(a.fecha)} · ${usd((a.documentos ?? []).length > 1
+                ? a.lineas.filter((l) => l.detalle.includes(numero)).reduce((s, l) => s + l.debe, 0)
+                : a.debe)}${(a.documentos ?? []).length > 1 ? ' (parte de un pago masivo)' : ''}</span>
             </li>`)}
         </ul>
       </section>` : ''}
@@ -14864,7 +15233,7 @@ async function declaracionIva() {
   // La declaracion sale de los saldos, y los saldos incluyen el IVA de las
   // compras que entraron por el buzon: ese es el credito tributario del mes.
   const compras = await cargar.compras();
-  const f = formulario104(balanceDeComprobacion(diarioCon(compras)), compras);
+  const f = formulario104(balanceDeComprobacion(diarioCon(compras, await cargar.pagos())), compras);
   const dias = Math.ceil((f.vence - new Date(2026, 8, 30)) / (24 * 60 * 60 * 1000));
 
   return html`
@@ -15617,6 +15986,7 @@ const __src_app_js = (function () {
   const { estadoResultados, balanceGeneral } = __src_vistas_estados_js;
   const { retenciones, retencion, notasCredito, notaCredito, guiasRemision } = __src_vistas_documentos_js;
   const { cuentasPorCobrar, cuentasPorPagar, bancos, conectarBancos } = __src_vistas_finanzas_js;
+  const { registrarPago, conectarPago } = __src_vistas_pagos_js;
   const { inventario, nomina, activosFijos } = __src_vistas_operaciones_js;
   const { proveedores, proveedor } = __src_vistas_proveedores_js;
   const { buzon, conectarBuzon } = __src_vistas_buzon_js;
@@ -15639,6 +16009,7 @@ const __src_app_js = (function () {
  * dato, se dibuja. Es la forma más aburrida de hacerlo, y por eso se puede leer
  * entera en una tarde.
  */
+
 
 
 
@@ -15719,6 +16090,7 @@ const RUTAS = [
 
   { patron: /^#\/por-cobrar\/?$/, vista: cuentasPorCobrar },
   { patron: /^#\/por-pagar\/?$/, vista: cuentasPorPagar },
+  { patron: /^#\/por-pagar\/pagar\/?$/, vista: registrarPago, alDibujar: conectarPago },
   { patron: /^#\/bancos\/?$/, vista: bancos, alDibujar: conectarBancos },
 
   { patron: /^#\/proveedores\/?$/, vista: proveedores },
