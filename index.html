@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <!-- La version publicada: la pone el empaquetador y la pagina la compara con la del servidor. -->
-<meta name="kontia-version" content="547f6cdf7995">
+<meta name="kontia-version" content="49535c64e5bb">
 <title>Kontia</title>
 <meta name="theme-color" content="#0F7B4F">
 <link rel="manifest" href="manifiesto.json">
@@ -6190,10 +6190,12 @@ function asientoDeCompra(c) {
  * saben, las piden al almacen y las pasan. El dia que los datos vengan de
  * Supabase, este archivo no cambia.
  */
-function diarioCon(compras = [], pagos = []) {
+function diarioCon(compras = [], pagos = [], declaraciones = []) {
   const deCompras = (compras ?? []).map(asientoDeCompra);
   const dePagos = (pagos ?? []).map(asientoDePago);
-  return numerar([...MANUALES, ...DE_VENTAS, ...DE_RETENCIONES, ...DE_NOTAS, ...deCompras, ...dePagos]);
+  const deDeclaraciones = (declaraciones ?? []).map(asientoDeDeclaracion);
+  return numerar([...MANUALES, ...DE_VENTAS, ...DE_RETENCIONES, ...DE_NOTAS, ...deCompras, ...dePagos,
+    ...deDeclaraciones]);
 }
 
 // Se arma la primera vez que se pide: las retenciones y las notas de crédito
@@ -6411,13 +6413,13 @@ const SOPORTE = [
 
 const RETENCIONES = [
   { numero: '001-001-000000031', proveedor: 'Fertilizantes del Pacífico S.A.', ruc: '0990123456001',
-    fecha: new Date(2026, 8, 5), sustento: '001-001-000008842', baseIR: 8400.00, porcentajeIR: 2,
+    fecha: new Date(2026, 8, 5), sustento: '001-001-000008842', baseIR: 8400.00, porcentajeIR: 2, codigoIR: '312',
     baseIVA: 0, porcentajeIVA: 0, estado: 'AUTORIZADO' },
   { numero: '001-001-000000030', proveedor: 'Transportes Andinos del Norte S.A.', ruc: '0992871045001',
-    fecha: new Date(2026, 8, 19), sustento: '002-001-000003318', baseIR: 1026.52, porcentajeIR: 1,
+    fecha: new Date(2026, 8, 19), sustento: '002-001-000003318', baseIR: 1026.52, porcentajeIR: 1, codigoIR: '310',
     baseIVA: 153.98, porcentajeIVA: 70, estado: 'AUTORIZADO' },
   { numero: '001-001-000000029', proveedor: 'Semillas del Guayas Cía. Ltda.', ruc: '0991765432001',
-    fecha: new Date(2026, 7, 28), sustento: '001-001-000002205', baseIR: 3000.00, porcentajeIR: 2,
+    fecha: new Date(2026, 7, 28), sustento: '001-001-000002205', baseIR: 3000.00, porcentajeIR: 2, codigoIR: '312',
     baseIVA: 450.00, porcentajeIVA: 30, estado: 'AUTORIZADO' },
 ];
 
@@ -6746,8 +6748,30 @@ function formulario104(saldos = balanceDeComprobacion(), compras = []) {
     }
   }
 
+  // Sección «agente de retención del IVA»: lo que la empresa retuvo a sus
+  // proveedores. Ya es una deuda con el SRI desde el asiento de cada retención;
+  // aquí se declara y se suma a lo que se paga con este formulario.
+  const retenidoPorPorcentaje = new Map();
+  for (const r of RETENCIONES.filter((x) => x.estado === 'AUTORIZADO' && DEL_MES(x.fecha))) {
+    const { iva } = valoresDeRetencion(r);
+    if (iva > 0) retenidoPorPorcentaje.set(r.porcentajeIVA, r2((retenidoPorPorcentaje.get(r.porcentajeIVA) ?? 0) + iva));
+  }
+  const retencionesIva = Object.entries(CASILLA_RETENCION_IVA).map(([porcentaje, casilla]) => ({
+    casilla, porcentaje: Number(porcentaje), valor: retenidoPorPorcentaje.get(Number(porcentaje)) ?? 0,
+  }));
+  const c799 = r2(retencionesIva.reduce((s, x) => s + x.valor, 0));
+  const c801 = c799;
+  const c859 = r2(aPagar + c801);
+
+  // Las retenciones de IVA recibidas, por auxiliar, para el asiento.
+  const retencionesRecibidas = Object.entries(saldo('1010501').auxiliares ?? {})
+    .filter(([aux, v]) => aux.startsWith('Retenciones de IVA recibidas') && v < 0)
+    .map(([auxiliar, v]) => ({ auxiliar, valor: r2(-v) }));
+
   return {
+    formulario: '104',
     periodo: 'Septiembre 2026',
+    clavePeriodo: '2026-09',
     casillas: [
       { casilla: '401', concepto: 'Ventas locales gravadas con tarifa diferente de cero · valor bruto', valor: ventas15Bruto, cuenta: '4101' },
       { casilla: '411', concepto: 'Ventas locales gravadas con tarifa diferente de cero · valor neto (menos notas de crédito)', valor: ventas15, cuenta: '4111' },
@@ -6768,17 +6792,236 @@ function formulario104(saldos = balanceDeComprobacion(), compras = []) {
       { casilla: '609', concepto: '(-) Retenciones de IVA que le han sido efectuadas', valor: retIva, cuenta: '1010501' },
       { casilla: '615', concepto: 'Saldo crédito tributario para el próximo mes · por adquisiciones', valor: c615 },
       { casilla: '617', concepto: 'Saldo crédito tributario para el próximo mes · por retenciones', valor: c617 },
-      { casilla: '902', concepto: 'Total a pagar', valor: aPagar, total: true, fuerte: true },
+      { casilla: '699', concepto: 'Total impuesto a pagar por percepción', valor: aPagar, total: true },
+      ...retencionesIva.map((x) => ({
+        casilla: x.casilla, concepto: `Retención del ${x.porcentaje}% del IVA hecha a proveedores`, valor: x.valor,
+        cuenta: x.valor > 0 ? '2010701' : undefined,
+      })),
+      { casilla: '799', concepto: 'Total impuesto retenido', valor: c799, total: true },
+      { casilla: '801', concepto: 'Total impuesto a pagar por retención', valor: c801, total: true },
+      { casilla: '859', concepto: 'Total consolidado de IVA (699 + 801)', valor: c859, total: true },
+      { casilla: '902', concepto: 'Total a pagar', valor: c859, total: true, fuerte: true },
     ],
     ivaCobrado, ivaCompras, factor, credito, retIva, aPagar,
+    noDeducible: r2(ivaCompras - credito),
+    c615, c617, retencionesIva, retencionesRecibidas,
+    totalRetenido: c799,
+    total: c859,
     // Septiembre se declara en octubre; el día sale del noveno dígito del RUC
     // de la empresa de ejemplo (0912345678001 → 7 → día 22).
     vence: fechaLimite(RUC_DE_EJEMPLO, 2026, 9),
   };
 }
 
+/** Casillas del 104 para lo retenido de IVA, por porcentaje. */
+const CASILLA_RETENCION_IVA = { 10: '721', 20: '723', 30: '725', 50: '727', 70: '729', 100: '731' };
 
-  return { CUENTAS, cuenta, nombreCuenta, AUX_IVA_COBRADO, asientoDeFactura, asientoDeCompra, diarioCon, diarioDelMes, balanceDeComprobacion, mayorDe, CARTERA_COBRAR, PROVEEDORES, CARTERA_PAGAR, BANCOS, saldoFinalDelBanco, INVENTARIO, EMPLEADOS, ACTIVOS_FIJOS, SUSCRIPCIONES, USO_MENSUAL, SOPORTE, RETENCIONES, NOTAS_CREDITO, GUIAS_REMISION, valoresDeRetencion, asientoDeRetencionEmitida, asientoDeNotaCredito, comprasDelLibro, pendientesDePago, prepararPago, asientoDePago, asientoDelDocumento, formulario104 };
+/**
+ * Conceptos de retención en la fuente de renta que usa la empresa de ejemplo.
+ * En el formulario 103 cada concepto tiene dos casillas: la de la base y, 50
+ * números más arriba, la del valor retenido (312 → 362).
+ */
+const CONCEPTOS_RENTA = {
+  303: 'Honorarios profesionales y demás pagos por servicios relacionados con el título profesional',
+  304: 'Servicios en los que predomina el intelecto, no relacionados con el título profesional',
+  307: 'Servicios en los que predomina la mano de obra',
+  309: 'Servicios de publicidad y comunicación',
+  310: 'Transporte privado de pasajeros o servicio público o privado de carga',
+  312: 'Transferencia de bienes muebles de naturaleza corporal',
+  320: 'Arrendamiento de bienes inmuebles',
+  322: 'Seguros y reaseguros (primas y cesiones)',
+  344: 'Otras retenciones aplicables',
+};
+
+/**
+ * El formulario 103: las retenciones en la fuente de impuesto a la renta que
+ * la empresa hizo en el mes. Lo presenta todo agente de retención.
+ *
+ * Sale de los mismos comprobantes de retención que ya están en los libros: la
+ * deuda con el SRI nació en el asiento de cada retención, así que el 103 solo
+ * la declara.
+ */
+function formulario103(retenciones = RETENCIONES) {
+  const r2 = (n) => Math.round(n * 100) / 100;
+  const delMes = retenciones.filter((r) => r.estado === 'AUTORIZADO' && DEL_MES(r.fecha));
+  const porConcepto = new Map();
+  const porPorcentaje = new Map();
+  const detalle = [];
+  for (const r of delMes) {
+    const { ir } = valoresDeRetencion(r);
+    if (!(r.baseIR > 0)) continue;
+    const codigo = String(r.codigoIR ?? '344');
+    const g = porConcepto.get(codigo) ?? { base: 0, retenido: 0 };
+    g.base = r2(g.base + r.baseIR);
+    g.retenido = r2(g.retenido + ir);
+    porConcepto.set(codigo, g);
+    porPorcentaje.set(r.porcentajeIR, r2((porPorcentaje.get(r.porcentajeIR) ?? 0) + ir));
+    detalle.push({ numero: r.numero, proveedor: r.proveedor, fecha: r.fecha, sustento: r.sustento,
+      codigo, porcentaje: r.porcentajeIR, base: r.baseIR, retenido: ir });
+  }
+  const codigos = [...porConcepto.keys()].sort();
+  const base = r2(codigos.reduce((s, c) => s + porConcepto.get(c).base, 0));
+  const retenido = r2(codigos.reduce((s, c) => s + porConcepto.get(c).retenido, 0));
+
+  return {
+    formulario: '103',
+    periodo: 'Septiembre 2026',
+    clavePeriodo: '2026-09',
+    casillas: [
+      ...codigos.flatMap((c) => [
+        { casilla: c, concepto: `${CONCEPTOS_RENTA[c] ?? 'Otro concepto'} · base imponible`, valor: porConcepto.get(c).base },
+        { casilla: String(Number(c) + 50), concepto: `${CONCEPTOS_RENTA[c] ?? 'Otro concepto'} · valor retenido`,
+          valor: porConcepto.get(c).retenido, cuenta: '2010701' },
+      ]),
+      { casilla: '349', concepto: 'Subtotal operaciones efectuadas en el país · base imponible', valor: base, total: true },
+      { casilla: '399', concepto: 'Subtotal operaciones efectuadas en el país · valor retenido', valor: retenido, total: true },
+      { casilla: '499', concepto: 'Total de retención de impuesto a la renta', valor: retenido, total: true },
+      { casilla: '902', concepto: 'Total a pagar', valor: retenido, total: true, fuerte: true },
+    ],
+    detalle,
+    retencionesRenta: [...porPorcentaje.entries()].sort((a, b) => a[0] - b[0])
+      .map(([porcentaje, valor]) => ({ porcentaje, valor })),
+    base,
+    total: retenido,
+    vence: fechaLimite(RUC_DE_EJEMPLO, 2026, 9),
+  };
+}
+
+// ===========================================================================
+//  Declaraciones presentadas · el asiento de cada formulario
+//
+//  Contador, 16-sep-2026: el formulario se trabaja en dos pasos. Mientras no se
+//  presenta es un BORRADOR, que sale de los libros y se copia tal cual al SRI.
+//  Cuando ya se presentó, se REGISTRA: entonces el sistema hace el asiento de
+//  todas las casillas, y lo que se paga queda como una sola deuda con el SRI.
+// ===========================================================================
+
+const porPagarAlSri = (formulario, periodo) => `Por pagar al SRI · formulario ${formulario} ${periodo}`;
+
+/**
+ * Las líneas del asiento de un formulario 104 presentado (liquidación del IVA).
+ *
+ *   Debe  2010701 IVA cobrado (casilla 429), que se cierra.
+ *   Debe  520220  el IVA de compras que el factor no deja usar (564 < IVA de compras).
+ *   Haber 1010501 el crédito tributario usado; lo que pasa al mes siguiente
+ *                 (615 y 617) se queda en la cuenta.
+ *   Debe  2010701 las retenciones de IVA hechas (721 a 731), que se reclasifican…
+ *   Haber 2010701 …a una sola deuda con el SRI por el total de la 902.
+ */
+function lineasDelFormulario104(f) {
+  const r2 = (n) => Math.round(n * 100) / 100;
+  const lineas = [];
+  if (f.ivaCobrado > 0) {
+    lineas.push({ cuenta: '2010701', debe: f.ivaCobrado, haber: 0,
+      detalle: 'Casilla 429 · IVA generado en ventas', auxiliar: AUX_IVA_COBRADO });
+  }
+  if (f.noDeducible > 0) {
+    lineas.push({ cuenta: '520220', debe: f.noDeducible, haber: 0,
+      detalle: `IVA de compras sin derecho a crédito (factor ${String(f.factor).replace('.', ',')}, casilla 563)` });
+  }
+  const comprasUsado = r2(f.ivaCompras - f.c615);
+  if (comprasUsado > 0) {
+    lineas.push({ cuenta: '1010501', debe: 0, haber: comprasUsado,
+      detalle: f.c615 > 0
+        ? `Crédito tributario por compras usado · quedan ${monto(f.c615)} para el mes siguiente (casilla 615)`
+        : 'Crédito tributario por compras usado (casilla 564)' });
+  }
+  let retencionUsada = r2(f.retIva - f.c617);
+  for (const r of f.retencionesRecibidas ?? []) {
+    if (retencionUsada <= 0) break;
+    const v = Math.min(r.valor, retencionUsada);
+    lineas.push({ cuenta: '1010501', debe: 0, haber: v, auxiliar: r.auxiliar,
+      detalle: 'Casilla 609 · retenciones de IVA que le hicieron' });
+    retencionUsada = r2(retencionUsada - v);
+  }
+  if (retencionUsada > 0) {
+    lineas.push({ cuenta: '1010501', debe: 0, haber: retencionUsada,
+      detalle: 'Casilla 609 · retenciones de IVA que le hicieron' });
+  }
+  for (const x of f.retencionesIva ?? []) {
+    if (!(x.valor > 0)) continue;
+    lineas.push({ cuenta: '2010701', debe: x.valor, haber: 0,
+      detalle: `Casilla ${x.casilla} · retención del ${x.porcentaje}% del IVA`,
+      auxiliar: `Retenciones de IVA por pagar ${x.porcentaje}%` });
+  }
+  if (f.total > 0) {
+    lineas.push({ cuenta: '2010701', debe: 0, haber: f.total,
+      detalle: 'Casilla 902 · total a pagar', auxiliar: porPagarAlSri('104', f.periodo) });
+  }
+  return lineas;
+}
+
+/** Las líneas de un formulario 103 presentado: las retenciones pasan a una sola deuda. */
+function lineasDelFormulario103(f) {
+  const lineas = (f.retencionesRenta ?? []).filter((x) => x.valor > 0).map((x) => ({
+    cuenta: '2010701', debe: x.valor, haber: 0,
+    detalle: `Retenciones de renta del ${x.porcentaje}% declaradas`,
+    auxiliar: `Retenciones de renta por pagar ${x.porcentaje}%`,
+  }));
+  if (f.total > 0) {
+    lineas.push({ cuenta: '2010701', debe: 0, haber: f.total,
+      detalle: 'Casilla 902 · total a pagar', auxiliar: porPagarAlSri('103', f.periodo) });
+  }
+  return lineas;
+}
+
+const NOMBRE_FORMULARIO = { 104: 'Declaración de IVA', 103: 'Retenciones en la fuente' };
+const RUTA_FORMULARIO = { 104: '#/iva', 103: '#/retenciones-fuente' };
+
+/**
+ * Comprueba y arma el registro de una declaración presentada.
+ *
+ * Se guarda una FOTO de las casillas: lo presentado no cambia aunque después
+ * cambien los libros. Si cambian, la pantalla lo advierte, porque eso es una
+ * declaración sustitutiva.
+ */
+function prepararDeclaracion(f, entrada, yaPresentadas = []) {
+  const fecha = entrada.fechaPresentacion instanceof Date
+    ? entrada.fechaPresentacion : new Date(`${entrada.fechaPresentacion}T12:00:00`);
+  if (Number.isNaN(fecha.getTime())) throw new Error('Falta la fecha en que se presentó en el SRI.');
+  const [anio, mes] = f.clavePeriodo.split('-').map(Number);
+  if (fecha < new Date(anio, mes, 1)) {
+    throw new Error(`El período de ${f.periodo} se declara desde el 1 del mes siguiente: revise la fecha.`);
+  }
+  if (yaPresentadas.some((d) => d.formulario === f.formulario && d.clavePeriodo === f.clavePeriodo)) {
+    throw new Error(`El formulario ${f.formulario} de ${f.periodo} ya está registrado como presentado. ` +
+      'Si lo corrigió en el SRI, eso es una declaración sustitutiva.');
+  }
+  const lineas = f.formulario === '104' ? lineasDelFormulario104(f) : lineasDelFormulario103(f);
+  const debe = lineas.reduce((s, l) => s + Math.round(l.debe * 100), 0);
+  const haber = lineas.reduce((s, l) => s + Math.round(l.haber * 100), 0);
+  if (debe !== haber) throw new Error('El asiento de la declaración no cuadra; no se registró.');
+  return {
+    formulario: f.formulario,
+    periodo: f.periodo,
+    clavePeriodo: f.clavePeriodo,
+    fechaPresentacion: fecha,
+    numeroSri: String(entrada.numeroSri ?? '').trim() || null,
+    casillas: f.casillas.map((c) => ({ ...c })),
+    total: f.total,
+    lineas,
+  };
+}
+
+/** El asiento de una declaración presentada: va al cierre del mes declarado. */
+function asientoDeDeclaracion(d) {
+  const [anio, mes] = d.clavePeriodo.split('-').map(Number);
+  const numero = d.numeroSri ? ` · N.º ${d.numeroSri}` : '';
+  return {
+    numero: null,
+    fecha: new Date(anio, mes, 0, 23, 0),
+    tipo: 'DECLARACION',
+    origen: `Formulario ${d.formulario} · ${d.periodo}`,
+    enlace: RUTA_FORMULARIO[d.formulario],
+    enlaceTexto: `Ver el formulario ${d.formulario}`,
+    glosa: `${NOMBRE_FORMULARIO[d.formulario]} · formulario ${d.formulario} de ${d.periodo}, presentado${numero}`,
+    lineas: d.lineas,
+    generado: true,
+  };
+}
+
+
+  return { CUENTAS, cuenta, nombreCuenta, AUX_IVA_COBRADO, asientoDeFactura, asientoDeCompra, diarioCon, diarioDelMes, balanceDeComprobacion, mayorDe, CARTERA_COBRAR, PROVEEDORES, CARTERA_PAGAR, BANCOS, saldoFinalDelBanco, INVENTARIO, EMPLEADOS, ACTIVOS_FIJOS, SUSCRIPCIONES, USO_MENSUAL, SOPORTE, RETENCIONES, NOTAS_CREDITO, GUIAS_REMISION, valoresDeRetencion, asientoDeRetencionEmitida, asientoDeNotaCredito, comprasDelLibro, pendientesDePago, prepararPago, asientoDePago, asientoDelDocumento, formulario104, CONCEPTOS_RENTA, formulario103, lineasDelFormulario104, lineasDelFormulario103, prepararDeclaracion, asientoDeDeclaracion };
 })();
 
 // ---- src/almacen.js ----------------------------------------------
@@ -6787,7 +7030,7 @@ const __src_almacen_js = (function () {
   const { perfilDeLaNube, altaDeEmpresa, cargarPerfil } = __src_cuenta_nube_js;
   const { clientesDeLaNube, clienteDeLaNube, guardarClienteEnLaNube, productosDeLaNube, productoDeLaNube, guardarProductoEnLaNube } = __src_catalogo_nube_js;
   const { puntosDeLaNube, comprobantesDeLaNube, comprobanteDeLaNube, borradorEnLaNube, emisionSimuladaNoPermitida } = __src_comprobantes_nube_js;
-  const { diarioCon, pendientesDePago, prepararPago, asientoDePago, CARTERA_PAGAR } = __src_datos_contables_js;
+  const { diarioCon, pendientesDePago, prepararPago, asientoDePago, CARTERA_PAGAR, formulario104, formulario103, balanceDeComprobacion, prepararDeclaracion, asientoDeDeclaracion } = __src_datos_contables_js;
 
 /**
  * El almacén: lo único que sabe dónde están los datos y cómo se guardan.
@@ -6825,7 +7068,7 @@ const esperar = (valor) => Promise.resolve(valor);
 // fecha de un texto: sin esta lista, al recargar la página las fechas vuelven
 // como cadenas y cualquier resta entre ellas da NaN.
 const FECHAS = new Set([
-  'fecha', 'fechaAutorizacion', 'alta', 'cuando', 'desde', 'hasta', 'certificadoVence',
+  'fecha', 'fechaAutorizacion', 'fechaPresentacion', 'alta', 'cuando', 'desde', 'hasta', 'certificadoVence',
 ]);
 
 function reviir(clave, valor) {
@@ -6865,6 +7108,8 @@ const copiaDeLaSemilla = () => ({
   compras: [],
   // Los pagos a proveedores registrados aquí (uno o masivos).
   pagos: [],
+  // Los formularios que ya se presentaron en el SRI, con su asiento.
+  declaraciones: [],
   // La cuenta con que se registró la última compra de cada proveedor, por
   // empresa: { empresaId: { rucProveedor: cuenta } }.
   cuentasProveedor: {},
@@ -6894,7 +7139,7 @@ let datos = leer();
 // Una coleccion nueva no existe en lo que guardo una version anterior. Sin
 // esto, quien ya tenia datos en el navegador abriria el buzon y le explotaria
 // en la cara por un `undefined`.
-for (const coleccion of ['clientes', 'productos', 'comprobantes', 'puntos', 'compras', 'pagos']) {
+for (const coleccion of ['clientes', 'productos', 'comprobantes', 'puntos', 'compras', 'pagos', 'declaraciones']) {
   if (!Array.isArray(datos[coleccion])) datos[coleccion] = [];
 }
 if (!datos.cuentasProveedor || typeof datos.cuentasProveedor !== 'object') datos.cuentasProveedor = {};
@@ -7091,7 +7336,21 @@ const cargar = {
    * pagos registrados. Todas las pantallas contables piden esto.
    */
   librosDelMes: async () => diarioCon(
-    deLaActiva(datos.compras), deLaActiva(datos.pagos)),
+    deLaActiva(datos.compras), deLaActiva(datos.pagos), deLaActiva(datos.declaraciones)),
+
+  /** Los formularios ya presentados en el SRI por la empresa activa. */
+  declaraciones: () => esperar(deLaActiva(datos.declaraciones)),
+
+  /**
+   * Un formulario tal como sale de los libros, SIN los asientos de las
+   * declaraciones: el asiento del 104 cierra el IVA cobrado, y si se contara,
+   * el formulario se vaciaría a sí mismo.
+   */
+  formulario: async (numero) => {
+    const compras = deLaActiva(datos.compras);
+    if (numero === '103') return formulario103();
+    return formulario104(balanceDeComprobacion(diarioCon(compras, deLaActiva(datos.pagos))), compras);
+  },
 
   /** Las cuentas recordadas por proveedor en la empresa activa: { ruc: cuenta }. */
   cuentasDeProveedores: () => esperar({ ...(datos.cuentasProveedor[idActiva()] ?? {}) }),
@@ -7208,6 +7467,24 @@ const guardar = {
    * Registra un pago a proveedores: una o varias facturas, una sola salida del
    * banco. Devuelve el pago y su asiento.
    */
+  /**
+   * Registra un formulario como presentado en el SRI y hace su asiento.
+   * Las casillas se recalculan aquí, de los libros: no se confía en la pantalla.
+   */
+  async declaracion(entrada) {
+    if (enLaNube()) fallo('Con la cuenta de verdad, las declaraciones se registran cuando la contabilidad esté en la base.');
+    if (!esLaDeEjemplo()) fallo('Esta empresa todavía no tiene libros de donde sacar la declaración.');
+    const f = await cargar.formulario(entrada.formulario);
+    const registro = {
+      id: nuevoId(),
+      empresaId: idActiva(),
+      ...prepararDeclaracion(f, entrada, deLaActiva(datos.declaraciones)),
+    };
+    datos.declaraciones.push({ ...registro, fechaPresentacion: registro.fechaPresentacion.toISOString() });
+    persistir();
+    return { declaracion: registro, asiento: asientoDeDeclaracion(registro) };
+  },
+
   pagoProveedores(entrada) {
     if (enLaNube()) fallo('Con la cuenta de verdad, los pagos se habilitan cuando la contabilidad esté en la base.');
     const pendientes = pendientesDePago(CARTERA_PAGAR, deLaActiva(datos.pagos));
@@ -7643,6 +7920,7 @@ const MENU_EMPRESA = [
   ] },
   { grupo: 'Impuestos', enlaces: [
     { ico: 'description', texto: 'Declaración de IVA', ruta: '#/iva' },
+    { ico: 'receipt_long', texto: 'Retenciones en la fuente', ruta: '#/retenciones-fuente' },
     { ico: 'folder_zip', texto: 'Anexo transaccional', ruta: '#/anexo' },
   ] },
   { grupo: 'Sistema', enlaces: [
@@ -11013,6 +11291,7 @@ const ETIQUETA_TIPO = {
   GASTO: 'bg-[#F6F0F8] text-[#6B4A80]',
   NOMINA: 'bg-[#FFF1EC] text-[#9A4B2E]',
   AJUSTE: 'bg-papel text-tinta-suave',
+  DECLARACION: 'bg-[#EEF2F6] text-[#3E5A73]',
 };
 
 const chipTipo = (t) => crudo(
@@ -15196,15 +15475,205 @@ async function proteccionDatos() {
   return { proteccionDatos };
 })();
 
+// ---- src/vistas/declaraciones.js ---------------------------------
+const __src_vistas_declaraciones_js = (function () {
+  const { html, crudo, icono, dinero, usd, fechaLarga, aviso, dejarRecado } = __src_ui_js;
+  const { nombreCuenta } = __src_datos_contables_js;
+  const { guardar } = __src_almacen_js;
+  const { registroContable } = __src_vistas_asiento_js;
+
+/**
+ * Lo común a los formularios del SRI: las casillas y los dos pasos.
+ *
+ * Contador, 16-sep-2026: mientras no se presenta, el formulario es un
+ * BORRADOR que se copia tal cual al SRI. Cuando ya se presentó, se REGISTRA,
+ * y recién entonces el sistema hace el asiento de todas las casillas. Así lo
+ * que está en el SRI y lo que está en los libros es exactamente lo mismo.
+ */
+
+
+
+
+
+
+/** Las casillas, cada una con la cuenta de la que sale. */
+function listaDeCasillas(casillas, { titulo = 'Casillas del formulario', nota = '' } = {}) {
+  return html`
+    <section class="bg-white border border-papel-linea rounded-2xl relieve overflow-hidden">
+      <header class="px-5 py-4 border-b border-papel-linea">
+        <h2 class="text-sm font-bold">${titulo}</h2>
+        <p class="text-[11px] text-tinta-suave mt-0.5">
+          ${nota || 'Cada línea indica de qué cuenta del plan sale el valor.'}
+        </p>
+      </header>
+      <div class="divide-y divide-papel-linea">
+        ${casillas.map((c) => html`
+          <div class="flex items-center gap-4 px-5 py-3 ${crudo(
+            c.fuerte ? 'bg-tinta text-white' : c.total ? 'bg-papel/60' : '')}">
+            <span class="w-12 shrink-0 text-xs font-extrabold tabular ${crudo(
+              c.fuerte ? 'text-white/70' : 'text-tinta-suave')}">${c.casilla}</span>
+            <div class="flex-1 min-w-0">
+              <p class="text-sm ${crudo(c.total ? 'font-bold' : '')}">${c.concepto}</p>
+              ${c.cuenta ? html`
+                <p class="text-[11px] text-tinta-suave truncate">
+                  de la cuenta ${c.cuenta} · ${nombreCuenta(c.cuenta)}
+                </p>` : ''}
+            </div>
+            <span class="text-sm tabular whitespace-nowrap ${crudo(
+              c.fuerte ? 'font-extrabold text-lg' : c.total ? 'font-extrabold' : 'font-semibold')}">
+              ${c.factor ? c.valor.toFixed(4).replace('.', ',') : dinero(c.valor)}
+            </span>
+          </div>`)}
+      </div>
+    </section>`;
+}
+
+/** La etiqueta de estado que va junto al título. */
+function estadoDeDeclaracion(presentada) {
+  return presentada
+    ? crudo('<span class="text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-full bg-verde-claro text-verde">Presentada · registrada en libros</span>')
+    : crudo('<span class="text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-full bg-ambar-fondo text-ambar-texto">Borrador · aún no presentada</span>');
+}
+
+/**
+ * El aviso de arriba: qué paso toca, y si los libros cambiaron después de
+ * presentar (eso es una sustitutiva).
+ */
+function avisoDeDeclaracion(f, presentada, asientoEnLibros) {
+  if (!presentada) {
+    return aviso({
+      tono: 'info', ico: 'edit_document',
+      titulo: 'Borrador: todavía no hay asiento',
+      texto: `Copie estas casillas al formulario ${f.formulario} en el portal del SRI. Cuando ya lo haya ` +
+             'presentado, regístrelo al final de esta página: ahí el sistema hace el asiento con ' +
+             'los mismos valores.',
+    });
+  }
+  const numero = presentada.numeroSri ? `, N.º ${presentada.numeroSri}` : '';
+  const cambio = Math.round((f.total - presentada.total) * 100) / 100;
+  if (Math.abs(cambio) >= 0.01) {
+    return aviso({
+      tono: 'rojo', ico: 'difference',
+      titulo: 'Los libros cambiaron después de presentar',
+      texto: `Se presentó con un total de ${usd(presentada.total)} y hoy los libros dan ${usd(f.total)}. ` +
+             'Algo del mes se registró o se corrigió después. Si es correcto, corresponde una ' +
+             'declaración sustitutiva en el SRI.',
+    });
+  }
+  return aviso({
+    tono: 'exito', ico: 'task_alt',
+    titulo: `Presentada el ${fechaLarga(presentada.fechaPresentacion)}${numero}`,
+    texto: `Lo presentado coincide con los libros. El asiento${asientoEnLibros ? ` #${asientoEnLibros.numero}` : ''} ` +
+           `deja ${usd(presentada.total)} como una sola deuda con el SRI.`,
+  });
+}
+
+/**
+ * El segundo paso: registrar lo presentado. Si ya se registró, enseña su
+ * asiento; si no, la vista previa y el formulario para registrarlo.
+ */
+function pasoDeRegistro(f, presentada, asientoPrevio, asientoEnLibros) {
+  if (presentada) {
+    return registroContable(asientoEnLibros ?? asientoPrevio, {
+      numero: asientoEnLibros?.numero ?? null,
+      nota: 'Lo hizo el sistema al registrar la declaración presentada, con las casillas tal como se presentaron.',
+    });
+  }
+  const minimo = (() => {
+    const [anio, mes] = f.clavePeriodo.split('-').map(Number);
+    return `${anio}-${String(mes + 1).padStart(2, '0')}-01`;
+  })();
+  return html`
+    <form id="forma-declaracion" data-formulario="${f.formulario}"
+          class="bg-white border-2 border-verde/30 rounded-2xl relieve overflow-hidden">
+      <header class="px-5 py-4 border-b border-papel-linea">
+        <h2 class="text-sm font-bold flex items-center gap-2">
+          ${icono('fact_check', 'text-[18px] text-verde')} Ya lo presenté en el SRI
+        </h2>
+        <p class="text-[12px] text-tinta-suave mt-0.5">
+          Al registrarlo se hace el asiento de todas las casillas y el total queda como deuda con el SRI.
+          Las casillas se guardan tal como están ahora.
+        </p>
+      </header>
+      <div class="p-5 grid gap-4 sm:grid-cols-2">
+        <label class="block">
+          <span class="text-[11px] font-bold uppercase tracking-wide text-tinta-suave">Fecha de presentación</span>
+          <input id="declaracion-fecha" type="date" min="${minimo}" value="${minimo}" required
+                 class="mt-1.5 w-full px-3.5 py-2.5 rounded-xl border border-papel-linea bg-white text-sm focus:outline-none focus:border-verde">
+        </label>
+        <label class="block">
+          <span class="text-[11px] font-bold uppercase tracking-wide text-tinta-suave">Número del formulario en el SRI</span>
+          <input id="declaracion-numero" type="text" autocomplete="off" inputmode="numeric" placeholder="Opcional · sale en el comprobante del SRI"
+                 class="mt-1.5 w-full px-3.5 py-2.5 rounded-xl border border-papel-linea bg-white text-sm focus:outline-none focus:border-verde">
+        </label>
+      </div>
+      <div class="px-5 pb-5">
+        ${crudo(String(registroContable(asientoPrevio, {
+          vistaPrevia: true, id: 'declaracion-asiento',
+          nota: 'Esto es lo que se registrará. Mientras sea borrador, no está en los libros.',
+        })))}
+      </div>
+      <div id="declaracion-recado" class="px-5"></div>
+      <div class="flex flex-wrap items-center justify-between gap-3 px-5 py-4 border-t border-papel-linea bg-papel/60">
+        <span class="text-sm text-tinta-suave">Total del formulario: <strong class="tabular">${usd(f.total)}</strong></span>
+        <button type="submit" class="px-5 py-2.5 rounded-xl bg-verde text-white text-sm font-bold hover:bg-verde-oscuro transition">
+          Registrar declaración presentada
+        </button>
+      </div>
+    </form>`;
+}
+
+let conectado = false;
+
+function conectarDeclaracion() {
+  const zona = document.getElementById('raiz');
+  if (!zona || conectado) return;
+  conectado = true;
+
+  zona.addEventListener('submit', async (ev) => {
+    const forma = ev.target.closest('#forma-declaracion');
+    if (!forma) return;
+    ev.preventDefault();
+    const boton = forma.querySelector('button[type="submit"]');
+    if (boton) boton.disabled = true;
+    try {
+      const { declaracion, asiento } = await guardar.declaracion({
+        formulario: forma.dataset.formulario,
+        fechaPresentacion: document.getElementById('declaracion-fecha')?.value,
+        numeroSri: document.getElementById('declaracion-numero')?.value,
+      });
+      dejarRecado({
+        tono: 'exito', ico: 'check_circle',
+        titulo: `Formulario ${declaracion.formulario} registrado como presentado`,
+        texto: `Se hizo el asiento de sus casillas: ${usd(declaracion.total)} quedan por pagar al SRI. ` +
+               `Lo encuentra en el libro diario como «${asiento.glosa}».`,
+      });
+      window.dispatchEvent(new CustomEvent('kontia:redibujar'));
+    } catch (error) {
+      if (boton) boton.disabled = false;
+      const recado = document.getElementById('declaracion-recado');
+      if (recado) {
+        recado.innerHTML = String(aviso({ tono: 'rojo', ico: 'error', titulo: 'No se registró', texto: error.message }));
+        recado.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
+    }
+  });
+}
+
+
+  return { listaDeCasillas, estadoDeDeclaracion, avisoDeDeclaracion, pasoDeRegistro, conectarDeclaracion };
+})();
+
 // ---- src/vistas/impuestos.js -------------------------------------
 const __src_vistas_impuestos_js = (function () {
   const { html, crudo, usd, dinero, icono, cabecera, aviso, boton, fecha, fechaLarga, empresaEnBlanco, tabla, vacio } = __src_ui_js;
   const { barraCompuesta, leyenda, VERDE, AMBAR } = __src_graficos_js;
-  const { formulario104, nombreCuenta, balanceDeComprobacion, diarioCon } = __src_datos_contables_js;
+  const { prepararDeclaracion, asientoDeDeclaracion } = __src_datos_contables_js;
+  const { listaDeCasillas, estadoDeDeclaracion, avisoDeDeclaracion, pasoDeRegistro } = __src_vistas_declaraciones_js;
   const { esLaDeEjemplo, cargar, empresaActiva } = __src_almacen_js;
 
 /**
- * Impuestos: el formulario 104 y el anexo transaccional.
+ * Impuestos: el formulario 104, el 103 y el anexo transaccional.
  *
  * Esta es la pantalla que justifica tener un sistema contable en lugar de una
  * hoja de cálculo. **Ninguna casilla se teclea**: todas salen de los libros. Si
@@ -15221,6 +15690,7 @@ const __src_vistas_impuestos_js = (function () {
 
 
 
+
 async function declaracionIva() {
   // Los libros de la empresa de ejemplo no son de ninguna otra.
   if (!esLaDeEjemplo()) {
@@ -15230,109 +15700,191 @@ async function declaracionIva() {
     })}`;
   }
 
-  // La declaracion sale de los saldos, y los saldos incluyen el IVA de las
-  // compras que entraron por el buzon: ese es el credito tributario del mes.
-  const compras = await cargar.compras();
-  const f = formulario104(balanceDeComprobacion(diarioCon(compras, await cargar.pagos())), compras);
+  // La declaración sale de los libros SIN su propio asiento (ver almacen.js).
+  const f = await cargar.formulario('104');
+  const { presentada, previo, enLibros } = await estadoDelFormulario(f);
   const dias = Math.ceil((f.vence - new Date(2026, 8, 30)) / (24 * 60 * 60 * 1000));
+  // Lo presentado se enseña tal como se presentó.
+  const casillas = presentada ? presentada.casillas : f.casillas;
 
   return html`
     ${crudo(cabecera({
       titulo: 'Declaración de IVA · formulario 104',
       descripcion: `${f.periodo} · todas las casillas salen de los libros, ninguna se teclea.`,
-      acciones: [boton('Generar XML', { ico: 'code', tipo: 'secundario' }),
-                 boton('Descargar', { ico: 'download' })],
     }))}
+    <p class="-mt-3 mb-4">${estadoDeDeclaracion(presentada)}</p>
 
-    ${crudo(aviso({
+    ${presentada ? '' : crudo(aviso({
       tono: dias <= 7 ? 'ambar' : 'info',
       ico: 'event',
       titulo: `Vence el ${fechaLarga(f.vence)} · faltan ${dias} días`,
       texto: 'La fecha límite depende del noveno dígito del RUC. Declarar tarde tiene multa ' +
              'e intereses aunque no haya nada que pagar.',
     }))}
+    ${crudo(String(avisoDeDeclaracion(f, presentada, enLibros)))}
 
     <div class="grid gap-5 lg:grid-cols-3">
-      <section class="lg:col-span-2 bg-white border border-papel-linea rounded-2xl relieve overflow-hidden">
-        <header class="px-5 py-4 border-b border-papel-linea">
-          <h2 class="text-sm font-bold">Casillas del formulario</h2>
-          <p class="text-[11px] text-tinta-suave mt-0.5">
-            Cada línea indica de qué cuenta del plan sale el valor.
-          </p>
-        </header>
-        <div class="divide-y divide-papel-linea">
-          ${f.casillas.map((c) => html`
-            <div class="flex items-center gap-4 px-5 py-3 ${crudo(
-              c.fuerte ? 'bg-tinta text-white' : c.total ? 'bg-papel/60' : '')}">
-              <span class="w-12 shrink-0 text-xs font-extrabold tabular ${crudo(
-                c.fuerte ? 'text-white/70' : 'text-tinta-suave')}">${c.casilla}</span>
-              <div class="flex-1 min-w-0">
-                <p class="text-sm ${crudo(c.total ? 'font-bold' : '')}">${c.concepto}</p>
-                ${c.cuenta ? html`
-                  <p class="text-[11px] text-tinta-suave truncate">
-                    de la cuenta ${c.cuenta} · ${nombreCuenta(c.cuenta)}
-                  </p>` : ''}
-              </div>
-              <span class="text-sm tabular whitespace-nowrap ${crudo(
-                c.fuerte ? 'font-extrabold text-lg' : c.total ? 'font-extrabold' : 'font-semibold')}">
-                ${c.factor ? c.valor.toFixed(4).replace('.', ',') : dinero(c.valor)}
-              </span>
-            </div>`)}
-        </div>
-      </section>
+      <div class="lg:col-span-2">
+        ${listaDeCasillas(casillas, {
+          nota: presentada ? 'Tal como se presentaron en el SRI.' : 'Cada línea indica de qué cuenta del plan sale el valor.',
+        })}
+      </div>
 
       <div class="space-y-5">
         <section class="bg-white border border-papel-linea rounded-2xl relieve p-5">
           <h2 class="text-sm font-bold mb-1">Cómo sale lo que hay que pagar</h2>
           <p class="text-xs text-tinta-suave mb-4">
             El IVA que cobró, menos el crédito tributario de sus compras y las retenciones
-            de IVA que le hicieron sus clientes.
+            de IVA que le hicieron sus clientes, más lo que usted retuvo a sus proveedores.
           </p>
           <div class="space-y-3">
-            <div class="flex items-baseline justify-between">
+            <div class="flex items-baseline justify-between gap-3">
               <span class="text-sm text-tinta-suave">IVA cobrado a clientes</span>
               <span class="text-sm font-semibold tabular">${dinero(f.ivaCobrado)}</span>
             </div>
-            <div class="flex items-baseline justify-between">
+            <div class="flex items-baseline justify-between gap-3">
               <span class="text-sm text-tinta-suave">− Crédito tributario (factor ${f.factor.toFixed(4).replace('.', ',')})</span>
               <span class="text-sm font-semibold tabular">${dinero(f.credito)}</span>
             </div>
-            <div class="flex items-baseline justify-between">
+            <div class="flex items-baseline justify-between gap-3">
               <span class="text-sm text-tinta-suave">− Retenciones de IVA recibidas</span>
               <span class="text-sm font-semibold tabular">${dinero(f.retIva)}</span>
             </div>
-            <div class="flex items-baseline justify-between pt-3 border-t-2 border-tinta">
+            <div class="flex items-baseline justify-between gap-3 pt-2 border-t border-papel-linea">
+              <span class="text-sm text-tinta-suave">IVA propio a pagar (699)</span>
+              <span class="text-sm font-semibold tabular">${dinero(f.aPagar)}</span>
+            </div>
+            <div class="flex items-baseline justify-between gap-3">
+              <span class="text-sm text-tinta-suave">+ IVA que retuvo a proveedores (801)</span>
+              <span class="text-sm font-semibold tabular">${dinero(f.totalRetenido)}</span>
+            </div>
+            <div class="flex items-baseline justify-between gap-3 pt-3 border-t-2 border-tinta">
               <span class="text-sm font-extrabold">A pagar al SRI</span>
-              <span class="text-xl font-extrabold tabular">${usd(f.aPagar)}</span>
+              <span class="text-xl font-extrabold tabular">${usd(f.total)}</span>
             </div>
           </div>
           <div class="mt-5">
             ${barraCompuesta([
               { etiqueta: 'Crédito tributario', valor: f.credito + f.retIva, tono: VERDE },
-              { etiqueta: 'A pagar', valor: f.aPagar, tono: AMBAR },
+              { etiqueta: 'A pagar', valor: f.total, tono: AMBAR },
             ], { alto: 12 })}
             <div class="mt-3 divide-y divide-papel-linea">
               ${leyenda([
                 { etiqueta: 'Se descuenta (crédito)', valor: f.credito + f.retIva, tono: VERDE },
-                { etiqueta: 'Sale de la empresa', valor: f.aPagar, tono: AMBAR },
+                { etiqueta: 'Sale de la empresa', valor: f.total, tono: AMBAR },
               ])}
             </div>
           </div>
+          ${f.noDeducible > 0 ? html`
+            <p class="mt-4 text-[11px] text-tinta-suave leading-relaxed">
+              ${usd(f.noDeducible)} del IVA de compras no se pueden usar por el factor de
+              proporcionalidad: al registrar la declaración pasan a gasto (520220).
+            </p>` : ''}
         </section>
 
         <section class="bg-white border-2 border-ambar-borde rounded-2xl relieve p-5">
           <div class="flex items-center gap-2 text-ambar-texto mb-3">
             ${icono('science', 'text-[20px]')}
-            <h2 class="text-sm font-bold">Todavía no se envía</h2>
+            <h2 class="text-sm font-bold">El envío no está conectado</h2>
           </div>
           <p class="text-[12px] text-tinta-suave leading-relaxed">
-            Las cifras salen de los libros y cuadran, pero el envío al SRI y la firma no
-            están conectados. Y antes de declarar algo de verdad, las reglas contables
-            tienen que estar revisadas por un contador: una declaración se presenta una vez
-            y corregirla después es una declaración sustitutiva.
+            La declaración se presenta en el portal del SRI, copiando estas casillas. Antes de
+            declarar algo de verdad, las reglas contables tienen que estar revisadas por un
+            contador: una declaración se presenta una vez y corregirla después es una
+            declaración sustitutiva.
           </p>
         </section>
       </div>
+    </div>
+
+    <div class="mt-5">
+      ${crudo(String(pasoDeRegistro(f, presentada, previo, enLibros)))}
+    </div>`;
+}
+
+/** Lo presentado, su asiento en los libros y el asiento que se haría. */
+async function estadoDelFormulario(f) {
+  const presentada = (await cargar.declaraciones())
+    .find((d) => d.formulario === f.formulario && d.clavePeriodo === f.clavePeriodo) ?? null;
+  const origen = `Formulario ${f.formulario} · ${f.periodo}`;
+  const enLibros = presentada
+    ? (await cargar.librosDelMes()).find((a) => a.tipo === 'DECLARACION' && a.origen === origen) ?? null
+    : null;
+  let previo = null;
+  if (!presentada) {
+    // La vista previa usa la misma función que el registro, con una fecha
+    // válida cualquiera: solo interesan las líneas.
+    const [anio, mes] = f.clavePeriodo.split('-').map(Number);
+    previo = asientoDeDeclaracion(prepararDeclaracion(f, { fechaPresentacion: new Date(anio, mes, 1, 12) }));
+  }
+  return { presentada, previo, enLibros };
+}
+
+// ===========================================================================
+//  Formulario 103 · retenciones en la fuente
+// ===========================================================================
+
+async function declaracionRetenciones() {
+  if (!esLaDeEjemplo()) {
+    return html`${crudo(cabecera({ titulo: 'Retenciones en la fuente' }))}${empresaEnBlanco({
+      ico: 'receipt_long', titulo: 'Todavía no hay nada que declarar',
+      texto: 'El formulario 103 se arma solo con los comprobantes de retención que la empresa emite en el mes.',
+    })}`;
+  }
+
+  const f = await cargar.formulario('103');
+  const { presentada, previo, enLibros } = await estadoDelFormulario(f);
+  const casillas = presentada ? presentada.casillas : f.casillas;
+  const dias = Math.ceil((f.vence - new Date(2026, 8, 30)) / (24 * 60 * 60 * 1000));
+
+  return html`
+    ${crudo(cabecera({
+      titulo: 'Retenciones en la fuente · formulario 103',
+      descripcion: `${f.periodo} · sale de los comprobantes de retención emitidos en el mes.`,
+    }))}
+    <p class="-mt-3 mb-4">${estadoDeDeclaracion(presentada)}</p>
+
+    ${presentada ? '' : crudo(aviso({
+      tono: dias <= 7 ? 'ambar' : 'info', ico: 'event',
+      titulo: `Vence el ${fechaLarga(f.vence)} · faltan ${dias} días`,
+      texto: 'Se presenta en la misma fecha que el IVA, según el noveno dígito del RUC. ' +
+             'Lo presenta quien es agente de retención.',
+    }))}
+    ${crudo(String(avisoDeDeclaracion(f, presentada, enLibros)))}
+
+    <div class="grid gap-5 lg:grid-cols-5">
+      <div class="lg:col-span-3">
+        ${listaDeCasillas(casillas, {
+          nota: 'Cada concepto tiene dos casillas: la base y, 50 números más arriba, lo retenido.',
+        })}
+      </div>
+
+      <section class="lg:col-span-2 bg-white border border-papel-linea rounded-2xl relieve overflow-hidden self-start">
+        <header class="px-5 py-4 border-b border-papel-linea">
+          <h2 class="text-sm font-bold">De dónde sale</h2>
+          <p class="text-[11px] text-tinta-suave mt-0.5">Los comprobantes de retención del mes.</p>
+        </header>
+        <div class="divide-y divide-papel-linea">
+          ${f.detalle.map((r) => html`
+            <a href="#/retenciones/${r.numero}" class="block px-5 py-3 hover:bg-papel/60">
+              <div class="flex items-baseline justify-between gap-3">
+                <span class="text-sm font-semibold truncate">${r.proveedor}</span>
+                <span class="text-sm font-semibold tabular whitespace-nowrap">${dinero(r.retenido)}</span>
+              </div>
+              <p class="text-[11px] text-tinta-suave tabular">
+                ${r.numero} · ${fecha(r.fecha)} · código ${r.codigo} · ${String(r.porcentaje)}% de ${dinero(r.base)}
+              </p>
+            </a>`)}
+        </div>
+        <p class="px-5 py-3 text-[11px] text-tinta-suave border-t border-papel-linea leading-relaxed">
+          Las retenciones de IVA no van aquí: se declaran en el formulario 104
+          (<a href="#/iva" class="font-bold text-verde hover:underline">casillas 721 a 731</a>).
+        </p>
+      </section>
+    </div>
+
+    <div class="mt-5">
+      ${crudo(String(pasoDeRegistro(f, presentada, previo, enLibros)))}
     </div>`;
 }
 
@@ -15477,7 +16029,7 @@ async function anexoTransaccional() {
 }
 
 
-  return { declaracionIva, anexoTransaccional };
+  return { declaracionIva, declaracionRetenciones, anexoTransaccional };
 })();
 
 // ---- src/vistas/plataforma.js ------------------------------------
@@ -15993,7 +16545,8 @@ const __src_app_js = (function () {
   const { compras, compra } = __src_vistas_compras_js;
   const { ingresosGastos } = __src_vistas_ingresos_gastos_js;
   const { proteccionDatos } = __src_vistas_proteccion_datos_js;
-  const { declaracionIva, anexoTransaccional } = __src_vistas_impuestos_js;
+  const { declaracionIva, declaracionRetenciones, anexoTransaccional } = __src_vistas_impuestos_js;
+  const { conectarDeclaracion } = __src_vistas_declaraciones_js;
   const { suscripciones, usoPlataforma, soporte, consultaLegal, consultasRecibidas, proveedorSistema, conectarProveedor } = __src_vistas_plataforma_js;
   const { aviso, crudo, recogerRecado } = __src_ui_js;
   const { empresaActiva } = __src_almacen_js;
@@ -16009,6 +16562,7 @@ const __src_app_js = (function () {
  * dato, se dibuja. Es la forma más aburrida de hacerlo, y por eso se puede leer
  * entera en una tarde.
  */
+
 
 
 
@@ -16103,7 +16657,8 @@ const RUTAS = [
   { patron: /^#\/nomina\/?$/, vista: nomina },
   { patron: /^#\/activos\/?$/, vista: activosFijos },
 
-  { patron: /^#\/iva\/?$/, vista: declaracionIva },
+  { patron: /^#\/iva\/?$/, vista: declaracionIva, alDibujar: conectarDeclaracion },
+  { patron: /^#\/retenciones-fuente\/?$/, vista: declaracionRetenciones, alDibujar: conectarDeclaracion },
   { patron: /^#\/anexo\/?$/, vista: anexoTransaccional },
   { patron: /^#\/consulta\/?$/, vista: consultaLegal },
 
@@ -16143,7 +16698,7 @@ const RUTAS_DE_LIBROS = /^#\/(plan-cuentas|diario|mayor|comprobacion|resultados|
  * compras de una empresa real que el contador no vería desde su oficina. Se
  * dice qué falta, en lugar de simularlo.
  */
-const RUTAS_SIN_BASE = /^#\/(retenciones|notas-credito|guias|diario|mayor|comprobacion|resultados|situacion|por-cobrar|por-pagar|bancos|proveedores|buzon|compras|ingresos-gastos|inventario|nomina|activos|iva|anexo|usuarios)(\/|$)/;
+const RUTAS_SIN_BASE = /^#\/(retenciones|notas-credito|guias|diario|mayor|comprobacion|resultados|situacion|por-cobrar|por-pagar|bancos|proveedores|buzon|compras|ingresos-gastos|inventario|nomina|activos|iva|retenciones-fuente|anexo|usuarios)(\/|$)/;
 
 const raiz = () => document.getElementById('raiz');
 const sitio = () => document.getElementById('portada');
