@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <!-- La version publicada: la pone el empaquetador y la pagina la compara con la del servidor. -->
-<meta name="kontia-version" content="cd4f26d14062">
+<meta name="kontia-version" content="7f32bc688a6a">
 <title>Kontia</title>
 <meta name="theme-color" content="#0F7B4F">
 <link rel="manifest" href="manifiesto.json">
@@ -6279,6 +6279,8 @@ const MANUALES = [
   {
     fecha: new Date(2026, 8, 5), tipo: 'COMPRA',
     origen: '001-001-000008842',
+    proveedor: 'Fertilizantes del Pacífico S.A.', proveedorRuc: '0990123456001',
+    enlace: '#/compras/001-001-000008842',
     glosa: 'Compra de urea a Fertilizantes del Pacífico S.A.',
     lineas: [
       { cuenta: '510102', debe: 8400.00, haber: 0, detalle: '300 sacos de urea' },
@@ -6289,6 +6291,8 @@ const MANUALES = [
   {
     fecha: new Date(2026, 8, 8), tipo: 'PAGO',
     glosa: 'Pago a Fertilizantes del Pacífico S.A., neto de la retención',
+    // Un pago no tiene documento electrónico propio: se vuelve a la factura que paga.
+    enlace: '#/compras/001-001-000008842', enlaceTexto: 'Ver la factura pagada 001-001-000008842',
     lineas: [
       { cuenta: '2010301', debe: 9492.00, haber: 0, detalle: 'Cancelación factura 8842 · 9.660,00 menos 168,00 retenidos' },
       { cuenta: '10101', debe: 0, haber: 9492.00, detalle: 'Transferencia bancaria' },
@@ -6297,6 +6301,8 @@ const MANUALES = [
   {
     fecha: new Date(2026, 8, 10), tipo: 'GASTO',
     origen: '002-001-000001204',
+    proveedor: 'Inmobiliaria Km 14 Cía. Ltda.', proveedorRuc: '0993311220001',
+    enlace: '#/compras/002-001-000001204',
     glosa: 'Arriendo de bodega · septiembre',
     lineas: [
       { cuenta: '520109', debe: 1200.00, haber: 0, detalle: 'Bodega Km 14.5' },
@@ -6307,6 +6313,8 @@ const MANUALES = [
   {
     fecha: new Date(2026, 8, 12), tipo: 'GASTO',
     origen: '001-005-000045512',
+    proveedor: 'Corporación Nacional de Electricidad', proveedorRuc: '0968599190001',
+    enlace: '#/compras/001-005-000045512',
     glosa: 'Energía eléctrica y telefonía',
     lineas: [
       { cuenta: '520118', debe: 486.20, haber: 0, detalle: 'CNEL y CNT' },
@@ -6317,6 +6325,8 @@ const MANUALES = [
   {
     fecha: new Date(2026, 8, 15), tipo: 'GASTO',
     origen: '003-001-000000771',
+    proveedor: 'Estación de servicio y taller', proveedorRuc: null,
+    enlace: '#/compras/003-001-000000771',
     glosa: 'Combustible y mantenimiento del camión',
     lineas: [
       { cuenta: '520112', debe: 640.00, haber: 0, detalle: 'Diésel' },
@@ -6328,6 +6338,8 @@ const MANUALES = [
   {
     fecha: new Date(2026, 8, 19), tipo: 'COMPRA',
     origen: '002-001-000003318',
+    proveedor: 'Transportes Andinos del Norte S.A.', proveedorRuc: '0992871045001',
+    enlace: '#/compras/002-001-000003318',
     glosa: 'Flete a Transportes Andinos del Norte S.A.',
     lineas: [
       { cuenta: '520115', debe: 1026.52, haber: 0, detalle: 'Transporte de mercadería a Samborondón' },
@@ -6459,7 +6471,7 @@ function asientoDeCompra(c) {
       fecha: c.fecha,
       tipo: 'RETENCION',
       origen: c.numero,
-      enlace: '#/compras',
+      enlace: `#/compras/${c.numero}`,
       glosa: `Retención ${c.numero} que le practicó ${nombre}`,
       lineas,
       generado: true,
@@ -6485,7 +6497,8 @@ function asientoDeCompra(c) {
     fecha: c.fecha,
     tipo: 'COMPRA',
     origen: c.numero,
-    enlace: '#/compras',
+    enlace: `#/compras/${c.numero}`,
+    proveedor: nombre, proveedorRuc: c.proveedorRuc ?? null,
     glosa: `${c.tipoNombre ?? 'Compra'} ${c.numero ?? ''} de ${nombre}`.replace(/\s+/g, ' ').trim(),
     lineas,
     generado: true,
@@ -6559,7 +6572,7 @@ function mayorDe(codigo, diario = diarioDelMes()) {
       saldo += centavos(l.debe) - centavos(l.haber);
       movimientos.push({
         fecha: a.fecha, asiento: a.numero, glosa: a.glosa, detalle: l.detalle,
-        enlace: a.enlace ?? null, origen: a.origen ?? null, tipo: a.tipo,
+        enlace: a.enlace ?? null, enlaceTexto: a.enlaceTexto ?? null, origen: a.origen ?? null, tipo: a.tipo,
         debe: l.debe, haber: l.haber, saldo: saldo / 100,
       });
     }
@@ -6607,7 +6620,7 @@ const PROVEEDORES = [
   { id: 'p3', razonSocial: 'Transportes Andinos del Norte S.A.', ruc: '0992871045001',
     ciudad: 'Samborondón', tipo: 'Servicios', contribuyenteEspecial: false,
     retencionIR: 1, retencionIVA: 70, correo: 'facturacion@transamborondon.ec',
-    telefono: '(04) 208 4420', comprado: 9840.50, saldo: 1180.50, activo: true },
+    telefono: '(04) 208 4420', comprado: 9840.50, saldo: 1062.44, activo: true },
   { id: 'p4', razonSocial: 'Inmobiliaria Km 14 Cía. Ltda.', ruc: '0993311220001',
     ciudad: 'Daule', tipo: 'Servicios', contribuyenteEspecial: false,
     retencionIR: 10, retencionIVA: 70, correo: 'arriendos@km14.ec',
@@ -6620,7 +6633,8 @@ const PROVEEDORES = [
 
 const CARTERA_PAGAR = [
   { proveedor: 'Fertilizantes del Pacífico S.A.', documento: '001-001-000009104', emision: new Date(2026, 8, 26), vence: new Date(2026, 9, 26), monto: 7240.00, abonado: 0 },
-  { proveedor: 'Transportes Andinos del Norte S.A.', documento: '002-001-000003318', emision: new Date(2026, 8, 19), vence: new Date(2026, 9, 3), monto: 1180.50, abonado: 0 },
+  // 1.180,50 menos la retención 030 (118,06): al proveedor se le debe el neto.
+  { proveedor: 'Transportes Andinos del Norte S.A.', documento: '002-001-000003318', emision: new Date(2026, 8, 19), vence: new Date(2026, 9, 3), monto: 1180.50, abonado: 118.06 },
   { proveedor: 'Semillas del Guayas Cía. Ltda.', documento: '001-001-000002205', emision: new Date(2026, 7, 28), vence: new Date(2026, 8, 27), monto: 3450.00, abonado: 1000.00 },
 ];
 
@@ -6837,6 +6851,34 @@ const DE_NOTAS = NOTAS_CREDITO
   .filter((n) => n.estado === 'AUTORIZADO' && DEL_MES(n.fecha))
   .map(asientoDeNotaCredito);
 
+/**
+ * Las compras y gastos que están en los libros del mes, con su asiento.
+ *
+ * Las del buzón ya tenían su pantalla; estas, registradas a mano, no aparecían
+ * en ninguna lista y en el diario no había a dónde volver.
+ */
+function comprasDelLibro(diario = diarioDelMes()) {
+  return diario
+    .filter((a) => (a.tipo === 'COMPRA' || a.tipo === 'GASTO') && a.origen && !a.generado)
+    .map((a) => {
+      const iva = a.lineas.filter((l) => l.cuenta === '1010501').reduce((s, l) => s + l.debe, 0);
+      const total = a.lineas.reduce((s, l) => s + l.haber, 0);
+      return {
+        numero: a.origen,
+        fecha: a.fecha,
+        proveedor: a.proveedor ?? a.glosa,
+        proveedorRuc: a.proveedorRuc ?? null,
+        glosa: a.glosa,
+        sinImpuestos: r2c(total - iva),
+        iva: r2c(iva),
+        total: r2c(total),
+        pagadaAlContado: a.lineas.some((l) => l.cuenta === '10101' && l.haber > 0),
+        asiento: a,
+        manual: true,
+      };
+    });
+}
+
 /** El número de asiento de un documento, para ir del documento a los libros. */
 function asientoDelDocumento(diario, origen, tipo = null) {
   return diario.find((a) => a.origen === origen && (!tipo || a.tipo === tipo)) ?? null;
@@ -6943,7 +6985,7 @@ function formulario104(saldos = balanceDeComprobacion(), compras = []) {
 }
 
 
-  return { CUENTAS, cuenta, nombreCuenta, AUX_IVA_COBRADO, asientoDeFactura, asientoDeCompra, diarioCon, diarioDelMes, balanceDeComprobacion, mayorDe, CARTERA_COBRAR, PROVEEDORES, CARTERA_PAGAR, BANCOS, INVENTARIO, EMPLEADOS, ACTIVOS_FIJOS, SUSCRIPCIONES, USO_MENSUAL, SOPORTE, RETENCIONES, NOTAS_CREDITO, GUIAS_REMISION, valoresDeRetencion, asientoDeRetencionEmitida, asientoDeNotaCredito, asientoDelDocumento, formulario104 };
+  return { CUENTAS, cuenta, nombreCuenta, AUX_IVA_COBRADO, asientoDeFactura, asientoDeCompra, diarioCon, diarioDelMes, balanceDeComprobacion, mayorDe, CARTERA_COBRAR, PROVEEDORES, CARTERA_PAGAR, BANCOS, INVENTARIO, EMPLEADOS, ACTIVOS_FIJOS, SUSCRIPCIONES, USO_MENSUAL, SOPORTE, RETENCIONES, NOTAS_CREDITO, GUIAS_REMISION, valoresDeRetencion, asientoDeRetencionEmitida, asientoDeNotaCredito, comprasDelLibro, asientoDelDocumento, formulario104 };
 })();
 
 // ---- src/disposicion.js ------------------------------------------
@@ -7472,8 +7514,26 @@ function sinRegistroContable(titulo, texto) {
     </section>`;
 }
 
+/**
+ * La celda «Asiento» de una lista: el número en el diario, con su enlace, o
+ * una raya si el documento todavía no tiene asiento (borrador, devuelto…).
+ *
+ * El enlace va dentro de filas que ya abren el documento al hacer clic; el
+ * `stopPropagation` evita que el clic suba a la fila y abra el documento en
+ * lugar del diario.
+ */
+function celdaAsiento(asiento) {
+  return html`
+    <td class="px-5 py-3.5 text-right">
+      ${asiento ? crudo(`<a href="#/diario/${asiento.numero}" onclick="event.stopPropagation()"
+          class="text-[12px] font-semibold text-verde hover:underline whitespace-nowrap"
+          title="Ver el registro contable en el libro diario">#${asiento.numero}</a>`)
+        : crudo('<span class="text-[12px] text-tinta-suave" title="Todavía no tiene asiento">—</span>')}
+    </td>`;
+}
 
-  return { registroContable, sinRegistroContable };
+
+  return { registroContable, sinRegistroContable, celdaAsiento };
 })();
 
 // ---- src/vistas/acceso.js ----------------------------------------
@@ -7812,7 +7872,7 @@ const __src_vistas_comprobantes_js = (function () {
   const { html, crudo, esc, usd, dinero, icono, chipEstado, fechaHora, claveLegible, tabla, vacio, boton, cabecera, aviso, dato, dejarRecado } = __src_ui_js;
   const { cargar, guardar, esLaDeEjemplo } = __src_almacen_js;
   const { asientoDeFactura, diarioCon, asientoDelDocumento } = __src_datos_contables_js;
-  const { registroContable, sinRegistroContable } = __src_vistas_asiento_js;
+  const { registroContable, sinRegistroContable, celdaAsiento } = __src_vistas_asiento_js;
 
 /**
  * Los comprobantes emitidos: la lista y la ficha de cada uno.
@@ -7851,6 +7911,10 @@ const FILTROS = [
 
 async function comprobantes() {
   const lista = await cargar.comprobantes();
+  // El número de asiento de cada factura, para ir de la lista al diario.
+  const diario = esLaDeEjemplo() ? diarioCon(await cargar.compras()) : null;
+  const asientoDe = (c) => (diario && c.estado === 'AUTORIZADO'
+    ? asientoDelDocumento(diario, c.numero, 'VENTA') : null);
 
   const cuerpo = lista.map((c) => html`
     <tr class="hover:bg-papel transition cursor-pointer" onclick="location.hash='#/comprobantes/${c.numero}'">
@@ -7864,6 +7928,7 @@ async function comprobantes() {
       </td>
       <td class="px-5 py-3.5 text-sm text-tinta-suave whitespace-nowrap">${fechaHora(c.fecha)}</td>
       <td class="px-5 py-3.5 text-right text-sm font-bold tabular whitespace-nowrap">${usd(c.totales.total)}</td>
+      ${diario ? celdaAsiento(asientoDe(c)) : ''}
       <td class="px-5 py-3.5 text-right">
         <span class="inline-flex items-center gap-1.5">
           ${c.simulado ? marcaSimulado : ''}${chipEstado(c.estado)}
@@ -7873,7 +7938,9 @@ async function comprobantes() {
 
   const contenido = lista.length ? tabla([
     { texto: 'Número' }, { texto: 'Cliente' }, { texto: 'Fecha' },
-    { texto: 'Total', der: true }, { texto: 'Estado', der: true },
+    { texto: 'Total', der: true },
+    ...(diario ? [{ texto: 'Asiento', der: true }] : []),
+    { texto: 'Estado', der: true },
   ], cuerpo) : vacio({
     ico: 'receipt_long', imagen: 'imagenes/estado-sin-comprobantes.webp',
     titulo: 'Todavía no ha emitido ningún comprobante',
@@ -10428,7 +10495,7 @@ async function libroDiario(elegido = null) {
           '<span class="text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-full ' +
           'bg-verde-claro text-verde" title="Lo generó el sistema al emitir el comprobante">' +
           'automático</span>') : ''}
-        ${a.enlace ? crudo(`<a href="${esc(a.enlace)}" class="text-xs font-bold text-verde hover:underline whitespace-nowrap">Ver documento ${esc(a.origen ?? '')} →</a>`)
+        ${a.enlace ? crudo(`<a href="${esc(a.enlace)}" class="text-xs font-bold text-verde hover:underline whitespace-nowrap">${esc(a.enlaceTexto ?? `Ver documento ${a.origen ?? ''}`)} →</a>`)
           : a.origen ? crudo(`<span class="text-[11px] text-tinta-suave whitespace-nowrap" title="Asiento registrado a mano: el documento no está en el sistema">Documento ${esc(a.origen)}</span>`) : ''}
         <span class="text-sm font-bold tabular whitespace-nowrap">${usd(a.debe)}</span>
       </header>
@@ -10535,7 +10602,7 @@ async function libroMayor(codigo) {
       <td class="px-3 py-3">
         <span class="block text-sm truncate max-w-[300px]">${m.glosa}</span>
         <span class="block text-[11px] text-tinta-suave truncate max-w-[300px]">${m.detalle}</span>
-        ${m.enlace ? crudo(`<a href="${esc(m.enlace)}" class="text-[11px] font-bold text-verde hover:underline">Ver documento ${esc(m.origen ?? '')} →</a>`) : ''}
+        ${m.enlace ? crudo(`<a href="${esc(m.enlace)}" class="text-[11px] font-bold text-verde hover:underline">${esc(m.enlaceTexto ?? `Ver documento ${m.origen ?? ''}`)} →</a>`) : ''}
       </td>
       <td class="px-3 py-3 text-right text-sm tabular">${m.debe > 0 ? dinero(m.debe) : ''}</td>
       <td class="px-3 py-3 text-right text-sm tabular">${m.haber > 0 ? dinero(m.haber) : ''}</td>
@@ -11031,7 +11098,7 @@ const __src_vistas_documentos_js = (function () {
   const { html, crudo, usd, dinero, icono, tabla, cabecera, aviso, boton, chipEstado, fecha, vacio, dato, empresaEnBlanco } = __src_ui_js;
   const { RETENCIONES, NOTAS_CREDITO, GUIAS_REMISION, asientoDeRetencionEmitida, asientoDeNotaCredito, asientoDelDocumento, diarioCon, valoresDeRetencion } = __src_datos_contables_js;
   const { esLaDeEjemplo, cargar } = __src_almacen_js;
-  const { registroContable } = __src_vistas_asiento_js;
+  const { registroContable, celdaAsiento } = __src_vistas_asiento_js;
 
 /**
  * Los otros tres comprobantes: retenciones, notas de crédito y guías de
@@ -11079,6 +11146,7 @@ async function retenciones() {
     iva: Math.round(r.baseIVA * r.porcentajeIVA) / 100,
   });
   const lista = RETENCIONES.map(con);
+  const diario = diarioCon(await cargar.compras());
   const total = lista.reduce((s, r) => s + r.ir + r.iva, 0);
 
   const cuerpo = lista.map((r) => html`
@@ -11101,6 +11169,7 @@ async function retenciones() {
         <span class="block text-[11px] text-tinta-suave">${r.porcentajeIVA}% sobre ${dinero(r.baseIVA)}</span>
       </td>
       <td class="px-5 py-3.5 text-right text-sm font-bold tabular">${dinero(r.ir + r.iva)}</td>
+      ${celdaAsiento(asientoDelDocumento(diario, r.numero, 'RETENCION'))}
       <td class="px-5 py-3.5 text-right">${chipEstado(r.estado)}</td>
     </tr>`);
 
@@ -11130,7 +11199,7 @@ async function retenciones() {
       ${crudo(tabla([
         { texto: 'Número' }, { texto: 'Proveedor' }, { texto: 'Fecha' },
         { texto: 'Renta', der: true }, { texto: 'IVA', der: true },
-        { texto: 'Total', der: true }, { texto: 'Estado', der: true },
+        { texto: 'Total', der: true }, { texto: 'Asiento', der: true }, { texto: 'Estado', der: true },
       ], cuerpo))}
     </section>`;
 }
@@ -11245,6 +11314,7 @@ async function notasCredito() {
   }
 
   const total = NOTAS_CREDITO.reduce((s, n) => s + n.base + n.iva, 0);
+  const diario = diarioCon(await cargar.compras());
 
   const cuerpo = NOTAS_CREDITO.map((n) => html`
     <tr class="hover:bg-papel transition cursor-pointer" onclick="location.hash='#/notas-credito/${n.numero}'">
@@ -11261,6 +11331,7 @@ async function notasCredito() {
       </td>
       <td class="px-5 py-3.5 text-sm text-tinta-suave max-w-[220px]">${n.motivo}</td>
       <td class="px-5 py-3.5 text-right text-sm font-bold tabular">${dinero(n.base + n.iva)}</td>
+      ${celdaAsiento(asientoDelDocumento(diario, n.numero, 'NOTA_CREDITO'))}
       <td class="px-5 py-3.5 text-right">${chipEstado(n.estado)}</td>
     </tr>`);
 
@@ -11290,7 +11361,8 @@ async function notasCredito() {
     <section class="bg-white border border-papel-linea rounded-2xl relieve overflow-hidden">
       ${crudo(tabla([
         { texto: 'Número' }, { texto: 'Cliente' }, { texto: 'Modifica a' },
-        { texto: 'Motivo' }, { texto: 'Valor', der: true }, { texto: 'Estado', der: true },
+        { texto: 'Motivo' }, { texto: 'Valor', der: true }, { texto: 'Asiento', der: true },
+        { texto: 'Estado', der: true },
       ], cuerpo))}
     </section>`;
 }
@@ -11964,10 +12036,10 @@ async function activosFijos() {
 
 // ---- src/vistas/proveedores.js -----------------------------------
 const __src_vistas_proveedores_js = (function () {
-  const { html, crudo, usd, dinero, icono, tabla, cabecera, aviso, boton, vacio, empresaEnBlanco } = __src_ui_js;
+  const { html, crudo, esc, usd, dinero, icono, tabla, cabecera, aviso, boton, vacio, dato, fecha, empresaEnBlanco } = __src_ui_js;
   const { dona, leyenda, barras } = __src_graficos_js;
-  const { PROVEEDORES } = __src_datos_contables_js;
-  const { esLaDeEjemplo } = __src_almacen_js;
+  const { PROVEEDORES, RETENCIONES, CARTERA_PAGAR, comprasDelLibro, diarioCon, valoresDeRetencion } = __src_datos_contables_js;
+  const { esLaDeEjemplo, cargar } = __src_almacen_js;
 
 /**
  * Proveedores.
@@ -12010,14 +12082,14 @@ async function proveedores() {
   const especiales = lista.filter((p) => p.contribuyenteEspecial);
 
   const cuerpo = lista.map((p) => html`
-    <tr class="hover:bg-papel transition">
+    <tr class="hover:bg-papel transition cursor-pointer" onclick="location.hash='#/proveedores/${p.ruc}'">
       <td class="px-5 py-3.5">
         <div class="flex items-center gap-3">
           <span class="w-9 h-9 shrink-0 rounded-xl bg-verde-claro text-verde flex items-center justify-center text-[11px] font-extrabold">
             ${p.razonSocial.slice(0, 2).toUpperCase()}
           </span>
           <div class="min-w-0">
-            <span class="block text-sm font-semibold truncate max-w-[240px]">${p.razonSocial}</span>
+            <a href="#/proveedores/${p.ruc}" class="block text-sm font-semibold truncate max-w-[240px] hover:text-verde">${p.razonSocial}</a>
             <span class="block text-[11px] text-tinta-suave tabular">${p.ruc} · ${p.ciudad}</span>
           </div>
         </div>
@@ -12120,8 +12192,113 @@ async function proveedores() {
     </section>`;
 }
 
+// ===========================================================================
+//  La ficha de un proveedor
+// ===========================================================================
 
-  return { proveedores };
+/**
+ * Un proveedor con todo lo suyo: lo que se le compró, lo que se le retuvo y lo
+ * que se le debe. Cada línea lleva a su documento, y el documento a su asiento.
+ */
+async function proveedor(ruc) {
+  const p = esLaDeEjemplo() ? PROVEEDORES.find((x) => x.ruc === ruc) : null;
+  if (!p) {
+    return html`
+      <section class="bg-white border border-papel-linea rounded-2xl relieve">
+        ${crudo(vacio({
+          ico: 'search_off', titulo: 'No encontramos ese proveedor',
+          texto: `No hay ningún proveedor con el RUC ${ruc} en esta empresa.`,
+          accion: boton('Volver a proveedores', { ruta: '#/proveedores', tipo: 'secundario' }),
+        }))}
+      </section>`;
+  }
+
+  const buzon = await cargar.compras();
+  const compras = [
+    ...comprasDelLibro(diarioCon(buzon)).filter((c) => c.proveedorRuc === ruc),
+    ...buzon.filter((c) => c.proveedorRuc === ruc && c.tipo !== '07').map((c) => ({
+      numero: c.numero, fecha: c.fecha, sinImpuestos: c.sinImpuestos, iva: c.iva, total: c.total,
+      glosa: 'Desde el buzón',
+    })),
+  ];
+  const retenciones = RETENCIONES.filter((r) => r.ruc === ruc);
+  const porPagar = CARTERA_PAGAR.filter((x) => x.proveedor === p.razonSocial);
+
+  const enlace = (ruta, texto) => crudo(
+    `<a href="${esc(ruta)}" class="text-sm font-semibold tabular hover:text-verde">${esc(texto)}</a>`);
+
+  return html`
+    <a href="#/proveedores" class="inline-flex items-center gap-1.5 text-xs font-bold text-tinta-suave hover:text-verde mb-4">
+      ${icono('arrow_back', 'text-[16px]')} Proveedores
+    </a>
+    <header class="mb-6">
+      <h1 class="text-2xl font-bold tracking-tight">${p.razonSocial}</h1>
+      <p class="mt-1 text-sm text-tinta-suave tabular">RUC ${p.ruc} · ${p.ciudad}</p>
+    </header>
+
+    <div class="space-y-5">
+      <section class="bg-white border border-papel-linea rounded-2xl relieve p-5">
+        <dl class="grid gap-4 sm:grid-cols-3">
+          ${dato('Qué vende', p.tipo)}
+          ${dato('Contribuyente especial', p.contribuyenteEspecial ? 'Sí' : 'No')}
+          ${dato('Retención', `${dinero(p.retencionIR)}% renta · ${p.retencionIVA}% IVA`)}
+          ${dato('Correo', p.correo)}
+          ${dato('Comprado en el año', usd(p.comprado))}
+          ${dato('Pendiente de pago', p.saldo > 0 ? usd(p.saldo) : '—')}
+        </dl>
+        <p class="mt-4 text-[12px]">
+          ${crudo('<a href="#/mayor/2010301" class="font-bold text-verde hover:underline">Ver cuentas por pagar en el libro mayor →</a>')}
+        </p>
+      </section>
+
+      <section class="bg-white border border-papel-linea rounded-2xl relieve overflow-hidden">
+        <h2 class="text-sm font-bold px-5 pt-5 pb-3">Facturas de compra del mes</h2>
+        ${compras.length ? crudo(tabla([
+          { texto: 'Factura' }, { texto: 'Fecha' }, { texto: 'Concepto' },
+          { texto: 'IVA', der: true }, { texto: 'Total', der: true },
+        ], compras.map((c) => html`
+          <tr class="hover:bg-papel transition">
+            <td class="px-5 py-3">${enlace(`#/compras/${c.numero}`, c.numero)}</td>
+            <td class="px-5 py-3 text-sm whitespace-nowrap">${fecha(c.fecha)}</td>
+            <td class="px-5 py-3 text-sm text-tinta-suave truncate max-w-[260px]">${c.glosa}</td>
+            <td class="px-5 py-3 text-right text-sm tabular">${usd(c.iva)}</td>
+            <td class="px-5 py-3 text-right text-sm font-semibold tabular">${usd(c.total)}</td>
+          </tr>`))) : html`<p class="px-5 pb-5 text-sm text-tinta-suave">No hay facturas suyas en los libros de este mes.</p>`}
+      </section>
+
+      <section class="bg-white border border-papel-linea rounded-2xl relieve overflow-hidden">
+        <h2 class="text-sm font-bold px-5 pt-5 pb-3">Retenciones que se le hicieron</h2>
+        ${retenciones.length ? crudo(tabla([
+          { texto: 'Retención' }, { texto: 'Fecha' }, { texto: 'Sobre la factura' }, { texto: 'Retenido', der: true },
+        ], retenciones.map((r) => html`
+          <tr class="hover:bg-papel transition">
+            <td class="px-5 py-3">${enlace(`#/retenciones/${r.numero}`, r.numero)}</td>
+            <td class="px-5 py-3 text-sm whitespace-nowrap">${fecha(r.fecha)}</td>
+            <td class="px-5 py-3 text-sm tabular">${r.sustento}</td>
+            <td class="px-5 py-3 text-right text-sm font-semibold tabular">${usd(valoresDeRetencion(r).total)}</td>
+          </tr>`))) : html`<p class="px-5 pb-5 text-sm text-tinta-suave">No se le han hecho retenciones.</p>`}
+      </section>
+
+      ${porPagar.length ? html`
+      <section class="bg-white border border-papel-linea rounded-2xl relieve overflow-hidden">
+        <h2 class="text-sm font-bold px-5 pt-5 pb-3">Lo que se le debe</h2>
+        ${crudo(tabla([
+          { texto: 'Documento' }, { texto: 'Vence' }, { texto: 'Monto', der: true },
+          { texto: 'Abonado o retenido', der: true }, { texto: 'Saldo', der: true },
+        ], porPagar.map((x) => html`
+          <tr>
+            <td class="px-5 py-3 text-sm tabular">${x.documento}</td>
+            <td class="px-5 py-3 text-sm whitespace-nowrap">${fecha(x.vence)}</td>
+            <td class="px-5 py-3 text-right text-sm tabular">${usd(x.monto)}</td>
+            <td class="px-5 py-3 text-right text-sm tabular">${usd(x.abonado)}</td>
+            <td class="px-5 py-3 text-right text-sm font-bold tabular">${usd(x.monto - x.abonado)}</td>
+          </tr>`)))}
+      </section>` : ''}
+    </div>`;
+}
+
+
+  return { proveedores, proveedor };
 })();
 
 // ---- src/vistas/buzon.js -----------------------------------------
@@ -13204,9 +13381,10 @@ function conectarBuzon() {
 
 // ---- src/vistas/compras.js ---------------------------------------
 const __src_vistas_compras_js = (function () {
-  const { html, crudo, icono, usd, fecha, cabecera, boton, vacio, tabla } = __src_ui_js;
+  const { html, crudo, esc, icono, usd, dato, fecha, cabecera, boton, vacio, tabla } = __src_ui_js;
   const { cargar, esLaDeEjemplo } = __src_almacen_js;
-  const { asientoDeCompra, nombreCuenta, diarioCon, asientoDelDocumento } = __src_datos_contables_js;
+  const { asientoDeCompra, nombreCuenta, diarioCon, asientoDelDocumento, comprasDelLibro, RETENCIONES, valoresDeRetencion } = __src_datos_contables_js;
+  const { registroContable } = __src_vistas_asiento_js;
 
 /**
  * Las compras registradas, y el asiento que generó cada una.
@@ -13222,12 +13400,16 @@ const __src_vistas_compras_js = (function () {
 
 
 
+
 const centavos = (n) => Math.round(Number(n ?? 0) * 100);
 
 async function compras() {
   const lista = await cargar.compras();
+  // Las registradas en los libros también son compras, aunque no hayan
+  // entrado por el buzón.
+  const libro = esLaDeEjemplo() ? comprasDelLibro(diarioCon(lista)) : [];
 
-  if (!lista.length) {
+  if (!lista.length && !libro.length) {
     return html`
       ${cabecera({ titulo: 'Compras', descripcion: 'Lo que la empresa compró, con su IVA y su asiento.' })}
       ${vacio({
@@ -13243,26 +13425,27 @@ async function compras() {
   // Las sumas se hacen en centavos enteros y se dividen al final. Sumar
   // decimales de punto flotante arrastra un centavo cada tantas filas, y un
   // centavo de diferencia en una declaración es una hora de buscar por qué.
-  const suma = (campo) => lista.reduce((s, c) => s + centavos(c[campo]), 0) / 100;
-  const conIva = lista.filter((c) => centavos(c.iva) > 0).length;
+  const todas = [...libro, ...lista];
+  const suma = (campo) => todas.reduce((s, c) => s + centavos(c[campo]), 0) / 100;
+  const conIva = todas.filter((c) => centavos(c.iva) > 0).length;
 
   const resumen = [
-    ['Comprobantes', String(lista.length), 'receipt_long', ''],
+    ['Comprobantes', String(todas.length), 'receipt_long', ''],
     ['Base imponible', usd(suma('sinImpuestos')), 'functions', ''],
     ['IVA · crédito tributario', usd(suma('iva')), 'savings', 'text-verde'],
     ['Total comprado', usd(suma('total')), 'payments', ''],
   ];
 
   // Para saltar de cada compra a su asiento en el diario.
-  const libro = esLaDeEjemplo() ? diarioCon(lista) : null;
+  const diarioCompleto = esLaDeEjemplo() ? diarioCon(lista) : null;
 
   const filas = lista.map((c) => {
     const asiento = asientoDeCompra(c);
-    const enLibros = libro ? asientoDelDocumento(libro, c.numero) : null;
+    const enLibros = diarioCompleto ? asientoDelDocumento(diarioCompleto, c.numero) : null;
     return html`
       <tr class="align-top">
         <td class="px-5 py-3">
-          <p class="text-sm font-semibold">${c.proveedorNombre || c.proveedorRuc}</p>
+          <a href="#/compras/${c.numero}" class="block text-sm font-semibold hover:text-verde">${c.proveedorNombre || c.proveedorRuc}</a>
           <p class="text-[11px] text-tinta-suave font-mono">${c.proveedorRuc} · ${c.tipoNombre} ${c.numero}</p>
         </td>
         <td class="px-5 py-3 text-sm whitespace-nowrap">${c.fecha ? fecha(c.fecha) : '—'}</td>
@@ -13300,7 +13483,7 @@ async function compras() {
   return html`
     ${cabecera({
       titulo: 'Compras',
-      descripcion: `${lista.length} comprobante${lista.length === 1 ? '' : 's'} registrado${lista.length === 1 ? '' : 's'} desde el buzón, sin digitar.`,
+      descripcion: `${todas.length} comprobante${todas.length === 1 ? '' : 's'} de compra: ${libro.length} en los libros del mes y ${lista.length} desde el buzón.`,
       acciones: [boton('Soltar más XML', { ruta: '#/buzon', ico: 'cloud_upload' })],
     })}
 
@@ -13315,9 +13498,41 @@ async function compras() {
         </div>`)}
     </div>
 
+    ${libro.length ? html`
     <div class="mt-6 bg-white border border-papel-linea rounded-2xl overflow-hidden relieve">
       <div class="px-5 py-4 border-b border-papel-linea">
-        <p class="text-sm font-bold">Detalle</p>
+        <p class="text-sm font-bold">En los libros del mes</p>
+        <p class="text-xs text-tinta-suave">
+          Facturas de proveedores registradas en la contabilidad. Cada una abre su ficha, con su
+          asiento, sus retenciones y sus pagos.
+        </p>
+      </div>
+      ${tabla([
+        { texto: 'Proveedor' }, { texto: 'Factura' }, { texto: 'Fecha' }, { texto: 'Base', der: true },
+        { texto: 'IVA', der: true }, { texto: 'Total', der: true }, { texto: 'Asiento' },
+      ], libro.map((c) => html`
+        <tr class="hover:bg-papel transition cursor-pointer" onclick="location.hash='#/compras/${c.numero}'">
+          <td class="px-5 py-3">
+            <span class="block text-sm font-semibold truncate max-w-[240px]">${c.proveedor}</span>
+            <span class="block text-[11px] text-tinta-suave truncate max-w-[240px]">${c.glosa}</span>
+          </td>
+          <td class="px-5 py-3">
+            <a href="#/compras/${c.numero}" onclick="event.stopPropagation()" class="text-sm font-semibold tabular hover:text-verde">${c.numero}</a>
+          </td>
+          <td class="px-5 py-3 text-sm whitespace-nowrap">${fecha(c.fecha)}</td>
+          <td class="px-5 py-3 text-right text-sm tabular-nums">${usd(c.sinImpuestos)}</td>
+          <td class="px-5 py-3 text-right text-sm tabular-nums">${usd(c.iva)}</td>
+          <td class="px-5 py-3 text-right text-sm font-semibold tabular-nums">${usd(c.total)}</td>
+          <td class="px-5 py-3">
+            ${crudo(`<a href="#/diario/${c.asiento.numero}" onclick="event.stopPropagation()" class="text-[12px] font-semibold text-verde hover:underline whitespace-nowrap">#${c.asiento.numero} en el diario</a>`)}
+          </td>
+        </tr>`))}
+    </div>` : ''}
+
+    ${lista.length ? html`
+    <div class="mt-6 bg-white border border-papel-linea rounded-2xl overflow-hidden relieve">
+      <div class="px-5 py-4 border-b border-papel-linea">
+        <p class="text-sm font-bold">Desde el buzón</p>
         <p class="text-xs text-tinta-suave">
           ${String(conIva)} de ${String(lista.length)} con IVA. El IVA pagado es un activo
           —crédito tributario—, no un gasto: se descuenta del IVA cobrado en la declaración.
@@ -13327,11 +13542,113 @@ async function compras() {
         { texto: 'Proveedor' }, { texto: 'Fecha' }, { texto: 'Base', der: true },
         { texto: 'IVA', der: true }, { texto: 'Total', der: true }, { texto: 'Contabilidad' },
       ], filas)}
+    </div>` : ''}`;
+}
+
+// ===========================================================================
+//  La ficha de una compra
+// ===========================================================================
+
+/**
+ * Una compra, del buzón o de los libros, con todo lo que cuelga de ella: su
+ * asiento, las retenciones que se le hicieron y los pagos. Es el punto al que
+ * vuelve el diario cuando el contador pide «la transacción original».
+ */
+async function compra(numero) {
+  const lista = await cargar.compras();
+  const deBuzon = lista.find((c) => c.numero === numero) ?? null;
+  const diario = esLaDeEjemplo() ? diarioCon(lista) : null;
+  const delLibro = diario ? comprasDelLibro(diario).find((c) => c.numero === numero) ?? null : null;
+
+  if (!deBuzon && !delLibro) {
+    return html`
+      <section class="bg-white border border-papel-linea rounded-2xl relieve">
+        ${crudo(vacio({
+          ico: 'search_off', titulo: 'No encontramos esa compra',
+          texto: `No hay ninguna compra con el número ${numero} en esta empresa.`,
+          accion: boton('Volver a las compras', { ruta: '#/compras', tipo: 'secundario' }),
+        }))}
+      </section>`;
+  }
+
+  const c = deBuzon ? {
+    numero,
+    fecha: deBuzon.fecha,
+    proveedor: deBuzon.proveedorNombre || deBuzon.proveedorRuc,
+    proveedorRuc: deBuzon.proveedorRuc,
+    tipo: deBuzon.tipoNombre ?? 'Factura',
+    sinImpuestos: deBuzon.sinImpuestos, iva: deBuzon.iva, total: deBuzon.total,
+    origen: 'Entró por el buzón, desde su XML',
+    clave: deBuzon.clave,
+  } : {
+    ...delLibro,
+    tipo: 'Factura de proveedor',
+    origen: 'Registrada en los libros',
+  };
+
+  const enLibros = diario ? asientoDelDocumento(diario, numero) : null;
+  const asiento = enLibros ?? (deBuzon ? asientoDeCompra(deBuzon) : delLibro.asiento);
+  const retenciones = RETENCIONES.filter((r) => r.sustento === numero);
+  const pagos = diario ? diario.filter((a) => a.tipo === 'PAGO' && a.enlace === `#/compras/${numero}`) : [];
+
+  return html`
+    <a href="#/compras" class="inline-flex items-center gap-1.5 text-xs font-bold text-tinta-suave hover:text-verde mb-4">
+      ${icono('arrow_back', 'text-[16px]')} Compras registradas
+    </a>
+    <header class="flex flex-wrap items-start justify-between gap-4 mb-6">
+      <div>
+        <h1 class="text-2xl font-bold tracking-tight tabular">${numero}</h1>
+        <p class="mt-1 text-sm text-tinta-suave">${c.tipo} de ${c.proveedor} · ${fecha(c.fecha)}</p>
+      </div>
+      ${crudo(`<button type="button" onclick="document.getElementById('registro-contable')?.scrollIntoView({behavior:'smooth',block:'start'})"
+               class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-papel-linea bg-white
+                      text-sm font-semibold hover:border-verde hover:text-verde transition">
+         <span class="ms text-[18px]">account_tree</span>Ver registro contable</button>`)}
+    </header>
+
+    <div class="space-y-5">
+      <section class="bg-white border border-papel-linea rounded-2xl relieve p-5">
+        <dl class="grid gap-4 sm:grid-cols-3">
+          ${dato('Proveedor', c.proveedor)}
+          ${dato('RUC', c.proveedorRuc ?? '—')}
+          ${dato('Origen', c.origen)}
+          ${dato('Base', usd(c.sinImpuestos))}
+          ${dato('IVA · crédito tributario', usd(c.iva))}
+          ${dato('Total', usd(c.total))}
+        </dl>
+        ${c.proveedorRuc ? html`
+          <p class="mt-4 text-[12px]">
+            ${crudo(`<a href="#/proveedores/${esc(c.proveedorRuc)}" class="font-bold text-verde hover:underline">Ver la ficha del proveedor →</a>`)}
+          </p>` : ''}
+        ${c.clave ? html`<p class="mt-3 text-[10px] text-tinta-suave font-mono break-all">Clave de acceso ${c.clave}</p>` : ''}
+      </section>
+
+      ${retenciones.length || pagos.length ? html`
+      <section class="bg-white border border-papel-linea rounded-2xl relieve p-5">
+        <h2 class="text-sm font-bold mb-3">Lo que cuelga de esta compra</h2>
+        <ul class="space-y-2 text-sm">
+          ${retenciones.map((r) => html`
+            <li class="flex flex-wrap justify-between gap-2">
+              ${crudo(`<a href="#/retenciones/${esc(r.numero)}" class="font-semibold text-verde hover:underline">Retención ${esc(r.numero)}</a>`)}
+              <span class="tabular">${usd(valoresDeRetencion(r).total)} retenidos</span>
+            </li>`)}
+          ${pagos.map((a) => html`
+            <li class="flex flex-wrap justify-between gap-2">
+              ${crudo(`<a href="#/diario/${a.numero}" class="font-semibold text-verde hover:underline">Pago · asiento #${a.numero}</a>`)}
+              <span class="tabular">${fecha(a.fecha)} · ${usd(a.debe)}</span>
+            </li>`)}
+        </ul>
+      </section>` : ''}
+
+      ${registroContable(asiento, {
+        numero: enLibros?.numero ?? null,
+        nota: deBuzon ? 'Lo generó el sistema al registrar el XML.' : 'Registrada en los libros del mes.',
+      })}
     </div>`;
 }
 
 
-  return { compras };
+  return { compras, compra };
 })();
 
 // ---- src/vistas/ingresos-gastos.js -------------------------------
@@ -14571,9 +14888,9 @@ const __src_app_js = (function () {
   const { retenciones, retencion, notasCredito, notaCredito, guiasRemision } = __src_vistas_documentos_js;
   const { cuentasPorCobrar, cuentasPorPagar, bancos } = __src_vistas_finanzas_js;
   const { inventario, nomina, activosFijos } = __src_vistas_operaciones_js;
-  const { proveedores } = __src_vistas_proveedores_js;
+  const { proveedores, proveedor } = __src_vistas_proveedores_js;
   const { buzon, conectarBuzon } = __src_vistas_buzon_js;
-  const { compras } = __src_vistas_compras_js;
+  const { compras, compra } = __src_vistas_compras_js;
   const { ingresosGastos } = __src_vistas_ingresos_gastos_js;
   const { proteccionDatos } = __src_vistas_proteccion_datos_js;
   const { declaracionIva, anexoTransaccional } = __src_vistas_impuestos_js;
@@ -14675,8 +14992,10 @@ const RUTAS = [
   { patron: /^#\/bancos\/?$/, vista: bancos },
 
   { patron: /^#\/proveedores\/?$/, vista: proveedores },
+  { patron: /^#\/proveedores\/(\d{13})\/?$/, vista: proveedor },
   { patron: /^#\/buzon\/?$/, vista: buzon, alDibujar: conectarBuzon },
   { patron: /^#\/compras\/?$/, vista: compras },
+  { patron: /^#\/compras\/([\d-]+)\/?$/, vista: compra },
   { patron: /^#\/ingresos-gastos\/?$/, vista: ingresosGastos },
   { patron: /^#\/inventario\/?$/, vista: inventario },
   { patron: /^#\/nomina\/?$/, vista: nomina },
