@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <!-- La version publicada: la pone el empaquetador y la pagina la compara con la del servidor. -->
-<meta name="kontia-version" content="f1fd3792b7a5">
+<meta name="kontia-version" content="000b9a5d12ca">
 <title>Kontia</title>
 <meta name="theme-color" content="#0F7B4F">
 <link rel="manifest" href="manifiesto.json">
@@ -5006,19 +5006,31 @@ const __src_conciliacion_js = (function () {
  * La conciliación bancaria: lo que dicen los libros frente a lo que dice el
  * banco, y la explicación de cada diferencia.
  *
- * CÓMO SE HACE. Se toman los movimientos de la cuenta de bancos en el libro
- * mayor y los del estado de cuenta, y se emparejan solos: mismo valor y fechas
- * cercanas (el banco registra un cheque el día que se cobra, no el día que se
- * gira). Lo que queda sin pareja es justo lo que hay que explicar:
+ * CÓMO SE EMPAREJA, en este orden (contador, observaciones del 16-sep-2026):
+ *
+ *   1. Por número de referencia y valor. Si los dos lados traen el mismo
+ *      número (transferencia, cheque, comprobante), son el mismo movimiento
+ *      aunque el banco lo haya registrado semanas después.
+ *   2. Por valor y fecha cercana. El banco registra un cheque el día que se
+ *      cobra, no el día que se gira.
+ *   3. Por valor y una palabra que los dos comparten (IESS, SRI, planilla,
+ *      rol…). El pago de la planilla del IESS casi nunca trae una referencia
+ *      que sirva: se reconoce por el valor y porque los dos dicen «IESS».
+ *   4. Varios de un lado contra uno del otro. Un pago masivo (cash
+ *      management) sale del banco en un solo débito aunque en los libros sean
+ *      cuatro pagos; y un depósito puede estar en libros como uno y en el
+ *      banco como varios. Se buscan las combinaciones que suman exacto.
+ *
+ * Lo que queda sin pareja es lo que hay que explicar:
  *
  *   - En libros y todavía no en el banco: cheques girados y no cobrados,
  *     depósitos en tránsito. No se corrigen; se esperan.
- *   - En el banco y todavía no en libros: comisiones, intereses, notas de
- *     débito. Estos sí piden un asiento.
+ *   - En el banco y todavía no en libros: comisiones, intereses, depósitos que
+ *     nadie identificó. Estos sí piden un asiento.
  *
  * Y el cuadro final: saldo del banco más lo de la primera lista, contra saldo de
  * libros más lo de la segunda. Si no dan lo mismo, hay algo que nadie ha
- * explicado todavía, y eso es lo que el contador tiene que buscar.
+ * explicado todavía.
  *
  * Todo en centavos enteros: un centavo perdido en una suma de punto flotante
  * es exactamente la diferencia que una conciliación no puede tener.
@@ -5032,6 +5044,30 @@ const DIA = 24 * 60 * 60 * 1000;
 
 /** Cuántos días puede tardar el banco en registrar lo que ya está en libros. */
 const TOLERANCIA_DIAS = 10;
+/** Con una palabra en común (IESS, SRI…), la ventana se abre a un mes. */
+const TOLERANCIA_CON_PALABRA = 31;
+/** Con el mismo número de referencia, la fecha casi no importa. */
+const TOLERANCIA_CON_REFERENCIA = 90;
+
+/**
+ * Las palabras que identifican un pago sin necesidad de referencia. Si los dos
+ * conceptos comparten una, el valor igual basta aunque las fechas estén lejos.
+ */
+const PALABRAS_CLAVE = ['iess', 'planilla', 'sri', 'nomina', 'rol', 'aporte', 'cnel', 'cnt',
+  'arriendo', 'predio', 'municipio', 'seguro'];
+
+const llano = (t) => String(t ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+
+/** Solo los dígitos, sin ceros a la izquierda: «Ref. 004821» y «4821» son lo mismo. */
+function normalizarReferencia(r) {
+  const n = String(r ?? '').replace(/\D/g, '').replace(/^0+/, '');
+  return n.length >= 3 ? n : null;
+}
+
+const palabrasDe = (t) => {
+  const texto = llano(t);
+  return PALABRAS_CLAVE.filter((p) => new RegExp(`\\b${p}\\b`).test(texto));
+};
 
 /**
  * Los movimientos de una cuenta de bancos, sacados del diario.
@@ -5049,6 +5085,7 @@ function movimientosDeLibros(diario, cuenta = '10101') {
         id: `L${a.numero}-${i}`,
         fecha: new Date(a.fecha),
         concepto: l.detalle ? `${a.glosa} · ${l.detalle}` : a.glosa,
+        referencia: l.referencia ?? a.referencia ?? null,
         valor: d(valor),
         asiento: a.numero,
         enlace: a.enlace ?? null,
@@ -5059,43 +5096,110 @@ function movimientosDeLibros(diario, cuenta = '10101') {
 }
 
 /**
+ * Busca entre los candidatos una combinación de 2 a `maximo` que sume
+ * exactamente el objetivo (en centavos). Devuelve los índices o null.
+ */
+function combinacionQueSuma(candidatos, objetivo, maximo = 6) {
+  const lista = candidatos.slice(0, 16);
+  const elegidos = [];
+  function buscar(desde, resta) {
+    if (resta === 0 && elegidos.length >= 2) return true;
+    if (elegidos.length === maximo) return false;
+    for (let i = desde; i < lista.length; i++) {
+      const v = lista[i].centavos;
+      // Mismo signo que el objetivo y que no se pase.
+      if (Math.sign(v) !== Math.sign(objetivo) || Math.abs(v) > Math.abs(resta)) continue;
+      elegidos.push(i);
+      if (buscar(i + 1, resta - v)) return true;
+      elegidos.pop();
+    }
+    return false;
+  }
+  return buscar(0, objetivo) ? elegidos.map((i) => lista[i]) : null;
+}
+
+/**
  * Empareja y explica.
  *
  * @param saldoInicialLibros  el saldo de la cuenta al empezar el período
  * @param libros              movimientos de la cuenta en el mayor
- * @param banco               movimientos del estado de cuenta ({fecha, concepto, valor})
+ * @param banco               movimientos del estado de cuenta ({fecha, concepto, valor, referencia})
  * @param saldoBanco          el saldo final que dice el estado de cuenta
  */
 function conciliar({ saldoInicialLibros = 0, libros = [], banco = [], saldoBanco }) {
-  const libres = libros.map((m) => ({ ...m, centavos: c(m.valor) }));
-  const pares = [];
-  const soloBanco = [];
-
-  // Del banco hacia los libros, en orden de fecha: cada movimiento del banco
-  // busca el de libros con el mismo valor más cercano en el tiempo, y que no
-  // sea posterior a él por más de un par de días (el banco no registra antes
-  // de que exista el pago).
-  const ordenBanco = banco
-    .map((m, i) => ({ ...m, id: m.id ?? `B${i + 1}`, fecha: new Date(m.fecha), centavos: c(m.valor) }))
+  let libres = libros.map((m) => ({
+    ...m, fecha: new Date(m.fecha), centavos: c(m.valor),
+    ref: normalizarReferencia(m.referencia), palabras: palabrasDe(`${m.concepto} ${m.referencia ?? ''}`),
+  }));
+  let enBanco = banco
+    .map((m, i) => ({
+      ...m, id: m.id ?? `B${i + 1}`, fecha: new Date(m.fecha), centavos: c(m.valor),
+      ref: normalizarReferencia(m.referencia), palabras: palabrasDe(`${m.concepto} ${m.referencia ?? ''}`),
+    }))
     .sort((x, y) => x.fecha - y.fecha);
 
-  for (const mb of ordenBanco) {
-    let mejor = -1;
-    let distancia = Infinity;
-    libres.forEach((ml, i) => {
-      if (ml.centavos !== mb.centavos) return;
-      const dias = (mb.fecha - ml.fecha) / DIA;
-      if (dias < -2 || dias > TOLERANCIA_DIAS) return;
-      if (Math.abs(dias) < distancia) { distancia = Math.abs(dias); mejor = i; }
-    });
-    if (mejor >= 0) {
-      pares.push({ libros: libres[mejor], banco: mb });
-      libres.splice(mejor, 1);
-    } else {
-      soloBanco.push(mb);
+  const pares = [];
+  const grupos = [];
+  const dias = (mb, ml) => (mb.fecha - ml.fecha) / DIA;
+
+  /** Una pasada: cada movimiento del banco busca su pareja con la regla dada. */
+  function pasada(motivo, admite) {
+    const siguen = [];
+    for (const mb of enBanco) {
+      let mejor = -1;
+      let distancia = Infinity;
+      libres.forEach((ml, i) => {
+        if (ml.centavos !== mb.centavos || !admite(mb, ml)) return;
+        const dist = Math.abs(dias(mb, ml));
+        if (dist < distancia) { distancia = dist; mejor = i; }
+      });
+      if (mejor >= 0) {
+        pares.push({ libros: libres[mejor], banco: mb, motivo });
+        libres.splice(mejor, 1);
+      } else {
+        siguen.push(mb);
+      }
+    }
+    enBanco = siguen;
+  }
+
+  // 1. Mismo número de referencia.
+  pasada('referencia', (mb, ml) => mb.ref && ml.ref && mb.ref === ml.ref
+    && Math.abs(dias(mb, ml)) <= TOLERANCIA_CON_REFERENCIA);
+  // 2. Fecha cercana. El banco no registra antes de que exista el pago (dos
+  //    días de gracia por fines de semana y cortes).
+  pasada('valor y fecha', (mb, ml) => dias(mb, ml) >= -2 && dias(mb, ml) <= TOLERANCIA_DIAS);
+  // 3. Una palabra en común y una ventana más amplia.
+  pasada('valor y concepto', (mb, ml) => mb.palabras.some((p) => ml.palabras.includes(p))
+    && Math.abs(dias(mb, ml)) <= TOLERANCIA_CON_PALABRA);
+
+  // 4a. Un débito o crédito del banco que es la suma de varios de libros.
+  for (const mb of [...enBanco]) {
+    const candidatos = libres
+      .filter((ml) => dias(mb, ml) >= -2 && dias(mb, ml) <= TOLERANCIA_DIAS)
+      .sort((x, y) => Math.abs(dias(mb, x)) - Math.abs(dias(mb, y)));
+    const combo = combinacionQueSuma(candidatos, mb.centavos);
+    if (combo) {
+      grupos.push({ libros: combo, banco: [mb], motivo: 'varios en libros, uno en el banco' });
+      libres = libres.filter((ml) => !combo.includes(ml));
+      enBanco = enBanco.filter((x) => x !== mb);
     }
   }
+  // 4b. Un movimiento de libros que el banco registró en varias partes.
+  for (const ml of [...libres]) {
+    const candidatos = enBanco
+      .filter((mb) => dias(mb, ml) >= -2 && dias(mb, ml) <= TOLERANCIA_DIAS)
+      .sort((x, y) => Math.abs(dias(x, ml)) - Math.abs(dias(y, ml)));
+    const combo = combinacionQueSuma(candidatos, ml.centavos);
+    if (combo) {
+      grupos.push({ libros: [ml], banco: combo, motivo: 'uno en libros, varios en el banco' });
+      enBanco = enBanco.filter((mb) => !combo.includes(mb));
+      libres = libres.filter((x) => x !== ml);
+    }
+  }
+
   const soloLibros = libres;
+  const soloBanco = enBanco;
 
   // Un movimiento que está en los dos lados con un valor apenas distinto casi
   // nunca son dos movimientos: es un número mal digitado (559,13 contra 559,31).
@@ -5106,7 +5210,7 @@ function conciliar({ saldoInicialLibros = 0, libros = [], banco = [], saldoBanco
     const parecido = soloLibros.find((ml) => Math.sign(ml.centavos) === Math.sign(mb.centavos)
       && ml.centavos !== mb.centavos
       && Math.abs(ml.centavos - mb.centavos) <= Math.max(100, Math.abs(mb.centavos) * 0.02)
-      && Math.abs((mb.fecha - ml.fecha) / DIA) <= TOLERANCIA_DIAS);
+      && Math.abs(dias(mb, ml)) <= TOLERANCIA_DIAS);
     if (parecido) {
       sospechosos.push({ libros: parecido, banco: mb, diferencia: d(mb.centavos - parecido.centavos) });
     }
@@ -5121,6 +5225,7 @@ function conciliar({ saldoInicialLibros = 0, libros = [], banco = [], saldoBanco
 
   return {
     pares,
+    grupos,
     soloLibros,
     soloBanco,
     saldoLibros: d(saldoLibros),
@@ -5139,49 +5244,78 @@ function queEs(movimiento, lado) {
   if (lado === 'libros') {
     return v < 0 ? 'Cheque o pago girado que el banco todavía no cobra' : 'Depósito en tránsito';
   }
-  return v < 0 ? 'Débito del banco sin registrar en libros' : 'Crédito del banco sin registrar en libros';
+  if (v < 0) {
+    return /inter[eé]s/i.test(movimiento.concepto ?? '')
+      ? 'Interés cobrado por el banco, sin registrar en libros'
+      : 'Comisión o cargo del banco, sin registrar en libros';
+  }
+  return /inter[eé]s/i.test(movimiento.concepto ?? '')
+    ? 'Interés acreditado por el banco, sin registrar en libros'
+    : 'Depósito que no está en libros: se registra como no identificado';
 }
 
 /**
  * El asiento que propone la conciliación para lo que solo está en el banco.
  *
- * Un débito del banco (comisión, cargo) va a gastos; un crédito (intereses,
- * depósito no identificado) no se decide aquí: puede ser un ingreso financiero
- * o un cobro de un cliente, y eso lo sabe el contador, no el sistema.
+ * Cuentas (contador, observaciones del 16-sep-2026):
+ *   - Comisiones y cargos del banco: gasto financiero, 520302 Comisiones.
+ *   - Intereses que cobra el banco: gasto financiero, 520301 Intereses.
+ *   - Depósitos que nadie identifica: un pasivo, 20113 Otros pasivos
+ *     corrientes, con el auxiliar «Depósitos no identificados», hasta saber de
+ *     quién son. Entonces se reclasifican (normalmente contra el cliente).
+ *
+ * Un interés que el banco ACREDITA es un ingreso, y la cuenta de ingresos
+ * financieros no está confirmada: ese no se propone solo.
  */
 function asientoDeAjuste(mb, cuentaBanco = '10101') {
   const v = Math.abs(Number(mb.valor));
+  const esInteres = /inter[eé]s/i.test(mb.concepto ?? '');
+  const ref = mb.referencia ? ` · ref. ${mb.referencia}` : '';
   if (Number(mb.valor) < 0) {
+    const cuenta = esInteres ? '520301' : '520302';
     return {
       fecha: new Date(mb.fecha),
       tipo: 'AJUSTE',
       glosa: `Ajuste por conciliación · ${mb.concepto}`,
       lineas: [
-        { cuenta: '520228', debe: v, haber: 0, detalle: `Gasto bancario · ${mb.concepto}` },
+        { cuenta, debe: v, haber: 0,
+          detalle: `${esInteres ? 'Intereses bancarios' : 'Comisiones y cargos bancarios'} · ${mb.concepto}${ref}` },
         { cuenta: cuentaBanco, debe: 0, haber: v, detalle: 'Débito del banco según estado de cuenta' },
       ],
     };
   }
-  return null;
+  if (esInteres) return null;
+  return {
+    fecha: new Date(mb.fecha),
+    tipo: 'AJUSTE',
+    glosa: `Depósito no identificado · ${mb.concepto}`,
+    lineas: [
+      { cuenta: cuentaBanco, debe: v, haber: 0, detalle: `Crédito del banco según estado de cuenta${ref}` },
+      { cuenta: '20113', debe: 0, haber: v,
+        detalle: `${mb.concepto} · se reclasifica cuando se sepa de quién es`,
+        auxiliar: 'Depósitos no identificados' },
+    ],
+  };
 }
 
 /**
  * Un estado de cuenta en CSV, como lo baja cualquier banca en línea.
  *
- * Entiende una columna «valor» con signo, o dos columnas «débito» y «crédito».
- * La fecha puede venir como 30/09/2026 o 2026-09-30. Devuelve los movimientos
- * y las filas que no se pudieron leer, con su número de línea.
+ * Entiende una columna «valor» con signo, o dos columnas «débito» y «crédito»;
+ * la referencia del banco si viene («referencia», «documento», «número»); y el
+ * saldo si viene. La fecha puede venir como 30/09/2026 o 2026-09-30.
  */
 function leerEstadoDeCuenta(texto) {
   const filas = leerCsv(texto);
-  if (!filas.length) return { movimientos: [], problemas: [], faltan: ['fecha', 'valor'] };
+  if (!filas.length) return { movimientos: [], problemas: [], faltan: ['fecha', 'valor'], saldoFinal: null };
 
-  const llano = (t) => String(t ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '')
-    .toLowerCase().replace(/[^a-z]+/g, ' ').trim();
-  const cab = filas[0].map(llano);
+  const plano = (t) => llano(t).replace(/[^a-z]+/g, ' ').trim();
+  const cab = filas[0].map(plano);
   const col = (...nombres) => cab.findIndex((h) => nombres.includes(h));
   const iFecha = col('fecha', 'fecha movimiento', 'fecha de movimiento', 'fecha valor');
-  const iConcepto = col('concepto', 'descripcion', 'detalle', 'referencia');
+  const iConcepto = col('concepto', 'descripcion', 'detalle', 'glosa');
+  const iReferencia = col('referencia', 'documento', 'numero', 'numero de documento', 'n documento',
+    'no documento', 'comprobante', 'nro documento', 'num documento');
   const iValor = col('valor', 'monto', 'importe');
   const iDebito = col('debito', 'debitos', 'cargo', 'retiro', 'retiros');
   const iCredito = col('credito', 'creditos', 'abono', 'deposito', 'depositos');
@@ -5190,7 +5324,7 @@ function leerEstadoDeCuenta(texto) {
   const faltan = [];
   if (iFecha < 0) faltan.push('fecha');
   if (iValor < 0 && (iDebito < 0 || iCredito < 0)) faltan.push('valor (o débito y crédito)');
-  if (faltan.length) return { movimientos: [], problemas: [], faltan };
+  if (faltan.length) return { movimientos: [], problemas: [], faltan, saldoFinal: null };
 
   const aFecha = (t) => {
     const s = String(t ?? '').trim();
@@ -5221,10 +5355,12 @@ function leerEstadoDeCuenta(texto) {
       return;
     }
     const saldo = iSaldo >= 0 ? numero(f[iSaldo]) : NaN;
+    const referencia = iReferencia >= 0 ? String(f[iReferencia] ?? '').trim() : '';
     movimientos.push({
       id: `B${linea}`,
       fecha,
       concepto: iConcepto >= 0 ? String(f[iConcepto] ?? '').trim() : 'Movimiento',
+      referencia: referencia || null,
       valor: Math.round(valor * 100) / 100,
       ...(Number.isFinite(saldo) ? { saldo } : {}),
     });
@@ -5241,13 +5377,13 @@ function leerEstadoDeCuenta(texto) {
 
 /** La plantilla del estado de cuenta, con los mismos nombres que se leen. */
 const PLANTILLA_ESTADO_DE_CUENTA = [
-  'fecha;concepto;debito;credito;saldo',
-  '08/09/2026;Transferencia a Fertilizantes del Pacifico;9492,00;;8928,55',
-  '21/09/2026;Transferencia recibida Consorcio Agricola;;12400,00;21328,55',
+  'fecha;concepto;referencia;debito;credito;saldo',
+  '08/09/2026;Transferencia a Fertilizantes del Pacifico;TR-558210;9492,00;;8928,55',
+  '21/09/2026;Transferencia recibida Consorcio Agricola;TR-771044;;12400,00;21328,55',
 ].join('\n') + '\n';
 
 
-  return { TOLERANCIA_DIAS, movimientosDeLibros, conciliar, queEs, asientoDeAjuste, leerEstadoDeCuenta, PLANTILLA_ESTADO_DE_CUENTA };
+  return { TOLERANCIA_DIAS, TOLERANCIA_CON_PALABRA, TOLERANCIA_CON_REFERENCIA, PALABRAS_CLAVE, normalizarReferencia, movimientosDeLibros, conciliar, queEs, asientoDeAjuste, leerEstadoDeCuenta, PLANTILLA_ESTADO_DE_CUENTA };
 })();
 
 // ---- src/avisos.js -----------------------------------------------
@@ -6409,6 +6545,9 @@ const CUENTAS = [
   { codigo: '2010703', nombre: 'Con el IESS', tipo: 'DETALLE', naturaleza: 'ACREEDORA' },
   { codigo: '2010704', nombre: 'Por beneficios de ley a empleados', tipo: 'DETALLE', naturaleza: 'ACREEDORA' },
   { codigo: '20110', nombre: 'Anticipos de clientes', tipo: 'DETALLE', naturaleza: 'ACREEDORA' },
+  // Contador, 16-sep-2026: los depósitos que nadie identifica van a un pasivo
+  // hasta saber de quién son (auxiliar «Depósitos no identificados»).
+  { codigo: '20113', nombre: 'Otros pasivos corrientes', tipo: 'DETALLE', naturaleza: 'ACREEDORA' },
 
   { codigo: '3', nombre: 'PATRIMONIO NETO', tipo: 'TOTAL', naturaleza: 'ACREEDORA' },
   { codigo: '30101', nombre: 'Capital suscrito o asignado', tipo: 'DETALLE', naturaleza: 'ACREEDORA' },
@@ -6435,6 +6574,10 @@ const CUENTAS = [
   { codigo: '520115', nombre: 'Transporte', tipo: 'DETALLE', naturaleza: 'DEUDORA' },
   { codigo: '520118', nombre: 'Agua, energía, luz y telecomunicaciones', tipo: 'DETALLE', naturaleza: 'DEUDORA' },
   { codigo: '520121', nombre: 'Depreciaciones · propiedades, planta y equipo', tipo: 'DETALLE', naturaleza: 'DEUDORA' },
+  // Contador, 16-sep-2026: comisiones e intereses del banco, gasto financiero.
+  { codigo: '5203', nombre: 'Gastos financieros', tipo: 'TOTAL', naturaleza: 'DEUDORA' },
+  { codigo: '520301', nombre: 'Intereses', tipo: 'DETALLE', naturaleza: 'DEUDORA' },
+  { codigo: '520302', nombre: 'Comisiones', tipo: 'DETALLE', naturaleza: 'DEUDORA' },
   { codigo: '520110', nombre: 'Comisiones (ventas)', tipo: 'DETALLE', naturaleza: 'DEUDORA' },
   // La serie 5202, de administración: la que se propone por defecto (contador,
   // repregunta 2). Los nombres son los del catálogo; la serie dice el área.
@@ -6536,8 +6679,35 @@ const MANUALES = [
       { cuenta: '1020109', debe: 32000.00, haber: 0, detalle: 'Camión de reparto' },
       { cuenta: '1020112', debe: 0, haber: 14600.00, detalle: 'Depreciación acumulada' },
       { cuenta: '2010301', debe: 0, haber: 19850.95, detalle: 'Proveedores' },
+      { cuenta: '2010703', debe: 0, haber: 1047.08, detalle: 'Planilla del IESS de agosto' },
+      { cuenta: '2010704', debe: 0, haber: 4392.20, detalle: 'Rol de agosto por pagar' },
       { cuenta: '30101', debe: 0, haber: 60000.00, detalle: 'Capital suscrito' },
-      { cuenta: '30601', debe: 0, haber: 49400.00, detalle: 'Ganancias acumuladas' },
+      { cuenta: '30601', debe: 0, haber: 43960.72, detalle: 'Ganancias acumuladas' },
+    ],
+  },
+  {
+    // El rol de agosto se pagó por cash management: en los libros son cuatro
+    // transferencias; en el banco, un solo débito. La conciliación los empareja
+    // por la suma (contador, 16-sep-2026).
+    fecha: new Date(2026, 8, 5), tipo: 'PAGO',
+    glosa: 'Pago del rol de agosto por cash management',
+    lineas: [
+      { cuenta: '2010704', debe: 4392.20, haber: 0, detalle: 'Sueldos de agosto' },
+      { cuenta: '10101', debe: 0, haber: 1250.00, detalle: 'Transferencia a María Fernanda Vera' },
+      { cuenta: '10101', debe: 0, haber: 1098.05, detalle: 'Transferencia a Luis Alberto Mora' },
+      { cuenta: '10101', debe: 0, haber: 1022.15, detalle: 'Transferencia a Jorge Andrés Plúas' },
+      { cuenta: '10101', debe: 0, haber: 1022.00, detalle: 'Transferencia a Carmen Elena Suárez' },
+    ],
+  },
+  {
+    // El pago en ventanilla no deja una referencia del banco que sirva: se
+    // registra con el número del comprobante de la planilla. La conciliación
+    // lo reconoce por el valor y porque los dos lados dicen «IESS».
+    fecha: new Date(2026, 8, 16), tipo: 'PAGO',
+    glosa: 'Pago de la planilla del IESS de agosto',
+    lineas: [
+      { cuenta: '2010703', debe: 1047.08, haber: 0, detalle: 'Aportes de agosto' },
+      { cuenta: '10101', debe: 0, haber: 1047.08, detalle: 'Planilla IESS agosto', referencia: 'Comprobante de planilla 00128455' },
     ],
   },
   {
@@ -6559,7 +6729,7 @@ const MANUALES = [
     enlace: '#/compras/001-001-000008842', enlaceTexto: 'Ver la factura pagada 001-001-000008842',
     lineas: [
       { cuenta: '2010301', debe: 9492.00, haber: 0, detalle: 'Cancelación factura 8842 · 9.660,00 menos 168,00 retenidos' },
-      { cuenta: '10101', debe: 0, haber: 9492.00, detalle: 'Transferencia bancaria' },
+      { cuenta: '10101', debe: 0, haber: 9492.00, detalle: 'Transferencia bancaria', referencia: 'TR-558210' },
     ],
   },
   {
@@ -6571,7 +6741,7 @@ const MANUALES = [
     lineas: [
       { cuenta: '520109', debe: 1200.00, haber: 0, detalle: 'Bodega Km 14.5' },
       { cuenta: '1010501', debe: 180.00, haber: 0, detalle: 'IVA en compras 15%' },
-      { cuenta: '10101', debe: 0, haber: 1380.00, detalle: 'Cheque 004821' },
+      { cuenta: '10101', debe: 0, haber: 1380.00, detalle: 'Cheque 004821', referencia: '004821' },
     ],
   },
   {
@@ -6615,7 +6785,7 @@ const MANUALES = [
     fecha: new Date(2026, 8, 20), tipo: 'COBRO',
     glosa: 'Cobro a Consorcio Agrícola Daule S.A.',
     lineas: [
-      { cuenta: '10101', debe: 12400.00, haber: 0, detalle: 'Transferencia recibida' },
+      { cuenta: '10101', debe: 12400.00, haber: 0, detalle: 'Transferencia recibida', referencia: 'TR-771044' },
       { cuenta: '101020502', debe: 0, haber: 12400.00, detalle: 'Abono a cartera' },
     ],
   },
@@ -6921,12 +7091,15 @@ const BANCOS = [
     banco: 'Banco Pichincha', cuenta: '2100••••4471', tipo: 'Corriente', cuentaContable: '10101',
     saldoInicialBanco: 18420.55,
     estadoDeCuenta: [
-      { fecha: new Date(2026, 8, 8), concepto: 'Transferencia a Fertilizantes del Pacífico', valor: -9492.00 },
-      { fecha: new Date(2026, 8, 13), concepto: 'Débito automático CNEL y CNT', valor: -559.13 },
-      { fecha: new Date(2026, 8, 15), concepto: 'Consumo con tarjeta de débito', valor: -1173.00 },
-      { fecha: new Date(2026, 8, 20), concepto: 'Transferencia recibida Consorcio Agrícola Daule', valor: 12400.00 },
-      { fecha: new Date(2026, 8, 30), concepto: 'Depósitos de clientes', valor: 38000.00 },
-      { fecha: new Date(2026, 8, 30), concepto: 'Comisión por mantenimiento de cuenta', valor: -3.50 },
+      { fecha: new Date(2026, 8, 5), concepto: 'Pago masivo cash management · rol agosto', referencia: 'CM-20260905', valor: -4392.20 },
+      { fecha: new Date(2026, 8, 8), concepto: 'Transferencia a Fertilizantes del Pacífico', referencia: 'TR-558210', valor: -9492.00 },
+      { fecha: new Date(2026, 8, 13), concepto: 'Débito automático CNEL y CNT', referencia: null, valor: -559.13 },
+      { fecha: new Date(2026, 8, 15), concepto: 'Consumo con tarjeta de débito', referencia: '771203', valor: -1173.00 },
+      { fecha: new Date(2026, 8, 20), concepto: 'Transferencia recibida Consorcio Agrícola Daule', referencia: 'TR-771044', valor: 12400.00 },
+      { fecha: new Date(2026, 8, 26), concepto: 'Depósito en efectivo', referencia: null, valor: 250.00 },
+      { fecha: new Date(2026, 8, 29), concepto: 'Pago IESS ventanilla', referencia: null, valor: -1047.08 },
+      { fecha: new Date(2026, 8, 30), concepto: 'Depósitos de clientes', referencia: null, valor: 38000.00 },
+      { fecha: new Date(2026, 8, 30), concepto: 'Comisión por mantenimiento de cuenta', referencia: null, valor: -3.50 },
     ],
   },
 ];
@@ -11930,11 +12103,21 @@ const cargados = {};
 const enlaceAsiento = (numero) => (numero ? crudo(
   `<a href="#/diario/${esc(numero)}" class="text-[12px] font-semibold text-verde hover:underline whitespace-nowrap">#${esc(numero)}</a>`) : '');
 
+const referenciaDe = (m) => (m.referencia
+  ? html`<span class="block text-[11px] text-tinta-suave tabular">Ref. ${m.referencia}</span>` : '');
+
+const MOTIVOS = {
+  referencia: 'misma referencia',
+  'valor y fecha': 'valor y fecha',
+  'valor y concepto': 'valor y concepto',
+};
+
 const filaPartida = (m, lado) => html`
   <tr>
     <td class="px-5 py-2.5 text-sm whitespace-nowrap">${fecha(m.fecha)}</td>
     <td class="px-3 py-2.5">
       <span class="block text-sm">${m.concepto}</span>
+      ${referenciaDe(m)}
       <span class="block text-[11px] text-tinta-suave">${queEs(m, lado)}</span>
     </td>
     <td class="px-3 py-2.5 text-right">${lado === 'libros' ? enlaceAsiento(m.asiento) : ''}</td>
@@ -12067,36 +12250,75 @@ function conciliacionDe(b, indice, diario) {
             ${ajustes.map(({ m, asiento }, i) => (asiento
               ? registroContable(asiento, {
                   vistaPrevia: true, id: `ajuste-${String(indice)}-${String(i)}`,
-                  nota: 'Asiento propuesto por la conciliación. La cuenta 520228 es la de otros gastos de ' +
-                        'administración; el contador puede preferir otra.',
+                  nota: m.valor < 0
+                    ? 'Asiento propuesto por la conciliación: gasto financiero (5203), como indicó el contador.'
+                    : 'Asiento propuesto: el depósito queda en un pasivo (20113, «Depósitos no identificados») ' +
+                      'hasta saber de quién es; entonces se reclasifica, normalmente contra el cliente.',
                 })
               : crudo(aviso({
                   tono: 'ambar', ico: 'help',
-                  titulo: `${m.concepto}: lo decide el contador`,
-                  texto: 'Un crédito del banco puede ser un interés ganado o el cobro de un cliente. El ' +
-                         'sistema no lo adivina: hay que registrarlo contra la cuenta que corresponda.',
+                  titulo: `${m.concepto}: confirme la cuenta de ingreso`,
+                  texto: 'Un interés que el banco acredita es un ingreso financiero. Esa cuenta todavía no ' +
+                         'está confirmada con el contador, así que el sistema no propone el asiento.',
                 }))))}
+          </div>
+        </div>` : ''}
+
+      ${r.grupos.length ? html`
+        <div class="border-t border-papel-linea">
+          <h3 class="px-5 pt-4 text-sm font-bold">Varios movimientos contra uno</h3>
+          <p class="px-5 text-[12px] text-tinta-suave">
+            Un pago masivo (cash management) sale del banco en un solo débito aunque en los libros sean
+            varios pagos, o al revés. Se emparejan porque suman exactamente lo mismo.
+          </p>
+          <div class="p-5 space-y-3">
+            ${r.grupos.map((g) => html`
+              <div class="rounded-xl border border-papel-linea overflow-hidden">
+                <div class="grid sm:grid-cols-2">
+                  <div class="p-3 sm:border-r border-papel-linea">
+                    <p class="text-[11px] font-bold uppercase tracking-wide text-tinta-suave mb-1">En libros · ${String(g.libros.length)}</p>
+                    ${g.libros.map((m) => html`
+                      <div class="flex justify-between gap-3 py-1 text-sm">
+                        <span class="min-w-0">${m.concepto} ${enlaceAsiento(m.asiento)}</span>
+                        <span class="tabular whitespace-nowrap">${dinero(m.valor)}</span>
+                      </div>`)}
+                  </div>
+                  <div class="p-3 border-t sm:border-t-0 border-papel-linea">
+                    <p class="text-[11px] font-bold uppercase tracking-wide text-tinta-suave mb-1">En el banco · ${String(g.banco.length)}</p>
+                    ${g.banco.map((m) => html`
+                      <div class="flex justify-between gap-3 py-1 text-sm">
+                        <span class="min-w-0">${m.concepto} <span class="text-[11px] text-tinta-suave">${fecha(m.fecha)}${m.referencia ? ` · Ref. ${m.referencia}` : ''}</span></span>
+                        <span class="tabular whitespace-nowrap">${dinero(m.valor)}</span>
+                      </div>`)}
+                  </div>
+                </div>
+              </div>`)}
           </div>
         </div>` : ''}
 
       <details class="border-t border-papel-linea">
         <summary class="px-5 py-4 cursor-pointer text-sm font-bold">
-          Emparejados automáticamente (${String(r.pares.length)})
+          Emparejados uno a uno (${String(r.pares.length)})
           <span class="block text-[11px] font-normal text-tinta-suave">
-            Mismo valor, y el banco lo registró hasta ${String(TOLERANCIA_DIAS)} días después que los libros.
+            Por número de referencia; si no hay, por valor y fecha (hasta ${String(TOLERANCIA_DIAS)} días);
+            y si tampoco, por valor y una palabra en común, como «IESS».
           </span>
         </summary>
         ${crudo(tabla([
-          { texto: 'En libros' }, { texto: 'En el banco' }, { texto: 'Asiento', der: true }, { texto: 'Valor', der: true },
+          { texto: 'En libros' }, { texto: 'En el banco' }, { texto: 'Cómo se emparejó' },
+          { texto: 'Asiento', der: true }, { texto: 'Valor', der: true },
         ], r.pares.map((p) => html`
           <tr>
             <td class="px-5 py-2.5">
               <span class="block text-sm">${p.libros.concepto}</span>
-              <span class="block text-[11px] text-tinta-suave">${fecha(p.libros.fecha)}</span>
+              <span class="block text-[11px] text-tinta-suave">${fecha(p.libros.fecha)}${p.libros.referencia ? ` · Ref. ${p.libros.referencia}` : ''}</span>
             </td>
             <td class="px-3 py-2.5">
               <span class="block text-sm">${p.banco.concepto}</span>
-              <span class="block text-[11px] text-tinta-suave">${fecha(p.banco.fecha)}</span>
+              <span class="block text-[11px] text-tinta-suave">${fecha(p.banco.fecha)}${p.banco.referencia ? ` · Ref. ${p.banco.referencia}` : ''}</span>
+            </td>
+            <td class="px-3 py-2.5">
+              <span class="text-[11px] font-bold px-2 py-0.5 rounded-full bg-papel text-tinta-suave whitespace-nowrap">${MOTIVOS[p.motivo] ?? p.motivo}</span>
             </td>
             <td class="px-3 py-2.5 text-right">${enlaceAsiento(p.libros.asiento)}</td>
             <td class="px-5 py-2.5 text-right text-sm tabular">${dinero(p.libros.valor)}</td>
@@ -12129,11 +12351,12 @@ async function bancos() {
     ${crudo(aviso({
       tono: 'info', ico: 'compare_arrows',
       titulo: 'Cómo se concilia aquí',
-      texto: 'Cargue el estado de cuenta que baja de su banca en línea (CSV). El sistema empareja solo ' +
-             'cada movimiento del banco con el del libro mayor y aparta lo que no coincide: lo que está ' +
-             'en libros y el banco todavía no registra —un cheque sin cobrar— y lo que el banco ' +
-             'registró y los libros todavía no —una comisión—. La conciliación está hecha cuando la ' +
-             'diferencia sin explicar es cero.',
+      texto: 'Cargue el estado de cuenta que baja de su banca en línea (CSV), con su fecha, valor, ' +
+             'referencia y saldo. El sistema empareja solo cada movimiento del banco con el del libro ' +
+             'mayor: por número de referencia, por valor y fecha, por valor y concepto (el pago del IESS) ' +
+             'y por sumas (un pago masivo contra varios pagos). Aparta lo que no coincide —un cheque sin ' +
+             'cobrar, una comisión, un depósito sin identificar— y propone el asiento. La conciliación ' +
+             'está hecha cuando la diferencia sin explicar es cero.',
     }))}
 
     <div class="grid gap-4 sm:grid-cols-3 mb-5">
