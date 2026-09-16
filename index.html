@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <!-- La version publicada: la pone el empaquetador y la pagina la compara con la del servidor. -->
-<meta name="kontia-version" content="49535c64e5bb">
+<meta name="kontia-version" content="965f04604756">
 <title>Kontia</title>
 <meta name="theme-color" content="#0F7B4F">
 <link rel="manifest" href="manifiesto.json">
@@ -5833,7 +5833,12 @@ const CUENTAS = [
   { codigo: '520215', nombre: 'Transporte (administración)', tipo: 'DETALLE', naturaleza: 'DEUDORA' },
   { codigo: '520217', nombre: 'Gastos de viaje (administración)', tipo: 'DETALLE', naturaleza: 'DEUDORA' },
   { codigo: '520218', nombre: 'Agua, energía, luz y telecomunicaciones (administración)', tipo: 'DETALLE', naturaleza: 'DEUDORA' },
-  { codigo: '520220', nombre: 'Impuestos, contribuciones y otros (administración)', tipo: 'DETALLE', naturaleza: 'DEUDORA' },
+  // Contador, 17-sep-2026: sin centros de costo, el IVA que no da crédito
+  // tributario va a una cuenta propia dentro del grupo. Son subcuentas de la
+  // empresa bajo 520220: en la presentación a la Superintendencia suman ahí.
+  { codigo: '520220', nombre: 'Impuestos, contribuciones y otros (administración)', tipo: 'TOTAL', naturaleza: 'DEUDORA' },
+  { codigo: '52022001', nombre: 'Impuestos, contribuciones y otros', tipo: 'DETALLE', naturaleza: 'DEUDORA' },
+  { codigo: '52022002', nombre: 'IVA no sujeto a derecho a crédito tributario', tipo: 'DETALLE', naturaleza: 'DEUDORA' },
   { codigo: '520228', nombre: 'Otros gastos (administración)', tipo: 'DETALLE', naturaleza: 'DEUDORA' },
 ];
 
@@ -6191,11 +6196,12 @@ function asientoDeCompra(c) {
  * Supabase, este archivo no cambia.
  */
 function diarioCon(compras = [], pagos = [], declaraciones = []) {
+  const deLosPagosAlSri = (declaraciones ?? []).filter((d) => d.pago).map(asientoDePagoAlSri);
   const deCompras = (compras ?? []).map(asientoDeCompra);
   const dePagos = (pagos ?? []).map(asientoDePago);
   const deDeclaraciones = (declaraciones ?? []).map(asientoDeDeclaracion);
   return numerar([...MANUALES, ...DE_VENTAS, ...DE_RETENCIONES, ...DE_NOTAS, ...deCompras, ...dePagos,
-    ...deDeclaraciones]);
+    ...deDeclaraciones, ...deLosPagosAlSri]);
 }
 
 // Se arma la primera vez que se pide: las retenciones y las notas de crédito
@@ -6896,13 +6902,16 @@ function formulario103(retenciones = RETENCIONES) {
 //  todas las casillas, y lo que se paga queda como una sola deuda con el SRI.
 // ===========================================================================
 
+/** Contador, 17-sep-2026: «IVA no sujeto a derecho a crédito tributario». */
+const CUENTA_IVA_SIN_CREDITO = '52022002';
+
 const porPagarAlSri = (formulario, periodo) => `Por pagar al SRI · formulario ${formulario} ${periodo}`;
 
 /**
  * Las líneas del asiento de un formulario 104 presentado (liquidación del IVA).
  *
  *   Debe  2010701 IVA cobrado (casilla 429), que se cierra.
- *   Debe  520220  el IVA de compras que el factor no deja usar (564 < IVA de compras).
+ *   Debe  52022002 el IVA de compras que el factor no deja usar (564 < IVA de compras).
  *   Haber 1010501 el crédito tributario usado; lo que pasa al mes siguiente
  *                 (615 y 617) se queda en la cuenta.
  *   Debe  2010701 las retenciones de IVA hechas (721 a 731), que se reclasifican…
@@ -6916,7 +6925,7 @@ function lineasDelFormulario104(f) {
       detalle: 'Casilla 429 · IVA generado en ventas', auxiliar: AUX_IVA_COBRADO });
   }
   if (f.noDeducible > 0) {
-    lineas.push({ cuenta: '520220', debe: f.noDeducible, haber: 0,
+    lineas.push({ cuenta: CUENTA_IVA_SIN_CREDITO, debe: f.noDeducible, haber: 0,
       detalle: `IVA de compras sin derecho a crédito (factor ${String(f.factor).replace('.', ',')}, casilla 563)` });
   }
   const comprasUsado = r2(f.ivaCompras - f.c615);
@@ -7020,8 +7029,53 @@ function asientoDeDeclaracion(d) {
   };
 }
 
+/**
+ * Comprueba el pago de una declaración ya registrada.
+ *
+ * Contador, 17-sep-2026: el pago al SRI se registra desde el sistema. Una sola
+ * salida del banco por el total de la 902, con la referencia del banco, para
+ * que la conciliación la empareje con el débito.
+ */
+function prepararPagoAlSri(declaracion, entrada) {
+  if (!declaracion) throw new Error('Primero registre la declaración como presentada.');
+  if (declaracion.pago) throw new Error('El pago de esta declaración ya está registrado.');
+  if (!(declaracion.total > 0)) throw new Error('Esta declaración no tiene valor a pagar.');
+  const fecha = entrada.fecha instanceof Date ? entrada.fecha : new Date(`${entrada.fecha}T12:00:00`);
+  if (Number.isNaN(fecha.getTime())) throw new Error('Falta la fecha del pago, tal como sale en el banco.');
+  const presentada = new Date(declaracion.fechaPresentacion);
+  presentada.setHours(0, 0, 0, 0);
+  if (fecha < presentada) throw new Error('El pago no puede ser anterior a la presentación de la declaración.');
+  return {
+    fecha,
+    referencia: String(entrada.referencia ?? '').trim() || null,
+    cuentaBanco: entrada.cuentaBanco ?? '10101',
+    valor: declaracion.total,
+  };
+}
 
-  return { CUENTAS, cuenta, nombreCuenta, AUX_IVA_COBRADO, asientoDeFactura, asientoDeCompra, diarioCon, diarioDelMes, balanceDeComprobacion, mayorDe, CARTERA_COBRAR, PROVEEDORES, CARTERA_PAGAR, BANCOS, saldoFinalDelBanco, INVENTARIO, EMPLEADOS, ACTIVOS_FIJOS, SUSCRIPCIONES, USO_MENSUAL, SOPORTE, RETENCIONES, NOTAS_CREDITO, GUIAS_REMISION, valoresDeRetencion, asientoDeRetencionEmitida, asientoDeNotaCredito, comprasDelLibro, pendientesDePago, prepararPago, asientoDePago, asientoDelDocumento, formulario104, CONCEPTOS_RENTA, formulario103, lineasDelFormulario104, lineasDelFormulario103, prepararDeclaracion, asientoDeDeclaracion };
+/** El asiento del pago al SRI: se cancela la deuda de la declaración contra el banco. */
+function asientoDePagoAlSri(d) {
+  const ref = d.pago.referencia ? ` · ref. ${d.pago.referencia}` : '';
+  return {
+    numero: null,
+    fecha: new Date(d.pago.fecha),
+    tipo: 'PAGO',
+    origen: `Pago del formulario ${d.formulario} · ${d.periodo}`,
+    enlace: RUTA_FORMULARIO[d.formulario],
+    enlaceTexto: `Ver el formulario ${d.formulario}`,
+    glosa: `Pago al SRI del formulario ${d.formulario} de ${d.periodo}`,
+    lineas: [
+      { cuenta: '2010701', debe: d.pago.valor, haber: 0,
+        detalle: 'Se cancela lo declarado (casilla 902)', auxiliar: porPagarAlSri(d.formulario, d.periodo) },
+      { cuenta: d.pago.cuentaBanco ?? '10101', debe: 0, haber: d.pago.valor,
+        detalle: `Débito del SRI${ref}`, referencia: d.pago.referencia ?? null },
+    ],
+    generado: true,
+  };
+}
+
+
+  return { CUENTAS, cuenta, nombreCuenta, AUX_IVA_COBRADO, asientoDeFactura, asientoDeCompra, diarioCon, diarioDelMes, balanceDeComprobacion, mayorDe, CARTERA_COBRAR, PROVEEDORES, CARTERA_PAGAR, BANCOS, saldoFinalDelBanco, INVENTARIO, EMPLEADOS, ACTIVOS_FIJOS, SUSCRIPCIONES, USO_MENSUAL, SOPORTE, RETENCIONES, NOTAS_CREDITO, GUIAS_REMISION, valoresDeRetencion, asientoDeRetencionEmitida, asientoDeNotaCredito, comprasDelLibro, pendientesDePago, prepararPago, asientoDePago, asientoDelDocumento, formulario104, CONCEPTOS_RENTA, formulario103, CUENTA_IVA_SIN_CREDITO, porPagarAlSri, lineasDelFormulario104, lineasDelFormulario103, prepararDeclaracion, asientoDeDeclaracion, prepararPagoAlSri, asientoDePagoAlSri };
 })();
 
 // ---- src/almacen.js ----------------------------------------------
@@ -7030,7 +7084,7 @@ const __src_almacen_js = (function () {
   const { perfilDeLaNube, altaDeEmpresa, cargarPerfil } = __src_cuenta_nube_js;
   const { clientesDeLaNube, clienteDeLaNube, guardarClienteEnLaNube, productosDeLaNube, productoDeLaNube, guardarProductoEnLaNube } = __src_catalogo_nube_js;
   const { puntosDeLaNube, comprobantesDeLaNube, comprobanteDeLaNube, borradorEnLaNube, emisionSimuladaNoPermitida } = __src_comprobantes_nube_js;
-  const { diarioCon, pendientesDePago, prepararPago, asientoDePago, CARTERA_PAGAR, formulario104, formulario103, balanceDeComprobacion, prepararDeclaracion, asientoDeDeclaracion } = __src_datos_contables_js;
+  const { diarioCon, pendientesDePago, prepararPago, asientoDePago, CARTERA_PAGAR, formulario104, formulario103, balanceDeComprobacion, prepararDeclaracion, asientoDeDeclaracion, prepararPagoAlSri, asientoDePagoAlSri } = __src_datos_contables_js;
 
 /**
  * El almacén: lo único que sabe dónde están los datos y cómo se guardan.
@@ -7483,6 +7537,17 @@ const guardar = {
     datos.declaraciones.push({ ...registro, fechaPresentacion: registro.fechaPresentacion.toISOString() });
     persistir();
     return { declaracion: registro, asiento: asientoDeDeclaracion(registro) };
+  },
+
+  /** Registra el pago al SRI de una declaración presentada. */
+  pagoAlSri(formulario, clavePeriodo, entrada) {
+    if (enLaNube()) fallo('Con la cuenta de verdad, los pagos se habilitan cuando la contabilidad esté en la base.');
+    const guardada = datos.declaraciones.find((d) => d.empresaId === idActiva()
+      && d.formulario === formulario && d.clavePeriodo === clavePeriodo);
+    const pago = prepararPagoAlSri(guardada, entrada);
+    guardada.pago = { ...pago, fecha: pago.fecha.toISOString() };
+    persistir();
+    return esperar({ pago, asiento: asientoDePagoAlSri({ ...guardada, pago }) });
   },
 
   pagoProveedores(entrada) {
@@ -12556,9 +12621,14 @@ const lineaCuadro = (texto, valor, { fuerte = false, sangria = false, enlace = '
   </div>`;
 
 function conciliacionDe(b, indice, diario) {
-  const { saldoInicial, movimientos } = movimientosDeLibros(diario, b.cuentaContable);
   const cargado = cargados[b.cuenta];
   const extracto = cargado?.movimientos ?? b.estadoDeCuenta;
+  // El corte es el fin del mes del estado de cuenta: un pago de octubre no es
+  // una partida pendiente de septiembre.
+  const ultima = extracto.reduce((m, x) => Math.max(m, new Date(x.fecha).getTime()), 0);
+  const corte = ultima ? new Date(new Date(ultima).getFullYear(), new Date(ultima).getMonth() + 1, 0, 23, 59, 59) : null;
+  const { saldoInicial, movimientos: todos } = movimientosDeLibros(diario, b.cuentaContable);
+  const movimientos = corte ? todos.filter((m) => m.fecha <= corte) : todos;
   const r = conciliar({
     saldoInicialLibros: saldoInicial,
     libros: movimientos,
@@ -14053,7 +14123,7 @@ const CUENTAS_DE_COMPRA = [
   { grupo: 'Gastos administrativos', codigo: '520215', nombre: 'Transporte' },
   { grupo: 'Gastos administrativos', codigo: '520217', nombre: 'Gastos de viaje y movilización' },
   { grupo: 'Gastos administrativos', codigo: '520218', nombre: 'Agua, energía, luz y telecomunicaciones' },
-  { grupo: 'Gastos administrativos', codigo: '520220', nombre: 'Impuestos, contribuciones y otros' },
+  { grupo: 'Gastos administrativos', codigo: '52022001', nombre: 'Impuestos, contribuciones y otros' },
   { grupo: 'Gastos administrativos', codigo: '520228', nombre: 'Otros gastos (uniformes, seguridad, suministros)' },
   { grupo: 'Gastos de venta', codigo: '520110', nombre: 'Comisiones en ventas' },
   { grupo: 'Gastos de venta', codigo: '520111', nombre: 'Promoción y publicidad' },
@@ -15478,7 +15548,7 @@ async function proteccionDatos() {
 // ---- src/vistas/declaraciones.js ---------------------------------
 const __src_vistas_declaraciones_js = (function () {
   const { html, crudo, icono, dinero, usd, fechaLarga, aviso, dejarRecado } = __src_ui_js;
-  const { nombreCuenta } = __src_datos_contables_js;
+  const { nombreCuenta, asientoDePagoAlSri } = __src_datos_contables_js;
   const { guardar } = __src_almacen_js;
   const { registroContable } = __src_vistas_asiento_js;
 
@@ -15572,12 +15642,16 @@ function avisoDeDeclaracion(f, presentada, asientoEnLibros) {
  * El segundo paso: registrar lo presentado. Si ya se registró, enseña su
  * asiento; si no, la vista previa y el formulario para registrarlo.
  */
-function pasoDeRegistro(f, presentada, asientoPrevio, asientoEnLibros) {
+function pasoDeRegistro(f, presentada, asientoPrevio, asientoEnLibros, pagoEnLibros = null) {
   if (presentada) {
-    return registroContable(asientoEnLibros ?? asientoPrevio, {
-      numero: asientoEnLibros?.numero ?? null,
-      nota: 'Lo hizo el sistema al registrar la declaración presentada, con las casillas tal como se presentaron.',
-    });
+    return html`
+      <div class="space-y-5">
+        ${crudo(String(registroContable(asientoEnLibros ?? asientoPrevio, {
+          numero: asientoEnLibros?.numero ?? null,
+          nota: 'Lo hizo el sistema al registrar la declaración presentada, con las casillas tal como se presentaron.',
+        })))}
+        ${crudo(String(pasoDePago(presentada, pagoEnLibros)))}
+      </div>`;
   }
   const minimo = (() => {
     const [anio, mes] = f.clavePeriodo.split('-').map(Number);
@@ -15623,12 +15697,79 @@ function pasoDeRegistro(f, presentada, asientoPrevio, asientoEnLibros) {
     </form>`;
 }
 
+/** El tercer paso: pagar lo declarado, desde el sistema. */
+function pasoDePago(d, pagoEnLibros) {
+  if (!(d.total > 0)) return '';
+  if (d.pago) {
+    return registroContable(pagoEnLibros ?? asientoDePagoAlSri(d), {
+      numero: pagoEnLibros?.numero ?? null,
+      nota: `Pagado el ${fechaLarga(d.pago.fecha)}${d.pago.referencia ? ` con la referencia ${d.pago.referencia}` : ''}. ` +
+            'La conciliación bancaria lo empareja con el débito del SRI.',
+    });
+  }
+  const presentada = new Date(d.fechaPresentacion);
+  const dia = `${presentada.getFullYear()}-${String(presentada.getMonth() + 1).padStart(2, '0')}-${String(presentada.getDate()).padStart(2, '0')}`;
+  return html`
+    <form id="forma-pago-sri" data-formulario="${d.formulario}" data-periodo="${d.clavePeriodo}"
+          class="bg-white border-2 border-verde/30 rounded-2xl relieve overflow-hidden">
+      <header class="px-5 py-4 border-b border-papel-linea">
+        <h2 class="text-sm font-bold flex items-center gap-2">
+          ${icono('payments', 'text-[18px] text-verde')} Registrar el pago al SRI
+        </h2>
+        <p class="text-[12px] text-tinta-suave mt-0.5">
+          ${usd(d.total)} por el formulario ${d.formulario}. Queda una sola salida del banco, con la
+          referencia del débito, para que la conciliación la encuentre.
+        </p>
+      </header>
+      <div class="p-5 grid gap-4 sm:grid-cols-2">
+        <label class="block">
+          <span class="text-[11px] font-bold uppercase tracking-wide text-tinta-suave">Fecha del débito</span>
+          <input id="pago-sri-fecha" type="date" min="${dia}" value="${dia}" required
+                 class="mt-1.5 w-full px-3.5 py-2.5 rounded-xl border border-papel-linea bg-white text-sm focus:outline-none focus:border-verde">
+        </label>
+        <label class="block">
+          <span class="text-[11px] font-bold uppercase tracking-wide text-tinta-suave">Referencia del banco</span>
+          <input id="pago-sri-referencia" type="text" autocomplete="off" placeholder="La que sale en el estado de cuenta"
+                 class="mt-1.5 w-full px-3.5 py-2.5 rounded-xl border border-papel-linea bg-white text-sm focus:outline-none focus:border-verde">
+        </label>
+      </div>
+      <div id="pago-sri-recado" class="px-5"></div>
+      <div class="flex justify-end px-5 py-4 border-t border-papel-linea bg-papel/60">
+        <button type="submit" class="px-5 py-2.5 rounded-xl bg-verde text-white text-sm font-bold hover:bg-verde-oscuro transition">
+          Registrar pago de ${usd(d.total)}
+        </button>
+      </div>
+    </form>`;
+}
+
 let conectado = false;
 
 function conectarDeclaracion() {
   const zona = document.getElementById('raiz');
   if (!zona || conectado) return;
   conectado = true;
+
+  zona.addEventListener('submit', async (ev) => {
+    const forma = ev.target.closest('#forma-pago-sri');
+    if (!forma) return;
+    ev.preventDefault();
+    try {
+      const { pago } = await guardar.pagoAlSri(forma.dataset.formulario, forma.dataset.periodo, {
+        fecha: document.getElementById('pago-sri-fecha')?.value,
+        referencia: document.getElementById('pago-sri-referencia')?.value,
+      });
+      dejarRecado({
+        tono: 'exito', ico: 'check_circle',
+        titulo: `Pago al SRI registrado por ${usd(pago.valor)}`,
+        texto: 'La deuda de la declaración quedó en cero y el banco tiene una sola salida' +
+               (pago.referencia ? ` con la referencia ${pago.referencia}.` : '.'),
+      });
+      window.dispatchEvent(new CustomEvent('kontia:redibujar'));
+    } catch (error) {
+      const recado = document.getElementById('pago-sri-recado');
+      if (recado) recado.innerHTML = String(aviso({ tono: 'rojo', ico: 'error', titulo: 'No se registró el pago', texto: error.message }));
+    }
+  });
 
   zona.addEventListener('submit', async (ev) => {
     const forma = ev.target.closest('#forma-declaracion');
@@ -15702,7 +15843,7 @@ async function declaracionIva() {
 
   // La declaración sale de los libros SIN su propio asiento (ver almacen.js).
   const f = await cargar.formulario('104');
-  const { presentada, previo, enLibros } = await estadoDelFormulario(f);
+  const { presentada, previo, enLibros, pagoEnLibros } = await estadoDelFormulario(f);
   const dias = Math.ceil((f.vence - new Date(2026, 8, 30)) / (24 * 60 * 60 * 1000));
   // Lo presentado se enseña tal como se presentó.
   const casillas = presentada ? presentada.casillas : f.casillas;
@@ -15778,7 +15919,8 @@ async function declaracionIva() {
           ${f.noDeducible > 0 ? html`
             <p class="mt-4 text-[11px] text-tinta-suave leading-relaxed">
               ${usd(f.noDeducible)} del IVA de compras no se pueden usar por el factor de
-              proporcionalidad: al registrar la declaración pasan a gasto (520220).
+              proporcionalidad: al registrar la declaración pasan a gasto (52022002, IVA no sujeto a
+              derecho a crédito tributario).
             </p>` : ''}
         </section>
 
@@ -15798,7 +15940,7 @@ async function declaracionIva() {
     </div>
 
     <div class="mt-5">
-      ${crudo(String(pasoDeRegistro(f, presentada, previo, enLibros)))}
+      ${crudo(String(pasoDeRegistro(f, presentada, previo, enLibros, pagoEnLibros)))}
     </div>`;
 }
 
@@ -15807,9 +15949,9 @@ async function estadoDelFormulario(f) {
   const presentada = (await cargar.declaraciones())
     .find((d) => d.formulario === f.formulario && d.clavePeriodo === f.clavePeriodo) ?? null;
   const origen = `Formulario ${f.formulario} · ${f.periodo}`;
-  const enLibros = presentada
-    ? (await cargar.librosDelMes()).find((a) => a.tipo === 'DECLARACION' && a.origen === origen) ?? null
-    : null;
+  const libros = presentada ? await cargar.librosDelMes() : [];
+  const enLibros = libros.find((a) => a.tipo === 'DECLARACION' && a.origen === origen) ?? null;
+  const pagoEnLibros = libros.find((a) => a.origen === `Pago del formulario ${f.formulario} · ${f.periodo}`) ?? null;
   let previo = null;
   if (!presentada) {
     // La vista previa usa la misma función que el registro, con una fecha
@@ -15817,7 +15959,7 @@ async function estadoDelFormulario(f) {
     const [anio, mes] = f.clavePeriodo.split('-').map(Number);
     previo = asientoDeDeclaracion(prepararDeclaracion(f, { fechaPresentacion: new Date(anio, mes, 1, 12) }));
   }
-  return { presentada, previo, enLibros };
+  return { presentada, previo, enLibros, pagoEnLibros };
 }
 
 // ===========================================================================
@@ -15833,7 +15975,7 @@ async function declaracionRetenciones() {
   }
 
   const f = await cargar.formulario('103');
-  const { presentada, previo, enLibros } = await estadoDelFormulario(f);
+  const { presentada, previo, enLibros, pagoEnLibros } = await estadoDelFormulario(f);
   const casillas = presentada ? presentada.casillas : f.casillas;
   const dias = Math.ceil((f.vence - new Date(2026, 8, 30)) / (24 * 60 * 60 * 1000));
 
@@ -15884,7 +16026,7 @@ async function declaracionRetenciones() {
     </div>
 
     <div class="mt-5">
-      ${crudo(String(pasoDeRegistro(f, presentada, previo, enLibros)))}
+      ${crudo(String(pasoDeRegistro(f, presentada, previo, enLibros, pagoEnLibros)))}
     </div>`;
 }
 
