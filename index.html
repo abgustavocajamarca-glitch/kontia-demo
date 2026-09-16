@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <!-- La version publicada: la pone el empaquetador y la pagina la compara con la del servidor. -->
-<meta name="kontia-version" content="bbe42ad7fe05">
+<meta name="kontia-version" content="22688b19765a">
 <title>Kontia</title>
 <meta name="theme-color" content="#0F7B4F">
 <link rel="manifest" href="manifiesto.json">
@@ -4785,6 +4785,219 @@ function emisionSimuladaNoPermitida() {
   return { digitoModulo11, codigoNumerico, claveDeAcceso, puntosDeLaNube, comprobanteDeFila, comprobantesDeLaNube, comprobanteDeLaNube, borradorEnLaNube, emisionSimuladaNoPermitida };
 })();
 
+// ---- src/importar.js ---------------------------------------------
+const __src_importar_js = (function () {
+
+
+/**
+ * Cargar clientes y productos desde una hoja de cálculo.
+ *
+ * POR QUÉ EXISTE. Nadie teclea cuatrocientos productos a mano, y quien viene de
+ * otro sistema ya los tiene en una hoja. Sin esto, empezar con Kontia cuesta un
+ * fin de semana; con esto, diez minutos.
+ *
+ * QUÉ ARCHIVO SE PIDE. Un CSV, que es lo que Excel guarda con «Guardar como →
+ * CSV». No se lee el .xlsx: abrirlo exigiría traer una biblioteca de fuera, y
+ * entonces la lista de clientes de una empresa pasaría por código que no es
+ * nuestro. Un CSV, además, lo puede revisar cualquiera antes de cargarlo.
+ *
+ * QUÉ NO DECIDE AQUÍ. No valida el RUC, ni la cédula, ni la tarifa de IVA: de
+ * eso se encarga `almacen.js` al guardar cada fila, que es donde ya viven esas
+ * reglas. Aquí solo se lee el archivo y se ordenan las columnas.
+ */
+
+/**
+ * Las filas de un CSV, respetando las comillas.
+ *
+ * Excel en español separa con punto y coma y en inglés con coma; se decide por
+ * la primera línea. Un campo entre comillas puede llevar el separador dentro
+ * («Guayaquil, Guayas») y comillas dobladas para decir una comilla.
+ */
+function leerCsv(texto) {
+  const limpio = String(texto ?? '').replace(/^﻿/, '').replace(/\r\n?/g, '\n');
+  if (!limpio.trim()) return [];
+
+  const primera = limpio.split('\n')[0];
+  const fuera = primera.replace(/"[^"]*"/g, '');
+  const sep = (fuera.match(/;/g) || []).length > (fuera.match(/,/g) || []).length ? ';' : ',';
+
+  const filas = [];
+  let fila = [];
+  let campo = '';
+  let entreComillas = false;
+
+  for (let i = 0; i < limpio.length; i++) {
+    const c = limpio[i];
+    if (entreComillas) {
+      if (c === '"') {
+        if (limpio[i + 1] === '"') { campo += '"'; i++; } else entreComillas = false;
+      } else campo += c;
+      continue;
+    }
+    if (c === '"') { entreComillas = true; continue; }
+    if (c === sep) { fila.push(campo.trim()); campo = ''; continue; }
+    if (c === '\n') { fila.push(campo.trim()); filas.push(fila); fila = []; campo = ''; continue; }
+    campo += c;
+  }
+  fila.push(campo.trim());
+  filas.push(fila);
+
+  return filas.filter((f) => f.some((x) => x !== ''));
+}
+
+/** Sin tildes, sin mayúsculas y sin dobles espacios: para comparar encabezados. */
+const llano = (t) => String(t ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '')
+  .toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+
+/** La primera columna del encabezado que coincida con alguno de los nombres. */
+function columna(encabezado, nombres) {
+  const llanos = encabezado.map(llano);
+  for (const n of nombres) {
+    const i = llanos.indexOf(llano(n));
+    if (i >= 0) return i;
+  }
+  return -1;
+}
+
+const COLUMNAS_CLIENTE = {
+  identificacion: ['identificacion', 'ruc', 'cedula', 'ruc cedula', 'ruc o cedula',
+    'documento', 'numero de identificacion', 'nit'],
+  razonSocial: ['razon social', 'nombre', 'cliente', 'nombres', 'razon social o nombre',
+    'nombre del cliente'],
+  tipo: ['tipo', 'tipo de identificacion', 'tipo identificacion'],
+  correo: ['correo', 'email', 'correo electronico', 'e mail'],
+  telefono: ['telefono', 'celular', 'telefono celular', 'contacto'],
+  direccion: ['direccion', 'domicilio'],
+  ciudad: ['ciudad', 'canton'],
+};
+
+const COLUMNAS_PRODUCTO = {
+  codigo: ['codigo', 'codigo principal', 'cod', 'sku', 'codigo interno'],
+  descripcion: ['descripcion', 'detalle', 'producto', 'nombre', 'servicio'],
+  precio: ['precio', 'precio unitario', 'pvp', 'valor', 'precio sin iva'],
+  iva: ['iva', 'tarifa', 'tarifa iva', 'porcentaje iva', 'impuesto'],
+  unidad: ['unidad', 'unidad de medida', 'medida'],
+  tipo: ['tipo', 'bien o servicio', 'clase'],
+};
+
+/** El tipo de identificación sale de lo escrito y, si no dice nada, del número. */
+function tipoDeIdentificacion(escrito, identificacion) {
+  const t = llano(escrito);
+  if (t.includes('consumidor')) return 'CONSUMIDOR_FINAL';
+  if (t.includes('pasaporte')) return 'PASAPORTE';
+  if (t.includes('exterior') || t.includes('extranjer')) return 'EXTERIOR';
+  if (t.includes('ruc')) return 'RUC';
+  if (t.includes('cedula')) return 'CEDULA';
+  const n = String(identificacion ?? '').replace(/\D/g, '');
+  if (n === '9999999999999') return 'CONSUMIDOR_FINAL';
+  if (n.length === 13) return 'RUC';
+  if (n.length === 10) return 'CEDULA';
+  return 'PASAPORTE';
+}
+
+/** «15», «15%», «0,15» y «exento» dicen la tarifa; aquí queda en por ciento. */
+function tarifaDeIva(escrito) {
+  const t = llano(escrito);
+  if (!t) return 15;
+  if (t.includes('exento') || t.includes('no objeto')) return 0;
+  const n = Number(String(escrito).replace(/[^\d.,]/g, '').replace(',', '.'));
+  if (!Number.isFinite(n) || String(escrito).replace(/[^\d]/g, '') === '') return 0;
+  if (n > 0 && n < 1) return Math.round(n * 100);
+  return Math.round(n);
+}
+
+/** «1.234,56» (Excel en español) y «1,234.56» (en inglés) son el mismo número. */
+function numero(escrito) {
+  const t = String(escrito ?? '').replace(/[^\d.,-]/g, '').trim();
+  if (!t) return NaN;
+  const coma = t.lastIndexOf(',');
+  const punto = t.lastIndexOf('.');
+  const n = coma > punto ? t.replace(/\./g, '').replace(',', '.') : t.replace(/,/g, '');
+  return Number(n);
+}
+
+function preparar(filas, columnas, armar, obligatorias) {
+  if (!filas.length) return { encabezado: [], listas: [], faltan: obligatorias, problemas: [] };
+
+  const encabezado = filas[0];
+  const donde = {};
+  for (const [campo, nombres] of Object.entries(columnas)) donde[campo] = columna(encabezado, nombres);
+
+  const faltan = obligatorias.filter((c) => donde[c] < 0);
+  if (faltan.length) return { encabezado, listas: [], faltan, problemas: [] };
+
+  const valor = (fila, campo) => (donde[campo] >= 0 ? String(fila[donde[campo]] ?? '').trim() : '');
+  const listas = [];
+  const problemas = [];
+
+  filas.slice(1).forEach((fila, i) => {
+    // La línea 1 es el encabezado, y quien mira la hoja cuenta desde 1.
+    const linea = i + 2;
+    const hecho = armar(fila, valor);
+    if (hecho.porque) problemas.push({ linea, porque: hecho.porque, fila });
+    else listas.push({ linea, ...hecho });
+  });
+
+  return { encabezado, listas, faltan: [], problemas };
+}
+
+function prepararClientes(filas) {
+  return preparar(filas, COLUMNAS_CLIENTE, (fila, v) => {
+    const identificacion = v(fila, 'identificacion').replace(/\s+/g, '');
+    const razonSocial = v(fila, 'razonSocial');
+    if (!identificacion && !razonSocial) return { porque: 'La fila está vacía.' };
+    if (!identificacion) return { porque: 'Falta la identificación.' };
+    if (!razonSocial) return { porque: 'Falta la razón social o el nombre.' };
+    return {
+      identificacion,
+      razonSocial,
+      tipo: tipoDeIdentificacion(v(fila, 'tipo'), identificacion),
+      correo: v(fila, 'correo'),
+      telefono: v(fila, 'telefono'),
+      direccion: v(fila, 'direccion'),
+      ciudad: v(fila, 'ciudad'),
+    };
+  }, ['identificacion', 'razonSocial']);
+}
+
+function prepararProductos(filas) {
+  return preparar(filas, COLUMNAS_PRODUCTO, (fila, v) => {
+    const codigo = v(fila, 'codigo');
+    const descripcion = v(fila, 'descripcion');
+    if (!codigo && !descripcion) return { porque: 'La fila está vacía.' };
+    if (!codigo) return { porque: 'Falta el código.' };
+    if (!descripcion) return { porque: 'Falta la descripción.' };
+    const precio = numero(v(fila, 'precio'));
+    if (!Number.isFinite(precio)) return { porque: `"${v(fila, 'precio')}" no es un precio.` };
+    return {
+      codigo,
+      descripcion,
+      precio,
+      iva: tarifaDeIva(v(fila, 'iva')),
+      unidad: v(fila, 'unidad') || 'UNIDAD',
+      tipo: llano(v(fila, 'tipo')).includes('servicio') ? 'Servicio' : 'Bien',
+    };
+  }, ['codigo', 'descripcion', 'precio']);
+}
+
+/** Las plantillas: la hoja que hay que llenar, con ejemplos dentro. */
+const PLANTILLA_CLIENTES = [
+  'identificacion;razon social;tipo;correo;telefono;direccion;ciudad',
+  '0992384756001;BANANERA DEL LITORAL CIA. LTDA.;RUC;compras@ejemplo.ec;042081120;Km 12 via Daule;Guayaquil',
+  '0912345675;MARIA LOPEZ MORA;Cedula;maria@ejemplo.ec;0991234567;Av. Principal 123;Daule',
+].join('\n') + '\n';
+
+const PLANTILLA_PRODUCTOS = [
+  'codigo;descripcion;precio;iva;unidad;tipo',
+  'FERT-01;Urea fertilizante granulada 50kg;28,50;15;SACO;Bien',
+  'SEM-02;Semilla certificada de arroz INIAP 14;31,25;0;QUINTAL;Bien',
+  'ASE-01;Asesoria tecnica agronomica;60,00;15;HORA;Servicio',
+].join('\n') + '\n';
+
+
+  return { leerCsv, tipoDeIdentificacion, tarifaDeIva, numero, prepararClientes, prepararProductos, PLANTILLA_CLIENTES, PLANTILLA_PRODUCTOS };
+})();
+
 // ---- src/sesion.js -----------------------------------------------
 const __src_sesion_js = (function () {
   const { haySesion: haySesionEnLaNube, usuario: usuarioDeLaNube, olvidar: olvidarLaNube, salir: salirDeLaNube } = __src_nube_js;
@@ -7994,7 +8207,10 @@ async function clientes() {
     ${crudo(cabecera({
       titulo: 'Clientes',
       descripcion: 'A quién le factura esta empresa. El RUC guardado aquí es el que viaja en el XML.',
-      acciones: boton('Registrar cliente', { ruta: '#/clientes/nuevo', ico: 'person_add' }),
+      acciones: [
+        boton('Cargar desde Excel', { ruta: '#/clientes/importar', tipo: 'secundario', ico: 'upload_file' }),
+        boton('Registrar cliente', { ruta: '#/clientes/nuevo', ico: 'person_add' }),
+      ],
     }))}
     <section class="bg-white border border-papel-linea rounded-2xl relieve overflow-hidden">${crudo(contenido)}</section>`;
 }
@@ -8037,7 +8253,10 @@ async function productos() {
     ${crudo(cabecera({
       titulo: 'Productos y servicios',
       descripcion: 'Cada producto lleva su tarifa de IVA. Es una clasificación tributaria, no una preferencia.',
-      acciones: boton('Añadir producto', { ruta: '#/productos/nuevo', ico: 'add' }),
+      acciones: [
+        boton('Cargar desde Excel', { ruta: '#/productos/importar', tipo: 'secundario', ico: 'upload_file' }),
+        boton('Añadir producto', { ruta: '#/productos/nuevo', ico: 'add' }),
+      ],
     }))}
     <section class="bg-white border border-papel-linea rounded-2xl relieve overflow-hidden">${crudo(contenido)}</section>`;
 }
@@ -8344,6 +8563,255 @@ function conectarFormularios() {
 
 
   return { formularioCliente, formularioProducto, conectarFormularios };
+})();
+
+// ---- src/vistas/importar.js --------------------------------------
+const __src_vistas_importar_js = (function () {
+  const { html, crudo, esc, cabecera, aviso, boton, tabla, dinero, dejarRecado } = __src_ui_js;
+  const { guardar } = __src_almacen_js;
+  const { leerCsv, prepararClientes, prepararProductos, PLANTILLA_CLIENTES, PLANTILLA_PRODUCTOS } = __src_importar_js;
+
+/**
+ * La pantalla para cargar clientes o productos desde una hoja de cálculo.
+ *
+ * El recorrido es corto a propósito: se descarga la plantilla, se elige el
+ * archivo, se ve lo que se va a guardar —con las filas con problema apartadas,
+ * diciendo por qué— y recién entonces se guarda. Nada entra sin que la persona
+ * lo haya visto antes.
+ */
+
+
+
+
+
+const ASUNTOS = {
+  clientes: {
+    titulo: 'Cargar clientes desde una hoja',
+    descripcion: 'Los clientes que ya tiene en Excel, sin volver a teclear el RUC de cada uno.',
+    plantilla: PLANTILLA_CLIENTES,
+    archivo: 'plantilla-clientes-kontia.csv',
+    obligatorias: 'identificación y razón social',
+    volver: '#/clientes',
+    preparar: prepararClientes,
+    columnas: [{ texto: 'Línea', der: true }, { texto: 'Identificación' }, { texto: 'Razón social' },
+      { texto: 'Tipo' }, { texto: 'Correo' }],
+    fila: (c) => html`
+      <tr>
+        <td class="px-5 py-2.5 text-right text-[11px] text-tinta-suave tabular">${String(c.linea)}</td>
+        <td class="px-5 py-2.5 text-sm tabular">${c.identificacion}</td>
+        <td class="px-5 py-2.5 text-sm">${c.razonSocial}</td>
+        <td class="px-5 py-2.5 text-[11px] text-tinta-suave">${c.tipo}</td>
+        <td class="px-5 py-2.5 text-sm text-tinta-suave truncate max-w-[200px]">${c.correo}</td>
+      </tr>`,
+    guardar: (c) => guardar.cliente(c),
+  },
+  productos: {
+    titulo: 'Cargar productos desde una hoja',
+    descripcion: 'Su catálogo completo, cada uno con su tarifa de IVA.',
+    plantilla: PLANTILLA_PRODUCTOS,
+    archivo: 'plantilla-productos-kontia.csv',
+    obligatorias: 'código, descripción y precio',
+    volver: '#/productos',
+    preparar: prepararProductos,
+    columnas: [{ texto: 'Línea', der: true }, { texto: 'Código' }, { texto: 'Descripción' },
+      { texto: 'Unidad' }, { texto: 'IVA', der: true }, { texto: 'Precio', der: true }],
+    fila: (p) => html`
+      <tr>
+        <td class="px-5 py-2.5 text-right text-[11px] text-tinta-suave tabular">${String(p.linea)}</td>
+        <td class="px-5 py-2.5 text-xs font-bold tabular">${p.codigo}</td>
+        <td class="px-5 py-2.5 text-sm">${p.descripcion}</td>
+        <td class="px-5 py-2.5 text-[11px] text-tinta-suave">${p.unidad}</td>
+        <td class="px-5 py-2.5 text-right text-[11px]">${String(p.iva)}%</td>
+        <td class="px-5 py-2.5 text-right text-sm font-semibold tabular">${dinero(p.precio)}</td>
+      </tr>`,
+    guardar: (p) => guardar.producto(p),
+  },
+};
+
+/** Lo leído del archivo, mientras la persona decide si lo guarda. */
+let leido = null;
+
+function pantalla(que) {
+  const a = ASUNTOS[que];
+  const plantilla = 'data:text/csv;charset=utf-8,' + encodeURIComponent(a.plantilla);
+
+  return html`
+    ${crudo(cabecera({
+      titulo: a.titulo,
+      descripcion: a.descripcion,
+      acciones: boton('Volver', { ruta: a.volver, tipo: 'secundario', ico: 'arrow_back' }),
+    }))}
+
+    <div class="grid gap-5 lg:grid-cols-3">
+      <section class="lg:col-span-2 bg-white border border-papel-linea rounded-2xl relieve p-5 sm:p-6"
+               data-importar="${que}">
+        <h2 class="text-sm font-bold">1 · Prepare la hoja</h2>
+        <p class="mt-2 text-[13px] text-tinta-suave leading-relaxed max-w-2xl">
+          En Excel, <strong class="text-tinta">Archivo → Guardar como → CSV</strong>. Las columnas
+          obligatorias son ${a.obligatorias}; las demás son opcionales y pueden ir en cualquier
+          orden. Si prefiere, descargue la plantilla y escriba encima.
+        </p>
+        <a class="mt-3 inline-flex items-center gap-2 px-3.5 py-2 rounded-xl border border-papel-linea
+                  text-sm font-bold hover:border-verde"
+           href="${plantilla}" download="${a.archivo}">Descargar la plantilla</a>
+
+        <h2 class="mt-7 text-sm font-bold">2 · Elija el archivo</h2>
+        <input id="archivo-importar" type="file" accept=".csv,text/csv,text/plain"
+               class="mt-2 block w-full text-sm file:mr-3 file:px-4 file:py-2.5 file:rounded-xl
+                      file:border-0 file:bg-verde file:text-white file:text-sm file:font-bold">
+
+        <div id="vista-previa" class="mt-6"></div>
+      </section>
+
+      <aside class="bg-white border border-papel-linea rounded-2xl relieve p-5">
+        <h2 class="text-sm font-bold">Qué se revisa</h2>
+        <ul class="mt-3 space-y-2.5 text-[12px] text-tinta-suave leading-relaxed">
+          <li>El archivo se lee <strong class="text-tinta">en su equipo</strong>: no se envía a ningún
+              lado mientras usted no guarde.</li>
+          <li>Cada fila pasa por las mismas comprobaciones que si la escribiera a mano: RUC, cédula
+              y tarifa de IVA.</li>
+          <li>Las filas con problema se apartan y se dice la línea exacta. Las demás se guardan.</li>
+          <li>Si un cliente o un código ya existe, esa fila se salta: no se duplica ni se pisa lo
+              que ya tenía.</li>
+        </ul>
+      </aside>
+    </div>`;
+}
+
+async function importarClientes() { return pantalla('clientes'); }
+async function importarProductos() { return pantalla('productos'); }
+
+// ===========================================================================
+//  La parte viva
+// ===========================================================================
+
+const filaProblema = (p) => html`
+  <tr>
+    <td class="px-5 py-2.5 text-right text-[11px] text-tinta-suave tabular">${String(p.linea)}</td>
+    <td class="px-5 py-2.5 text-sm">${p.porque}</td>
+    <td class="px-5 py-2.5 text-[11px] text-tinta-suave truncate max-w-[280px]">${p.fila.join(' · ')}</td>
+  </tr>`;
+
+function pintarVistaPrevia(que, resultado) {
+  const a = ASUNTOS[que];
+  const sitio = document.getElementById('vista-previa');
+  if (!sitio) return;
+
+  if (resultado.faltan.length) {
+    sitio.innerHTML = String(aviso({
+      tono: 'rojo', ico: 'error', titulo: 'Falta una columna obligatoria',
+      texto: `No encontré la columna de ${resultado.faltan.join(', ')}. La primera fila de la hoja ` +
+             'tiene que ser el encabezado con los nombres de las columnas.',
+    }));
+    return;
+  }
+
+  const listas = resultado.listas;
+  const problemas = resultado.problemas;
+  const muestra = listas.slice(0, 50);
+
+  sitio.innerHTML = String(html`
+    ${listas.length ? html`
+      <h2 class="text-sm font-bold">3 · Revise y guarde</h2>
+      <p class="mt-1.5 text-[13px] text-tinta-suave">
+        ${String(listas.length)} ${listas.length === 1 ? 'fila lista' : 'filas listas'}${
+          problemas.length ? html` · ${String(problemas.length)} con problema, apartadas` : ''}.
+        ${listas.length > muestra.length ? html`Se muestran las primeras ${String(muestra.length)}.` : ''}
+      </p>
+      <div class="mt-3 bg-white border border-papel-linea rounded-2xl overflow-hidden">
+        ${crudo(tabla(a.columnas, muestra.map(a.fila)))}
+      </div>
+      <button id="guardar-importado" data-que="${que}"
+              class="mt-4 w-full sm:w-auto px-5 py-2.5 rounded-xl bg-verde text-white text-sm font-bold
+                     hover:bg-verde-oscuro transition">
+        Guardar ${String(listas.length)} ${que === 'clientes' ? 'clientes' : 'productos'}
+      </button>`
+    : crudo(aviso({
+        tono: 'ambar', ico: 'rule',
+        titulo: 'No hay ninguna fila que guardar',
+        texto: 'El archivo se leyó, pero ninguna fila quedó completa. Abajo está el detalle.',
+      }))}
+
+    ${problemas.length ? html`
+      <h3 class="mt-7 text-sm font-bold">Filas apartadas</h3>
+      <p class="mt-1.5 text-[13px] text-tinta-suave">
+        Estas no se van a guardar. Corríjalas en la hoja y vuelva a cargarla; las que ya guardó no
+        se duplican.
+      </p>
+      <div class="mt-3 bg-white border border-papel-linea rounded-2xl overflow-hidden">
+        ${crudo(tabla([{ texto: 'Línea', der: true }, { texto: 'Qué pasa' }, { texto: 'Lo que dice la hoja' }],
+          problemas.slice(0, 50).map(filaProblema)))}
+      </div>` : ''}`);
+}
+
+let conectado = false;
+
+function conectarImportar() {
+  const zona = document.getElementById('raiz');
+  if (!zona || conectado) return;
+  conectado = true;
+
+  zona.addEventListener('change', async (ev) => {
+    if (ev.target.id !== 'archivo-importar') return;
+    const caja = ev.target.closest('[data-importar]');
+    const que = caja?.dataset.importar;
+    const archivo = ev.target.files && ev.target.files[0];
+    if (!que || !archivo) return;
+
+    try {
+      const texto = await archivo.text();
+      const resultado = ASUNTOS[que].preparar(leerCsv(texto));
+      leido = { que, resultado };
+      pintarVistaPrevia(que, resultado);
+    } catch (error) {
+      leido = null;
+      const sitio = document.getElementById('vista-previa');
+      if (sitio) {
+        sitio.innerHTML = String(aviso({
+          tono: 'rojo', ico: 'error', titulo: 'No se pudo leer el archivo', texto: error.message,
+        }));
+      }
+    }
+  });
+
+  zona.addEventListener('click', async (ev) => {
+    const b = ev.target.closest('#guardar-importado');
+    if (!b || !leido) return;
+    const { que, resultado } = leido;
+    const a = ASUNTOS[que];
+
+    b.disabled = true;
+    b.textContent = 'Guardando…';
+
+    let guardados = 0;
+    const fallidas = [];
+    // Una por una y en orden: así una fila mala no arrastra a las demás, y se
+    // puede decir exactamente cuál no entró y por qué.
+    for (const fila of resultado.listas) {
+      try {
+        await a.guardar(fila);
+        guardados += 1;
+      } catch (error) {
+        fallidas.push({ linea: fila.linea, porque: error.message, fila: Object.values(fila).slice(1) });
+      }
+    }
+
+    leido = null;
+    dejarRecado(fallidas.length
+      ? { tono: 'ambar', ico: 'rule',
+          titulo: `Se guardaron ${guardados} de ${resultado.listas.length}`,
+          texto: `${fallidas.length} ${fallidas.length === 1 ? 'fila no entró' : 'filas no entraron'}: ` +
+                 fallidas.slice(0, 5).map((f) => `línea ${f.linea} (${f.porque})`).join('; ') +
+                 (fallidas.length > 5 ? '…' : '') }
+      : { tono: 'exito', ico: 'check_circle',
+          titulo: `${guardados} ${que === 'clientes' ? 'clientes cargados' : 'productos cargados'}`,
+          texto: 'Ya se pueden usar al hacer una factura.' });
+    location.hash = a.volver;
+  });
+}
+
+
+  return { importarClientes, importarProductos, conectarImportar };
 })();
 
 // ---- src/vistas/empresa.js ---------------------------------------
@@ -13526,6 +13994,7 @@ const __src_app_js = (function () {
   const { comprobantes, comprobante, conectarComprobante } = __src_vistas_comprobantes_js;
   const { emision, conectarEmision } = __src_vistas_emision_js;
   const { clientes, productos } = __src_vistas_catalogo_js;
+  const { importarClientes, importarProductos, conectarImportar } = __src_vistas_importar_js;
   const { formularioCliente, formularioProducto, conectarFormularios } = __src_vistas_formularios_js;
   const { configuracion, certificado, usuarios, puntosEmision } = __src_vistas_empresa_js;
   const { adminEmpresas, adminAlta, adminFicha, adminAuditoria, conectarAlta, conectarFicha } = __src_vistas_admin_js;
@@ -13586,6 +14055,7 @@ const __src_app_js = (function () {
 
 
 
+
 /**
  * La tabla de rutas.
  *
@@ -13605,9 +14075,11 @@ const RUTAS = [
   // Las rutas con nombre fijo van ANTES que la que captura cualquier cosa: si
   // `#/clientes/nuevo` cayera en la de abajo, se buscaria un cliente llamado
   // "nuevo" y la pantalla de alta no existiria.
+  { patron: /^#\/clientes\/importar\/?$/, vista: importarClientes, alDibujar: conectarImportar },
   { patron: /^#\/clientes\/(nuevo)\/?$/, vista: formularioCliente, alDibujar: conectarFormularios },
   { patron: /^#\/clientes\/([^/]+)\/?$/, vista: formularioCliente, alDibujar: conectarFormularios },
   { patron: /^#\/productos\/?$/, vista: productos },
+  { patron: /^#\/productos\/importar\/?$/, vista: importarProductos, alDibujar: conectarImportar },
   { patron: /^#\/productos\/(nuevo)\/?$/, vista: formularioProducto, alDibujar: conectarFormularios },
   { patron: /^#\/productos\/([^/]+)\/?$/, vista: formularioProducto, alDibujar: conectarFormularios },
   { patron: /^#\/usuarios\/?$/, vista: usuarios },
