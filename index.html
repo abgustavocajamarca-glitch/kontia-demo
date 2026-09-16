@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <!-- La version publicada: la pone el empaquetador y la pagina la compara con la del servidor. -->
-<meta name="kontia-version" content="22688b19765a">
+<meta name="kontia-version" content="ce29297412ee">
 <title>Kontia</title>
 <meta name="theme-color" content="#0F7B4F">
 <link rel="manifest" href="manifiesto.json">
@@ -4998,6 +4998,181 @@ const PLANTILLA_PRODUCTOS = [
   return { leerCsv, tipoDeIdentificacion, tarifaDeIva, numero, prepararClientes, prepararProductos, PLANTILLA_CLIENTES, PLANTILLA_PRODUCTOS };
 })();
 
+// ---- src/avisos.js -----------------------------------------------
+const __src_avisos_js = (function () {
+
+
+/**
+ * Lo que hay que atender hoy, dicho antes de que sea un problema.
+ *
+ * POR QUÉ EXISTE. Los tres descuidos que cuestan dinero en facturación
+ * electrónica son siempre los mismos: el certificado caducó y nadie lo vio, un
+ * comprobante lo devolvió el SRI y quedó ahí, y la declaración se pasó de
+ * fecha. Ninguno de los tres avisa solo.
+ *
+ * ESTO NO DECLARA NI PRESENTA NADA. Recuerda la fecha que corresponde según el
+ * noveno dígito del RUC (Reglamento para la aplicación de la LRTI, art. 158) y
+ * el estado de lo que ya está en el sistema. Quien presenta sigue siendo la
+ * empresa con su contador.
+ *
+ * Es una función sola, sin pantalla y sin reloj propio: recibe lo que hay y
+ * devuelve la lista. Así se puede probar sin navegador y se puede enseñar en
+ * cualquier sitio —el tablero hoy, un correo mañana— sin repetir las reglas.
+ */
+
+const DIA = 24 * 60 * 60 * 1000;
+
+/**
+ * El día del mes siguiente en que vence la declaración, por noveno dígito del
+ * RUC. Reglamento LRTI, art. 158.
+ */
+const DIA_LIMITE = { 1: 10, 2: 12, 3: 14, 4: 16, 5: 18, 6: 20, 7: 22, 8: 24, 9: 26, 0: 28 };
+
+function novenoDigito(ruc) {
+  const n = String(ruc ?? '').replace(/\D/g, '');
+  return n.length >= 9 ? Number(n[8]) : null;
+}
+
+/**
+ * Cuándo vence la declaración de IVA del mes que ya terminó.
+ *
+ * Se declara el mes anterior, dentro del mes en curso. Si el día límite cae en
+ * sábado, domingo o feriado, la norma corre el plazo al siguiente día hábil;
+ * aquí solo se corren los fines de semana, que es lo que se puede saber sin un
+ * calendario de feriados. Por eso el aviso se da antes, no el mismo día.
+ */
+function vencimientoIva(ruc, hoy = new Date()) {
+  const digito = novenoDigito(ruc);
+  if (digito === null) return null;
+  const limite = new Date(hoy.getFullYear(), hoy.getMonth(), DIA_LIMITE[digito]);
+  // Sábado pasa al lunes; domingo también.
+  if (limite.getDay() === 6) limite.setDate(limite.getDate() + 2);
+  if (limite.getDay() === 0) limite.setDate(limite.getDate() + 1);
+  const mesDeclarado = new Date(hoy.getFullYear(), hoy.getMonth() - 1, 1);
+  const dias = Math.ceil((limite - new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate())) / DIA);
+  return { limite, dias, mesDeclarado, digito };
+}
+
+const MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio',
+  'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+
+const fechaCorta = (d) => `${d.getDate()} de ${MESES[d.getMonth()]}`;
+
+/** Primero lo que impide facturar, después lo que tiene fecha, después lo demás. */
+const ORDEN = { rojo: 0, ambar: 1, info: 2 };
+
+/**
+ * @param empresa       la empresa activa (ruc, ambiente, obligadoContabilidad)
+ * @param certificado   el certificado cargado, o null
+ * @param comprobantes  los comprobantes de la empresa
+ * @param hoy           para poder probar con una fecha fija
+ */
+function avisosDe({ empresa = null, certificado = null, comprobantes = [], hoy = new Date() } = {}) {
+  const lista = [];
+  const cuenta = (estado) => comprobantes.filter((c) => c.estado === estado).length;
+
+  // ── 1. La firma: sin ella no se emite nada ──
+  if (!certificado) {
+    lista.push({
+      clave: 'sin-certificado', tono: 'rojo', ico: 'gpp_maybe',
+      titulo: 'Todavía no hay certificado de firma',
+      texto: 'Sin certificado no se puede emitir ningún comprobante: el SRI exige que cada '
+        + 'documento vaya firmado. Lo emite una entidad certificadora autorizada.',
+      ruta: '#/certificado', accion: 'Cargar el certificado',
+    });
+  } else if (Number(certificado.diasRestantes) <= 0) {
+    lista.push({
+      clave: 'certificado-caducado', tono: 'rojo', ico: 'error',
+      titulo: 'Su certificado de firma está caducado',
+      texto: 'Mientras no lo renueve, el SRI rechaza todo lo que se emita.',
+      ruta: '#/certificado', accion: 'Ver el certificado',
+    });
+  } else if (Number(certificado.diasRestantes) <= 60) {
+    const dias = Number(certificado.diasRestantes);
+    lista.push({
+      clave: 'certificado-por-caducar', tono: dias <= 15 ? 'rojo' : 'ambar',
+      ico: dias <= 15 ? 'error' : 'schedule',
+      titulo: `Su certificado de firma caduca en ${dias} ${dias === 1 ? 'día' : 'días'}`,
+      texto: 'La renovación la tramita usted con su entidad certificadora y tarda unos días, '
+        + 'así que conviene no dejarlo para el final.',
+      ruta: '#/certificado', accion: 'Ver el certificado',
+    });
+  }
+
+  // ── 2. Lo que el SRI devolvió: es lo único que nadie más va a corregir ──
+  const rechazados = cuenta('DEVUELTO') + cuenta('NO_AUTORIZADO');
+  if (rechazados) {
+    lista.push({
+      clave: 'rechazados', tono: 'rojo', ico: 'assignment_late',
+      titulo: `${rechazados} ${rechazados === 1 ? 'comprobante rechazado' : 'comprobantes rechazados'} por el SRI`,
+      texto: 'Un comprobante rechazado no existe para el SRI, aunque el cliente ya tenga la '
+        + 'mercadería. Hay que corregir el motivo y volver a enviarlo.',
+      ruta: '#/comprobantes', accion: 'Ver cuáles son',
+    });
+  }
+
+  // ── 3. Lo que quedó esperando respuesta ──
+  const esperando = comprobantes.filter((c) => (c.estado === 'ENVIADO' || c.estado === 'RECIBIDO')
+    && (hoy - new Date(c.fecha)) > DIA);
+  if (esperando.length) {
+    lista.push({
+      clave: 'esperando-sri', tono: 'ambar', ico: 'hourglass_top',
+      titulo: `${esperando.length} ${esperando.length === 1 ? 'comprobante lleva' : 'comprobantes llevan'} más de un día esperando al SRI`,
+      texto: 'El sistema vuelve a consultarlos solo. No hay que reenviarlos: reenviar el mismo '
+        + 'comprobante lo duplica.',
+      ruta: '#/comprobantes', accion: 'Ver cuáles son',
+    });
+  }
+
+  // ── 4. La declaración del mes ──
+  const iva = empresa ? vencimientoIva(empresa.ruc, hoy) : null;
+  if (iva && iva.dias <= 8) {
+    const vencido = iva.dias < 0;
+    lista.push({
+      clave: 'iva', tono: vencido ? 'rojo' : 'ambar', ico: 'event',
+      titulo: vencido
+        ? `La declaración de IVA de ${MESES[iva.mesDeclarado.getMonth()]} venció el ${fechaCorta(iva.limite)}`
+        : iva.dias === 0
+          ? `Hoy vence la declaración de IVA de ${MESES[iva.mesDeclarado.getMonth()]}`
+          : `La declaración de IVA de ${MESES[iva.mesDeclarado.getMonth()]} vence en ${iva.dias} ${iva.dias === 1 ? 'día' : 'días'}`,
+      texto: `Su fecha es el ${fechaCorta(iva.limite)}, por el noveno dígito de su RUC (${iva.digito}), `
+        + 'según el artículo 158 del Reglamento de la LRTI. Presentar tarde tiene multa e intereses, '
+        + 'aunque no haya impuesto que pagar.',
+      ruta: '#/iva', accion: 'Ver la declaración',
+    });
+  }
+
+  // ── 5. Borradores olvidados ──
+  const viejos = comprobantes.filter((c) => c.estado === 'BORRADOR'
+    && (hoy - new Date(c.fecha)) > 7 * DIA);
+  if (viejos.length) {
+    lista.push({
+      clave: 'borradores', tono: 'info', ico: 'edit_note',
+      titulo: `${viejos.length} ${viejos.length === 1 ? 'factura lleva' : 'facturas llevan'} más de una semana en borrador`,
+      texto: 'Un borrador no es un comprobante: no llegó al SRI ni al cliente, y su número sigue '
+        + 'reservado.',
+      ruta: '#/comprobantes', accion: 'Ver cuáles son',
+    });
+  }
+
+  // ── 6. Ambiente de pruebas ──
+  if (empresa && empresa.ambiente === 'PRUEBAS') {
+    lista.push({
+      clave: 'pruebas', tono: 'info', ico: 'science',
+      titulo: 'Esta empresa está en ambiente de pruebas',
+      texto: 'Lo que emita aquí no tiene validez tributaria y no llega al SRI. Sirve para practicar '
+        + 'sin consecuencias.',
+      ruta: '#/configuracion', accion: 'Ver la configuración',
+    });
+  }
+
+  return lista.sort((a, b) => ORDEN[a.tono] - ORDEN[b.tono]);
+}
+
+
+  return { DIA_LIMITE, novenoDigito, vencimientoIva, avisosDe };
+})();
+
 // ---- src/sesion.js -----------------------------------------------
 const __src_sesion_js = (function () {
   const { haySesion: haySesionEnLaNube, usuario: usuarioDeLaNube, olvidar: olvidarLaNube, salir: salirDeLaNube } = __src_nube_js;
@@ -7198,6 +7373,7 @@ document.addEventListener('click', async (ev) => {
 const __src_vistas_resumen_js = (function () {
   const { html, crudo, usd, icono, chipEstado, fechaHora, aviso } = __src_ui_js;
   const { cargar, empresaActiva } = __src_almacen_js;
+  const { avisosDe } = __src_avisos_js;
   const { linea, chispa, VERDE, AMBAR, ROJO } = __src_graficos_js;
 
 /**
@@ -7207,6 +7383,7 @@ const __src_vistas_resumen_js = (function () {
  * tres preguntas: ¿se está facturando?, ¿hay algo atascado?, ¿va a dejar de
  * funcionar algo pronto? Todo lo que no conteste una de las tres sobra.
  */
+
 
 
 
@@ -7240,44 +7417,25 @@ async function resumen() {
     cargar.resumen(), cargar.certificado(), cargar.comprobantes(),
   ]);
 
-  const dias = cert ? cert.diasRestantes : null;
+  // Los dias que le quedan al certificado: la tarjeta de la firma los enseña.
+  const dias = cert ? Number(cert.diasRestantes) : 0;
   const mes = new Date().toLocaleDateString('es-EC', { month: 'long', year: 'numeric' });
   const periodo = mes.charAt(0).toUpperCase() + mes.slice(1);
 
   const tope = Math.max(...r.meses.map((m) => m.valor), 1);
 
-  // El aviso del certificado solo aparece cuando de verdad hay algo que hacer.
-  // Un panel lleno de avisos permanentes se deja de leer en una semana, y
-  // entonces tampoco se lee el que importaba.
-  // Sin certificado no se puede firmar nada, así que el aviso es otro: no es
-  // que caduque pronto, es que la empresa todavía no puede facturar.
-  const avisoCertificado = !cert ? aviso({
-    tono: 'ambar', ico: 'gpp_maybe',
-    titulo: 'Todavía no hay certificado de firma',
-    texto: 'Sin él no se puede emitir ningún comprobante: el SRI exige que cada documento ' +
-           'vaya firmado. Lo emite una entidad certificadora autorizada y lo carga la propia ' +
-           'empresa, nunca Kontia.',
-    accion: html`<a href="#/certificado" class="inline-block mt-2 text-sm font-bold underline">
-                   Cargar el certificado</a>`,
-  }) : dias <= 60 ? aviso({
-    tono: dias <= 15 ? 'rojo' : 'ambar',
-    ico: dias <= 15 ? 'error' : 'schedule',
-    titulo: `Su certificado de firma caduca en ${dias} días`,
-    texto: 'Sin certificado vigente no se puede firmar ni emitir: el SRI rechaza todo. ' +
-           'La renovación la tramita usted con su entidad certificadora y tarda unos días, ' +
-           'así que conviene no dejarlo para el final.',
-    accion: html`<a href="#/certificado" class="inline-block mt-2 text-sm font-bold underline">
-                   Ver el certificado</a>`,
-  }) : '';
-
-  const pendientes = r.pendientes > 0 ? aviso({
-    tono: 'ambar', ico: 'hourglass_top',
-    titulo: `${r.pendientes} comprobantes esperando respuesta del SRI`,
-    texto: 'Fueron recibidos pero el SRI todavía no los autoriza. No hay que reenviarlos: ' +
-           'reenviar el mismo comprobante lo duplica. El sistema vuelve a consultarlos solo.',
-    accion: html`<a href="#/comprobantes" class="inline-block mt-2 text-sm font-bold underline">
-                   Ver cuáles son</a>`,
-  }) : '';
+  // Los avisos no se deciden aquí: los arma avisos.js, que es donde viven las
+  // reglas —el certificado, lo que el SRI devolvió y la fecha que manda el
+  // artículo 158 del Reglamento— y donde se pueden probar sin navegador. Un
+  // tablero lleno de avisos permanentes se deja de leer, así que solo aparecen
+  // los que tienen algo que hacer hoy.
+  const avisos = avisosDe({
+    empresa: empresaActiva(), certificado: cert, comprobantes: ultimos,
+  }).map((a) => String(aviso({
+    tono: a.tono, ico: a.ico, titulo: a.titulo, texto: a.texto,
+    // `crudo` porque es HTML nuestro: sin eso el enlace saldría escrito como texto.
+    accion: crudo(`<a href="${a.ruta}" class="inline-block mt-2 text-sm font-bold underline">${a.accion}</a>`),
+  }))).join('');
 
   return html`
     <header class="relative mb-6 rounded-2xl overflow-hidden relieve bg-[#0C3A27]">
@@ -7290,8 +7448,7 @@ async function resumen() {
       </div>
     </header>
 
-    ${crudo(avisoCertificado)}
-    ${crudo(pendientes)}
+    ${crudo(avisos)}
 
     <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
       ${tarjetaCifra({ ico: 'receipt_long', etiqueta: 'Comprobantes del mes',
