@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <!-- La version publicada: la pone el empaquetador y la pagina la compara con la del servidor. -->
-<meta name="kontia-version" content="7f32bc688a6a">
+<meta name="kontia-version" content="a8d34cee28e5">
 <title>Kontia</title>
 <meta name="theme-color" content="#0F7B4F">
 <link rel="manifest" href="manifiesto.json">
@@ -5034,6 +5034,19 @@ function novenoDigito(ruc) {
 }
 
 /**
+ * La fecha límite para declarar en un mes dado (el mes en que se presenta),
+ * según el noveno dígito del RUC. Sábado y domingo pasan al lunes.
+ */
+function fechaLimite(ruc, anio, mes) {
+  const digito = novenoDigito(ruc);
+  if (digito === null) return null;
+  const limite = new Date(anio, mes, DIA_LIMITE[digito]);
+  if (limite.getDay() === 6) limite.setDate(limite.getDate() + 2);
+  if (limite.getDay() === 0) limite.setDate(limite.getDate() + 1);
+  return limite;
+}
+
+/**
  * Cuándo vence la declaración de IVA del mes que ya terminó.
  *
  * Se declara el mes anterior, dentro del mes en curso. Si el día límite cae en
@@ -5044,10 +5057,7 @@ function novenoDigito(ruc) {
 function vencimientoIva(ruc, hoy = new Date()) {
   const digito = novenoDigito(ruc);
   if (digito === null) return null;
-  const limite = new Date(hoy.getFullYear(), hoy.getMonth(), DIA_LIMITE[digito]);
-  // Sábado pasa al lunes; domingo también.
-  if (limite.getDay() === 6) limite.setDate(limite.getDate() + 2);
-  if (limite.getDay() === 0) limite.setDate(limite.getDate() + 1);
+  const limite = fechaLimite(ruc, hoy.getFullYear(), hoy.getMonth());
   const mesDeclarado = new Date(hoy.getFullYear(), hoy.getMonth() - 1, 1);
   const dias = Math.ceil((limite - new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate())) / DIA);
   return { limite, dias, mesDeclarado, digito };
@@ -5170,7 +5180,7 @@ function avisosDe({ empresa = null, certificado = null, comprobantes = [], hoy =
 }
 
 
-  return { DIA_LIMITE, novenoDigito, vencimientoIva, avisosDe };
+  return { DIA_LIMITE, novenoDigito, fechaLimite, vencimientoIva, avisosDe };
 })();
 
 // ---- src/sesion.js -----------------------------------------------
@@ -6095,6 +6105,7 @@ async function altaEnLaNube(entrada) {
 
 // ---- src/datos-contables.js --------------------------------------
 const __src_datos_contables_js = (function () {
+  const { fechaLimite } = __src_avisos_js;
   const { COMPROBANTES, PRODUCTOS } = __src_datos_js;
 
 /**
@@ -6111,6 +6122,7 @@ const __src_datos_contables_js = (function () {
  * pantalla enseña el mecanismo de verdad: si la regla cambia, cambian los
  * asientos, que es exactamente lo que va a pasar cuando el contador conteste.
  */
+
 
 
 
@@ -6891,6 +6903,8 @@ function asientoDelDocumento(diario, origen, tipo = null) {
 //  salen de los libros, que es justo el sentido de tener un sistema contable.
 // ===========================================================================
 
+const RUC_DE_EJEMPLO = '0912345678001';
+
 function formulario104(saldos = balanceDeComprobacion(), compras = []) {
   const saldo = (codigo) => saldos.find((s) => s.codigo === codigo) ?? { saldoDeudor: 0, saldoAcreedor: 0 };
   const r2 = (n) => Math.round(n * 100) / 100;
@@ -6980,7 +6994,9 @@ function formulario104(saldos = balanceDeComprobacion(), compras = []) {
       { casilla: '902', concepto: 'Total a pagar', valor: aPagar, total: true, fuerte: true },
     ],
     ivaCobrado, ivaCompras, factor, credito, retIva, aPagar,
-    vence: new Date(2026, 9, 14),
+    // Septiembre se declara en octubre; el día sale del noveno dígito del RUC
+    // de la empresa de ejemplo (0912345678001 → 7 → día 22).
+    vence: fechaLimite(RUC_DE_EJEMPLO, 2026, 9),
   };
 }
 
@@ -7522,12 +7538,13 @@ function sinRegistroContable(titulo, texto) {
  * `stopPropagation` evita que el clic suba a la fila y abra el documento en
  * lugar del diario.
  */
-function celdaAsiento(asiento) {
+function celdaAsiento(asiento, sinAsiento = null) {
   return html`
     <td class="px-5 py-3.5 text-right">
       ${asiento ? crudo(`<a href="#/diario/${asiento.numero}" onclick="event.stopPropagation()"
           class="text-[12px] font-semibold text-verde hover:underline whitespace-nowrap"
           title="Ver el registro contable en el libro diario">#${asiento.numero}</a>`)
+        : sinAsiento ? html`<span class="text-[11px] text-tinta-suave whitespace-nowrap">${sinAsiento}</span>`
         : crudo('<span class="text-[12px] text-tinta-suave" title="Todavía no tiene asiento">—</span>')}
     </td>`;
 }
@@ -11097,7 +11114,8 @@ async function balanceGeneral() {
 const __src_vistas_documentos_js = (function () {
   const { html, crudo, usd, dinero, icono, tabla, cabecera, aviso, boton, chipEstado, fecha, vacio, dato, empresaEnBlanco } = __src_ui_js;
   const { RETENCIONES, NOTAS_CREDITO, GUIAS_REMISION, asientoDeRetencionEmitida, asientoDeNotaCredito, asientoDelDocumento, diarioCon, valoresDeRetencion } = __src_datos_contables_js;
-  const { esLaDeEjemplo, cargar } = __src_almacen_js;
+  const { esLaDeEjemplo, cargar, empresaActiva } = __src_almacen_js;
+  const { fechaLimite } = __src_avisos_js;
   const { registroContable, celdaAsiento } = __src_vistas_asiento_js;
 
 /**
@@ -11109,6 +11127,7 @@ const __src_vistas_documentos_js = (function () {
  * tres que la gente confunde: una nota de crédito no borra una factura, una
  * guía no cobra nada, y una retención es dinero de un tercero.
  */
+
 
 
 
@@ -11147,7 +11166,14 @@ async function retenciones() {
   });
   const lista = RETENCIONES.map(con);
   const diario = diarioCon(await cargar.compras());
-  const total = lista.reduce((s, r) => s + r.ir + r.iva, 0);
+  // Las tarjetas hablan del mes que se va a declarar (septiembre). Una
+  // retención de agosto se ve en la lista, pero ya se declaró con agosto.
+  const esDelMes = (r) => r.fecha.getFullYear() === 2026 && r.fecha.getMonth() === 8;
+  const delMes = lista.filter(esDelMes);
+  const total = delMes.reduce((s, r) => s + r.ir + r.iva, 0);
+  const entrega = fechaLimite(empresaActiva()?.ruc, 2026, 9);
+  const MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto',
+    'septiembre', 'octubre', 'noviembre', 'diciembre'];
 
   const cuerpo = lista.map((r) => html`
     <tr class="hover:bg-papel transition cursor-pointer" onclick="location.hash='#/retenciones/${r.numero}'">
@@ -11169,7 +11195,8 @@ async function retenciones() {
         <span class="block text-[11px] text-tinta-suave">${r.porcentajeIVA}% sobre ${dinero(r.baseIVA)}</span>
       </td>
       <td class="px-5 py-3.5 text-right text-sm font-bold tabular">${dinero(r.ir + r.iva)}</td>
-      ${celdaAsiento(asientoDelDocumento(diario, r.numero, 'RETENCION'))}
+      ${celdaAsiento(asientoDelDocumento(diario, r.numero, 'RETENCION'),
+        esDelMes(r) ? null : `en los libros de ${MESES[r.fecha.getMonth()]}`)}
       <td class="px-5 py-3.5 text-right">${chipEstado(r.estado)}</td>
     </tr>`);
 
@@ -11189,9 +11216,10 @@ async function retenciones() {
     }))}
 
     <div class="grid gap-4 sm:grid-cols-3 mb-5">
-      ${tarjetaCifra('Retenciones del mes', String(lista.length), 'content_cut')}
-      ${tarjetaCifra('Total retenido', usd(total), 'savings', 'Se entrega al SRI el 14 de octubre')}
-      ${tarjetaCifra('Emitidas a tiempo', `${lista.length} de ${lista.length}`, 'schedule',
+      ${tarjetaCifra('Retenciones de septiembre', String(delMes.length), 'content_cut')}
+      ${tarjetaCifra('Total retenido en septiembre', usd(total), 'savings',
+        entrega ? `Se entrega al SRI el ${entrega.getDate()} de ${MESES[entrega.getMonth()]}, por el noveno dígito del RUC` : '')}
+      ${tarjetaCifra('Emitidas a tiempo', `${delMes.length} de ${delMes.length}`, 'schedule',
         'Dentro de los 5 días hábiles que exige la ley')}
     </div>
 
