@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <!-- La version publicada: la pone el empaquetador y la pagina la compara con la del servidor. -->
-<meta name="kontia-version" content="965f04604756">
+<meta name="kontia-version" content="17d48671486b">
 <title>Kontia</title>
 <meta name="theme-color" content="#0F7B4F">
 <link rel="manifest" href="manifiesto.json">
@@ -713,6 +713,25 @@
   @media (min-width: 48rem) { #portada footer .centro { grid-template-columns: 1fr auto; align-items: end; } }
   #portada footer a { color: rgba(255,255,255,.75); }
   #portada footer nav { display: flex; flex-wrap: wrap; gap: .35rem .9rem; }
+
+  /* Quién responde por esto. Va al pie y en pequeño a propósito: el que se
+     presenta al cliente es Kontia; la matriz respalda, no vende. */
+  #portada footer .respaldo {
+    display: flex; align-items: center; gap: .7rem; margin-top: 1.3rem;
+    padding-top: 1.1rem; border-top: 1px solid rgba(255,255,255,.12);
+  }
+  #portada footer .respaldo span {
+    font-size: .72rem; letter-spacing: .06em; text-transform: uppercase;
+    color: rgba(255,255,255,.4);
+  }
+  #portada footer .respaldo img { height: 30px; opacity: .88; }
+  .entrada-marca .pie-marca .respaldo {
+    display: flex; align-items: center; gap: .6rem; margin-top: .9rem;
+  }
+  .entrada-marca .pie-marca .respaldo span {
+    font-size: .68rem; letter-spacing: .06em; text-transform: uppercase; opacity: .55;
+  }
+  .entrada-marca .pie-marca .respaldo img { height: 26px; opacity: .92; }
 
   /* ═══════════════════════════════════════════════════════════════════
      INICIAR SESIÓN
@@ -2106,7 +2125,11 @@
         </ul>
       </div>
 
-      <p>Facturación electrónica y contabilidad · Ecuador</p>
+      <p class="pie-marca">
+        Facturación electrónica y contabilidad · Ecuador
+        <span class="respaldo"><span>Un producto de</span>
+          <img src="marca/logo-blanco.svg" alt="Cajamarca Lex Digital" height="26"></span>
+      </p>
     </section>
 
     <section class="entrada-forma">
@@ -2184,6 +2207,10 @@
         Facturación electrónica y contabilidad para las 24 provincias del Ecuador.
       </p>
       <p style="margin-top:.35rem">Ab. Gustavo Cajamarca Huayamave · Mat. 09-2018-362</p>
+      <div class="respaldo">
+        <span>Un producto de</span>
+        <img src="marca/logo-blanco.svg" alt="Cajamarca Lex Digital" height="30">
+      </div>
     </div>
     <div>
       <nav aria-label="Pie">
@@ -3813,7 +3840,14 @@ async function arrancar() {
       const j = await r.json();
       if (j && typeof j.url === 'string' && /^https:\/\/.+/.test(j.url)
           && typeof j.clave === 'string' && j.clave.length > 20) {
-        ajustes = { url: j.url.replace(/\/$/, ''), clave: j.clave };
+        ajustes = {
+          url: j.url.replace(/\/$/, ''),
+          clave: j.clave,
+          // La dirección del servicio de firma. Puede no estar: entonces la
+          // emisión sigue simulada y las pantallas lo dicen.
+          firma: typeof j.firma === 'string' && /^https?:\/\/.+/.test(j.firma)
+            ? j.firma.replace(/\/$/, '') : null,
+        };
       }
     }
   } catch {
@@ -3826,6 +3860,23 @@ async function arrancar() {
 }
 
 const configurada = () => ajustes !== null;
+
+/**
+ * Dónde está el servicio de firma, o null si no se configuró.
+ *
+ * Que sea null es un estado legítimo —es la demostración— y quien pregunte
+ * tiene que estar preparado para esa respuesta.
+ */
+const urlDeFirma = () => ajustes?.firma ?? null;
+
+/**
+ * El token de la sesión, para hablar con el servicio de firma.
+ *
+ * Se entrega solo a quien vaya a llamar al servicio: es la credencial con la
+ * que la base de datos decide si esta persona puede pedir que se firme por esta
+ * empresa. No se escribe en pantalla ni en ningún registro.
+ */
+const token = () => sesion?.access_token ?? null;
 
 /** Quién entró, o null. */
 const usuario = () => sesion?.usuario ?? null;
@@ -4070,7 +4121,7 @@ async function estado() {
 }
 
 
-  return { arrancar, configurada, usuario, haySesion, entrar, olvidar, salir, renovar, tabla, funcion, estado };
+  return { arrancar, configurada, urlDeFirma, token, usuario, haySesion, entrar, olvidar, salir, renovar, tabla, funcion, estado };
 })();
 
 // ---- src/cuenta-nube.js ------------------------------------------
@@ -4783,6 +4834,106 @@ function emisionSimuladaNoPermitida() {
 
 
   return { digitoModulo11, codigoNumerico, claveDeAcceso, puntosDeLaNube, comprobanteDeFila, comprobantesDeLaNube, comprobanteDeLaNube, borradorEnLaNube, emisionSimuladaNoPermitida };
+})();
+
+// ---- src/firma-nube.js -------------------------------------------
+const __src_firma_nube_js = (function () {
+  const { urlDeFirma, token } = __src_nube_js;
+
+/**
+ * El lado del navegador del servicio de firma.
+ *
+ * QUÉ SALE DE AQUÍ Y QUÉ NO. Sale el archivo `.p12` cuando alguien lo sube, una
+ * sola vez, por HTTPS y hacia el servicio de firma. No sale hacia la base de
+ * datos, no se guarda en este equipo y no queda en ninguna variable después de
+ * enviarlo. Todo lo demás que se pide aquí son datos públicos del certificado:
+ * de quién es, quién lo emitió y hasta cuándo vale.
+ *
+ * POR QUÉ LA CONTRASEÑA VIAJA. Para firmar hay que abrir el `.p12`, y para
+ * abrirlo hace falta su contraseña. Viaja una vez, cifrada por HTTPS, y en el
+ * servicio se guarda dentro del sobre cifrado, nunca en claro. La alternativa
+ * —pedírsela al usuario en cada factura— haría imposible emitir de forma
+ * automática, que es la razón de ser de un sistema de facturación.
+ *
+ * SI NO HAY SERVICIO CONFIGURADO. Todas estas funciones avisan de que no lo
+ * hay, en vez de fallar de un modo raro. Es un estado legítimo: la demostración
+ * funciona sin servicio de firma, y lo que no se puede hacer es fingir que
+ * firma.
+ */
+
+
+
+class SinServicioDeFirma extends Error {
+  constructor() {
+    super('Todavía no hay servicio de firma configurado, así que no se puede firmar de verdad.');
+    this.name = 'SinServicioDeFirma';
+  }
+}
+
+const hayServicioDeFirma = () => urlDeFirma() !== null;
+
+async function pedir(camino, { metodo = 'GET', cuerpo } = {}) {
+  const base = urlDeFirma();
+  if (!base) throw new SinServicioDeFirma();
+
+  const sesion = token();
+  if (!sesion) throw new Error('No hay sesión abierta. Nadie firma sin identificarse.');
+
+  let r;
+  try {
+    r = await fetch(base + camino, {
+      method: metodo,
+      headers: { Authorization: `Bearer ${sesion}`, 'Content-Type': 'application/json' },
+      body: cuerpo === undefined ? undefined : JSON.stringify(cuerpo),
+    });
+  } catch {
+    // Distinguir «no llegué» de «me contestaron que no» importa: lo primero se
+    // reintenta, lo segundo no.
+    throw new Error('No se pudo contactar con el servicio de firma. Compruebe la conexión.');
+  }
+
+  const datos = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(datos.error ?? `El servicio de firma respondió ${r.status}.`);
+  return datos;
+}
+
+/** Qué certificado tiene la empresa. Nunca devuelve nada con lo que se pueda firmar. */
+async function estadoDelCertificado(empresaId) {
+  return pedir(`/v1/certificado?empresa=${encodeURIComponent(empresaId)}`);
+}
+
+/**
+ * Sube el certificado.
+ *
+ * @param {File} archivo  el .p12 tal como lo eligió la persona
+ * @param {string} clave  su contraseña
+ */
+async function subirCertificado(empresaId, archivo, clave) {
+  if (!archivo) throw new Error('No se eligió ningún archivo.');
+  if (!clave) throw new Error('Falta la contraseña del certificado. Sin ella el archivo no sirve.');
+
+  const bytes = new Uint8Array(await archivo.arrayBuffer());
+  // Se convierte por trozos: un `.p12` cabe de sobra, pero pasar un arreglo
+  // entero a `String.fromCharCode` revienta con archivos grandes y más vale que
+  // no dependa del tamaño.
+  let binario = '';
+  for (let i = 0; i < bytes.length; i += 8192) {
+    binario += String.fromCharCode(...bytes.subarray(i, i + 8192));
+  }
+
+  return pedir('/v1/certificado', {
+    metodo: 'POST',
+    cuerpo: { empresaId, p12Base64: btoa(binario), clave },
+  });
+}
+
+/** Firma y entrega al SRI. Devuelve lo que el SRI haya contestado. */
+async function emitirDeVerdad(empresaId, xml) {
+  return pedir('/v1/emitir', { metodo: 'POST', cuerpo: { empresaId, xml } });
+}
+
+
+  return { hayServicioDeFirma, estadoDelCertificado, subirCertificado, emitirDeVerdad };
 })();
 
 // ---- src/importar.js ---------------------------------------------
@@ -7345,6 +7496,19 @@ const empresaActiva = () => (enLaNube()
 /** Si la empresa activa es la de los datos de ejemplo. */
 const esLaDeEjemplo = () => !enLaNube() && datos.activa === EMPRESA_SEMILLA;
 
+/**
+ * Si se está trabajando con una cuenta de verdad contra la base de datos.
+ *
+ * Lo preguntan las pantallas que tienen que hablar con un servicio externo —el
+ * de firma, hoy— y que con datos de ejemplo no deben hacerlo: enseñar un
+ * certificado inventado como si fuera real sería exactamente el tipo de mentira
+ * que este sistema no se permite.
+ */
+const cuentaDeVerdad = () => enLaNube();
+
+/** El identificador de la empresa activa, para pedírselo a un servicio externo. */
+const idEmpresaActiva = () => idActiva();
+
 const cargar = {
   empresa: () => esperar(empresaActiva()),
   empresas: () => esperar(enLaNube() ? perfilDeLaNube().empresas : datos.empresas),
@@ -7923,7 +8087,7 @@ async function altaEnLaNube(entrada) {
 }
 
 
-  return { reiniciar, empresaActiva, esLaDeEjemplo, cargar, guardar };
+  return { reiniciar, empresaActiva, esLaDeEjemplo, cuentaDeVerdad, idEmpresaActiva, cargar, guardar };
 })();
 
 // ---- src/disposicion.js ------------------------------------------
@@ -8156,10 +8320,18 @@ function marco(contenido, { ruta = '', admin = false, empresa = null } = {}) {
    * que puede ver, porque es el unico sitio donde ese recordatorio esta siempre
    * a la vista.
    *
-   * A la empresa no se le pone nada: la consulta legal ya tiene su entrada en
-   * «Servicios externos» y tenerla tambien aqui era decir dos veces lo mismo en
-   * la misma columna.
+   * A la empresa no se le pone nada mas: la consulta legal ya tiene su entrada
+   * en «Servicios externos» y tenerla tambien aqui era decir dos veces lo mismo
+   * en la misma columna.
+   *
+   * Debajo, quien responde por el sistema. En pequeno y al pie, porque quien
+   * trabaja aqui todos los dias usa Kontia; la matriz respalda, no vende.
    */
+  const respaldo = html`
+    <p class="mt-3 px-3 text-[10px] uppercase tracking-widest text-white/25">
+      Un producto de Cajamarca Lex Digital
+    </p>`;
+
   const pie = admin ? html`
     <div class="mx-3 p-3 rounded-xl bg-white/5 border border-white/10">
       <p class="text-[11px] font-bold text-white/90">Usted no ve los datos de las empresas</p>
@@ -8190,7 +8362,7 @@ function marco(contenido, { ruta = '', admin = false, empresa = null } = {}) {
           </div>
         </div>
         <div class="flex-1 overflow-y-auto px-2 pt-3">${enlaces(menu, ruta, tema)}</div>
-        <div class="py-4">${pie}</div>
+        <div class="py-4">${pie}${respaldo}</div>
       </aside>
 
       <div class="flex-1 min-w-0 flex flex-col lienzo">
@@ -10276,8 +10448,9 @@ function conectarImportar() {
 
 // ---- src/vistas/empresa.js ---------------------------------------
 const __src_vistas_empresa_js = (function () {
-  const { html, crudo, esc, icono, tabla, boton, cabecera, aviso, dato, chipEstado, fechaLarga } = __src_ui_js;
-  const { cargar } = __src_almacen_js;
+  const { html, crudo, esc, icono, tabla, boton, cabecera, aviso, dato, chipEstado, fechaLarga, dejarRecado } = __src_ui_js;
+  const { cargar, cuentaDeVerdad, idEmpresaActiva } = __src_almacen_js;
+  const { hayServicioDeFirma, estadoDelCertificado, subirCertificado } = __src_firma_nube_js;
 
 /**
  * Las pantallas de administración de la propia empresa: sus datos, su
@@ -10289,6 +10462,7 @@ const __src_vistas_empresa_js = (function () {
  * reales. La pantalla lo dice con todas las letras en lugar de tratarlo como un
  * adjunto más.
  */
+
 
 
 
@@ -10401,24 +10575,98 @@ async function configuracion() {
 //  Certificado de firma
 // ===========================================================================
 
+/**
+ * El formulario de carga.
+ *
+ * Los dos campos van juntos a propósito: un `.p12` sin su contraseña no sirve
+ * para nada, y pedirlos en pantallas distintas solo consigue que la gente
+ * apunte la contraseña en algún sitio mientras busca el archivo.
+ */
+function formularioDeCarga() {
+  return html`
+    <form id="subir-certificado" class="mt-6 grid gap-3 text-left max-w-md mx-auto">
+      <label class="block">
+        <span class="text-[11px] font-bold uppercase tracking-wide text-tinta-suave">Archivo .p12</span>
+        <input type="file" name="archivo" accept=".p12,.pfx" required
+               class="mt-1.5 w-full text-sm file:mr-3 file:px-3 file:py-2 file:rounded-lg
+                      file:border-0 file:bg-verde file:text-white file:text-xs file:font-bold">
+      </label>
+      <label class="block">
+        <span class="text-[11px] font-bold uppercase tracking-wide text-tinta-suave">Contraseña del certificado</span>
+        <input type="password" name="clave" required autocomplete="off"
+               class="mt-1.5 w-full px-3.5 py-2.5 rounded-xl border border-papel-linea
+                      bg-white text-sm focus:outline-none focus:border-verde">
+      </label>
+      <button type="submit" class="mt-1 px-4 py-2.5 rounded-xl bg-verde text-white text-sm font-bold">
+        Guardar el certificado
+      </button>
+      <p class="text-[11px] text-tinta-suave leading-relaxed">
+        El archivo se envía cifrado al servicio de firma y se guarda cifrado allí. No se
+        guarda en este equipo ni pasa por la base de datos en claro.
+      </p>
+    </form>`;
+}
+
+/**
+ * Qué certificado hay.
+ *
+ * Con la cuenta de verdad se le pregunta al servicio de firma, que es el único
+ * que puede abrir el sobre. Con los datos de ejemplo se enseña el de ejemplo, y
+ * queda dicho en pantalla que lo es.
+ */
+async function leerCertificado() {
+  if (!cuentaDeVerdad()) return { origen: 'ejemplo', c: await cargar.certificado() };
+  if (!hayServicioDeFirma()) return { origen: 'sin-servicio', c: null };
+
+  try {
+    const e = await estadoDelCertificado(idEmpresaActiva());
+    if (!e?.tiene) return { origen: 'nube', c: null };
+    return {
+      origen: 'nube',
+      c: {
+        titular: e.titular, cedula: e.identificacion ?? '', emisor: e.emitidoPor ?? '',
+        desde: e.validoDesde, hasta: e.validoHasta, diasRestantes: e.diasParaCaducar,
+      },
+    };
+  } catch (e) {
+    return { origen: 'error', c: null, problema: e.message };
+  }
+}
+
 async function certificado() {
-  const c = await cargar.certificado();
+  const { origen, c, problema } = await leerCertificado();
 
   // Sin certificado la pantalla no habla de fechas: habla de lo único que hay
   // que hacer, que es conseguirlo. Y de lo que significa entregarlo, que es lo
   // que nadie explica antes de pedirlo.
   if (!c) {
+    const explicacion = origen === 'sin-servicio'
+      ? aviso({
+          tono: 'ambar', ico: 'cloud_off',
+          titulo: 'El servicio de firma todavía no está conectado',
+          texto: 'El certificado se guarda en un servicio aparte, porque no puede vivir en el ' +
+                 'navegador ni en la base de datos en claro. Mientras ese servicio no esté en ' +
+                 'marcha, no se puede cargar ningún certificado.',
+        })
+      : origen === 'error'
+        ? aviso({
+            tono: 'rojo', ico: 'error',
+            titulo: 'No se pudo preguntar por el certificado',
+            texto: problema,
+          })
+        : aviso({
+            tono: 'ambar', ico: 'gpp_maybe',
+            titulo: 'Esta empresa todavía no puede emitir',
+            texto: 'El SRI exige que cada comprobante vaya firmado electrónicamente. Sin ' +
+                   'certificado vigente, ninguna factura se autoriza.',
+          });
+
     return html`
       ${crudo(cabecera({
         titulo: 'Certificado de firma electrónica',
         descripcion: 'El archivo .p12 con el que se firma cada comprobante antes de enviarlo al SRI.',
       }))}
-      ${crudo(aviso({
-        tono: 'ambar', ico: 'gpp_maybe',
-        titulo: 'Esta empresa todavía no puede emitir',
-        texto: 'El SRI exige que cada comprobante vaya firmado electrónicamente. Sin ' +
-               'certificado vigente, ninguna factura se autoriza.',
-      }))}
+      ${crudo(explicacion)}
       <div class="grid gap-5 lg:grid-cols-3">
         <section class="lg:col-span-2 bg-white border border-papel-linea border-dashed rounded-2xl relieve p-8 text-center">
           <div class="w-16 h-16 mx-auto rounded-2xl bg-papel flex items-center justify-center mb-5">
@@ -10430,9 +10678,10 @@ async function certificado() {
             entidad certificadora autorizada —Security Data, Banco Central, Uanataca—. Se
             tramita una vez y dura dos años.
           </p>
-          <div class="mt-6 flex justify-center">
-            ${boton('Cargar archivo .p12', { ico: 'upload' })}
-          </div>
+          ${origen === 'nube' ? formularioDeCarga() : html`
+            <div class="mt-6 flex justify-center">
+              ${crudo(boton('Cargar archivo .p12', { ico: 'upload' }))}
+            </div>`}
           <p class="mt-4 text-[11px] text-tinta-suave">
             Lo carga la empresa desde aquí. Kontia nunca lo pide por correo ni por teléfono.
           </p>
@@ -10501,10 +10750,19 @@ async function certificado() {
           ${dato('Válido hasta', fechaLarga(c.hasta))}
           ${dato('Días restantes', String(dias))}
         </dl>
-        <div class="mt-5 flex flex-wrap gap-2">
-          ${boton('Reemplazar certificado', { ico: 'upload', tipo: 'secundario' })}
-          ${boton('Quitar certificado', { ico: 'delete', tipo: 'peligro' })}
-        </div>
+        ${origen === 'nube' ? html`
+          <details class="mt-5">
+            <summary class="cursor-pointer text-sm font-bold text-verde">Reemplazar el certificado</summary>
+            <p class="mt-2 text-[11px] text-tinta-suave leading-relaxed">
+              El anterior no se borra: queda retirado, para que lo que se firmó con él siga
+              teniendo sentido dentro de siete años.
+            </p>
+            ${formularioDeCarga()}
+          </details>` : html`
+          <div class="mt-5 flex flex-wrap gap-2">
+            ${crudo(boton('Reemplazar certificado', { ico: 'upload', tipo: 'secundario' }))}
+            ${crudo(boton('Quitar certificado', { ico: 'delete', tipo: 'peligro' }))}
+          </div>`}
       </section>
 
       <section class="bg-white border-2 border-ambar-borde rounded-2xl relieve p-5">
@@ -10639,7 +10897,60 @@ async function puntosEmision() {
 }
 
 
-  return { configuracion, certificado, usuarios, puntosEmision };
+// ===========================================================================
+//  Subir el certificado
+// ===========================================================================
+
+let conectado = false;
+
+/**
+ * Enchufa el formulario del certificado.
+ *
+ * Mientras el envío está en marcha el botón se bloquea: subir dos veces el
+ * mismo certificado dejaría el primero retirado sin razón, y el rastro de los
+ * retiros es justamente lo que después se mira.
+ */
+function conectarCertificado() {
+  const zona = document.getElementById('raiz');
+  if (!zona || conectado) return;
+  conectado = true;
+
+  zona.addEventListener('submit', async (ev) => {
+    const form = ev.target.closest('#subir-certificado');
+    if (!form) return;
+    ev.preventDefault();
+
+    const boton = form.querySelector('button[type=submit]');
+    const archivo = form.elements.archivo.files?.[0];
+    const clave = form.elements.clave.value;
+
+    boton.disabled = true;
+    boton.textContent = 'Guardando…';
+    try {
+      const r = await subirCertificado(idEmpresaActiva(), archivo, clave);
+      // La contraseña deja de estar en la pantalla en cuanto ha viajado.
+      form.reset();
+      dejarRecado({
+        tono: 'verde', ico: 'verified_user',
+        titulo: 'Certificado guardado',
+        texto: `${r.titular}. Vale hasta el ${fechaLarga(r.validoHasta)}. ` +
+               'A partir de ahora esta empresa puede firmar sus comprobantes.',
+      });
+    } catch (e) {
+      dejarRecado({
+        tono: 'rojo', ico: 'gpp_bad',
+        titulo: 'No se pudo guardar el certificado', texto: e.message,
+      });
+    } finally {
+      boton.disabled = false;
+      boton.textContent = 'Guardar el certificado';
+      window.dispatchEvent(new CustomEvent('kontia:redibujar'));
+    }
+  });
+}
+
+
+  return { configuracion, certificado, usuarios, puntosEmision, conectarCertificado };
 })();
 
 // ---- src/vistas/admin.js -----------------------------------------
@@ -15264,6 +15575,10 @@ const PARTES = [
   ['Alta de empresas', 'nube',
     'Se guarda en la base con su establecimiento 001 y su punto de emisión 001-001. La base la rechaza si quien la intenta no es super administrador.'],
   ['Comprobantes emitidos', 'navegador', 'Las tablas ya existen en la base. Falta mover las pantallas.'],
+  ['Certificado de firma', 'nube',
+    'Se guarda cifrado en un servicio aparte, que es el único que puede abrirlo. Ni el navegador ni la base lo ven en claro.'],
+  ['Firmar y enviar al SRI', 'navegador',
+    'El servicio de firma está escrito y probado, pero todavía no hay uno en marcha ni un certificado de una entidad acreditada. Hasta entonces, la emisión sigue siendo simulada y lo dice en cada comprobante.'],
   ['Clientes y productos', 'navegador', 'Igual: tabla creada, pantalla por mover.'],
   ['Compras del buzón', 'navegador', 'El lector de XML funciona; lo que lee se guarda todavía en el equipo.'],
   ['Contabilidad y libros', 'navegador', 'Se calculan de lo anterior, así que se mueven cuando se mueva aquello.'],
@@ -16673,7 +16988,7 @@ const __src_app_js = (function () {
   const { clientes, productos } = __src_vistas_catalogo_js;
   const { importarClientes, importarProductos, conectarImportar } = __src_vistas_importar_js;
   const { formularioCliente, formularioProducto, conectarFormularios } = __src_vistas_formularios_js;
-  const { configuracion, certificado, usuarios, puntosEmision } = __src_vistas_empresa_js;
+  const { configuracion, certificado, usuarios, puntosEmision, conectarCertificado } = __src_vistas_empresa_js;
   const { adminEmpresas, adminAlta, adminFicha, adminAuditoria, conectarAlta, conectarFicha } = __src_vistas_admin_js;
   const { pendiente } = __src_vistas_pendiente_js;
   const { planDeCuentas, libroDiario, libroMayor, balanceComprobacion, enfocarAsiento } = __src_vistas_contabilidad_js;
@@ -16765,7 +17080,7 @@ const RUTAS = [
   { patron: /^#\/productos\/([^/]+)\/?$/, vista: formularioProducto, alDibujar: conectarFormularios },
   { patron: /^#\/usuarios\/?$/, vista: usuarios },
   { patron: /^#\/configuracion\/?$/, vista: configuracion },
-  { patron: /^#\/certificado\/?$/, vista: certificado },
+  { patron: /^#\/certificado\/?$/, vista: certificado, alDibujar: conectarCertificado },
   { patron: /^#\/conexion\/?$/, vista: conexion },
   { patron: /^#\/puntos-emision\/?$/, vista: puntosEmision },
 
