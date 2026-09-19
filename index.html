@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <!-- La version publicada: la pone el empaquetador y la pagina la compara con la del servidor. -->
-<meta name="kontia-version" content="17d48671486b">
+<meta name="kontia-version" content="50811bc7334b">
 <title>Kontia</title>
 <meta name="theme-color" content="#0F7B4F">
 <link rel="manifest" href="manifiesto.json">
@@ -986,6 +986,24 @@
 
   @media (prefers-reduced-motion: reduce) { #portada * { transition: none !important; } }
 
+  /* Cinta de «en desarrollo». Mientras Kontia no emita comprobantes con validez
+     tributaria, la portada no puede dar a entender lo contrario: la Ley Orgánica
+     de Defensa del Consumidor (art. 7) sanciona inducir a error sobre la
+     idoneidad del servicio. Cuando Kontia emita de verdad, se quita de aquí. */
+  #portada .kontia-cinta {
+    position: sticky; top: 0; z-index: 99999;
+    display: flex; align-items: center; justify-content: center;
+    gap: 10px; flex-wrap: wrap;
+    padding: 9px 16px; text-align: center;
+    background: #b45309; color: #fff;
+    font-size: .84rem; line-height: 1.45;
+    border-bottom: 1px solid rgba(0,0,0,.18);
+  }
+  #portada .kontia-cinta b { font-weight: 700; letter-spacing: .06em; }
+  @media (max-width: 620px) {
+    #portada .kontia-cinta { font-size: .78rem; padding: 8px 12px; }
+  }
+
   /* ── El sistema ── */
 
   /* El fondo y la tipografía se pintan desde aquí, y no con clases en la
@@ -1176,6 +1194,13 @@
 </head>
 <body>
 <div id="portada" data-pantalla="inicio">
+
+<!-- Kontia todavía no emite: que lo diga la portada, no solo la letra pequeña. -->
+<div class="kontia-cinta" role="status">
+  <b>EN DESARROLLO</b>
+  <span>Kontia todavía no emite comprobantes con validez tributaria.
+  Nada de lo que se genere aquí llega al SRI.</span>
+</div>
 
 <!-- ══════════════════════════════════════════════════════════ la barra -->
 <header class="alto">
@@ -6537,13 +6562,16 @@ const ACTIVOS_FIJOS = [
 //  Lo que ve el super administrador
 // ===========================================================================
 
+// Gustavo, 18-sep-2026: mientras enseña el sistema a posibles clientes, ninguna
+// pantalla muestra una tarifa de Kontia. Sin valor: la pantalla dice «Por
+// definir». La prueba sin costo sí se dice, porque eso no es un precio.
 const SUSCRIPCIONES = [
-  { empresa: 'Agroquímicos Pérez S.A.', plan: 'Profesional', valor: 49.90, ciclo: 'Mensual', proximo: new Date(2026, 9, 12), estado: 'AL DÍA' },
-  { empresa: 'Textiles Otavalo Cía. Ltda.', plan: 'Básico', valor: 24.90, ciclo: 'Mensual', proximo: new Date(2026, 9, 4), estado: 'AL DÍA' },
-  { empresa: 'Transportes Andinos del Norte S.A.', plan: 'Profesional', valor: 499.00, ciclo: 'Anual', proximo: new Date(2027, 5, 20), estado: 'AL DÍA' },
+  { empresa: 'Agroquímicos Pérez S.A.', plan: 'Profesional', valor: null, ciclo: 'Mensual', proximo: new Date(2026, 9, 12), estado: 'AL DÍA' },
+  { empresa: 'Textiles Otavalo Cía. Ltda.', plan: 'Básico', valor: null, ciclo: 'Mensual', proximo: new Date(2026, 9, 4), estado: 'AL DÍA' },
+  { empresa: 'Transportes Andinos del Norte S.A.', plan: 'Profesional', valor: null, ciclo: 'Anual', proximo: new Date(2027, 5, 20), estado: 'AL DÍA' },
   { empresa: 'Panadería La Espiga', plan: 'Básico', valor: 0, ciclo: 'Prueba', proximo: new Date(2026, 8, 29), estado: 'EN PRUEBA' },
-  { empresa: 'Turismo Amazonía del Napo S.A.', plan: 'Básico', valor: 24.90, ciclo: 'Mensual', proximo: new Date(2026, 9, 14), estado: 'AL DÍA' },
-  { empresa: 'Ferretería Austral Cía. Ltda.', plan: 'Profesional', valor: 49.90, ciclo: 'Mensual', proximo: new Date(2026, 8, 8), estado: 'VENCIDA' },
+  { empresa: 'Turismo Amazonía del Napo S.A.', plan: 'Básico', valor: null, ciclo: 'Mensual', proximo: new Date(2026, 9, 14), estado: 'AL DÍA' },
+  { empresa: 'Ferretería Austral Cía. Ltda.', plan: 'Profesional', valor: null, ciclo: 'Mensual', proximo: new Date(2026, 8, 8), estado: 'VENCIDA' },
 ];
 
 const USO_MENSUAL = [
@@ -16553,13 +16581,8 @@ async function suscripciones() {
   const vacia = sinDatosReales('Suscripciones', 'receipt_long',
     'Aquí aparecerán los planes y los cobros de cada empresa cuando se dé de alta la primera.');
   if (vacia) return vacia;
-  const mensual = SUSCRIPCIONES
-    .filter((s) => s.ciclo === 'Mensual' && s.estado === 'AL DÍA')
-    .reduce((a, s) => a + Math.round(s.valor * 100), 0) / 100;
-  const anualizadas = SUSCRIPCIONES
-    .filter((s) => s.ciclo === 'Anual' && s.estado === 'AL DÍA')
-    .reduce((a, s) => a + Math.round((s.valor / 12) * 100), 0) / 100;
-  const recurrente = Math.round((mensual + anualizadas) * 100) / 100;
+  // Las tarifas de Kontia están por definir (Gustavo, 18-sep-2026): ninguna
+  // pantalla enseña un valor, y por eso tampoco se suma un ingreso.
   const vencidas = SUSCRIPCIONES.filter((s) => s.estado === 'VENCIDA');
 
   const cuerpo = SUSCRIPCIONES.map((s) => html`
@@ -16570,8 +16593,8 @@ async function suscripciones() {
       </td>
       <td class="px-5 py-3.5 text-sm text-tinta-suave">${s.ciclo}</td>
       <td class="px-5 py-3.5 text-sm text-tinta-suave whitespace-nowrap">${fecha(s.proximo)}</td>
-      <td class="px-5 py-3.5 text-right text-sm font-bold tabular">
-        ${s.valor ? usd(s.valor) : '—'}
+      <td class="px-5 py-3.5 text-right text-sm font-bold ${crudo(s.valor == null ? 'text-tinta-suave' : 'tabular')}">
+        ${s.valor == null ? 'Por definir' : s.ciclo === 'Prueba' ? 'Gratis' : usd(s.valor)}
       </td>
       <td class="px-5 py-3.5 text-right">
         <span class="text-[11px] font-bold px-2.5 py-1 rounded-full ${crudo(
@@ -16595,9 +16618,9 @@ async function suscripciones() {
     })) : ''}
 
     <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4 mb-5">
-      ${cifra('Ingreso recurrente mensual', usd(recurrente), 'autorenew',
-        'Mensuales más la doceava parte de las anuales')}
-      ${cifra('Proyección anual', usd(Math.round(recurrente * 12 * 100) / 100), 'trending_up')}
+      ${cifra('Ingreso recurrente mensual', 'Por definir', 'autorenew',
+        'Se calcula cuando estén fijadas las tarifas')}
+      ${cifra('Proyección anual', 'Por definir', 'trending_up')}
       ${cifra('Empresas activas',
         String(SUSCRIPCIONES.filter((s) => s.estado === 'AL DÍA').length), 'domain')}
       ${cifra('En periodo de prueba',
