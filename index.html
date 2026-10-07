@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <!-- La version publicada: la pone el empaquetador y la pagina la compara con la del servidor. -->
-<meta name="kontia-version" content="50811bc7334b">
+<meta name="kontia-version" content="3a1a60bac62f">
 <title>Kontia</title>
 <meta name="theme-color" content="#0F7B4F">
 <link rel="manifest" href="manifiesto.json">
@@ -2199,22 +2199,49 @@
         <div class="separa"><span>o pruébelo ahora mismo</span></div>
 
         <!--
-          Un solo papel de ejemplo, el de una empresa ficticia. El sistema escucha
-          este botón por su atributo data-papel. La administración de la
-          plataforma no se ofrece como demostración: se entra con la cuenta real.
+          Un papel de ejemplo por cada plan, cada uno con su propia empresa
+          ficticia —y uno más, María Elena, para enseñar que dentro de la
+          misma empresa el rol también cambia lo que se ve—. El sistema
+          escucha estos botones por su atributo data-papel. La administración
+          de la plataforma no se ofrece como demostración: se entra con la
+          cuenta real.
         -->
         <div class="papeles">
+          <button type="button" class="papel" data-papel="emprendedora">
+            <span class="ini">SL</span>
+            <span>
+              <b>Sandra Loor</b>
+              <i>Dueña del negocio · plan Emprende</i>
+              <em>Ve Dulce Costa: factura, cuentas por cobrar y su registro de ingresos y egresos. Sin inventario ni nómina.</em>
+            </span>
+          </button>
           <button type="button" class="papel" data-papel="administrador">
             <span class="ini">JP</span>
             <span>
               <b>Juan Carlos Pérez</b>
-              <i>Administrador de la empresa</i>
+              <i>Administrador de la empresa · plan Empresa</i>
               <em>Ve todo lo de Agroquímicos Pérez: factura, lleva los libros, configura y crea usuarios.</em>
+            </span>
+          </button>
+          <button type="button" class="papel" data-papel="facturador">
+            <span class="ini">MV</span>
+            <span>
+              <b>María Elena Vaca</b>
+              <i>Factura desde su caja · plan Empresa</i>
+              <em>La misma Agroquímicos Pérez, pero como la ve quien solo cobra: sin configuración, sin certificado, sin usuarios.</em>
+            </span>
+          </button>
+          <button type="button" class="papel" data-papel="contadora">
+            <span class="ini">PG</span>
+            <span>
+              <b>Patricia Gómez</b>
+              <i>Contadora externa · plan Estudio contable</i>
+              <em>Lleva Agroquímicos Pérez y Dulce Costa con un solo ingreso, cambiando de empresa sin volver a entrar.</em>
             </span>
           </button>
         </div>
 
-        <p class="letra-chica">
+        <p class="letra-chica" id="nota-demo">
           Al probar, los datos son de ejemplo y quedan en su propio equipo. No se envían a
           ningún sitio.
         </p>
@@ -3213,6 +3240,108 @@ const AUDITORIA = [
 //  Todo junto, para que el almacén lo copie al arrancar
 // ===========================================================================
 
+// ===========================================================================
+//  Segunda empresa de ejemplo: un negocio chico, plan Emprende
+//
+//  No lleva su propio resumen ni su propia cartera a mano: sin marcar sus
+//  comprobantes como «semilla», el tablero los suma solo (ver el comentario
+//  de `cargar.resumen` en almacen.js). Es la misma honestidad que ya usa
+//  cualquier empresa real que todavía no tiene datos —«empieza en cero»—,
+//  solo que aquí el cero ya trae unas cuantas facturas de verdad.
+// ===========================================================================
+
+const EMPRESA_EMPRENDE = {
+  id: 'dulce-costa',
+  razonSocial: 'Sandra Loor Zambrano',
+  nombreComercial: 'Dulce Costa',
+  ruc: '1301234561001',
+  dirMatriz: 'Barrio Los Esteros, Manta, Manabí',
+  regimen: 'RIMPE Negocio Popular',
+  obligadoContabilidad: false,
+  manejaInventario: false,
+  contribuyenteEspecial: false,
+  agenteRetencion: false,
+  ambiente: 'PRUEBAS',
+  plan: 'Básico',
+  correo: 'pedidos@dulcecosta.ec',
+  telefono: '(05) 262 4471',
+};
+
+const PUNTOS_EMISION_EMPRENDE = [
+  { codigo: '001-001', nombre: 'Local Los Esteros', lugar: 'Matriz, Manta', ultimo: 15, activo: true },
+];
+
+const CLIENTES_EMPRENDE = [
+  { id: 'e1', razonSocial: 'Eventos Costa Bonita S.A.', identificacion: '1391122334001',
+    tipo: 'RUC', ciudad: 'Manta', correo: 'compras@costabonita.ec',
+    telefono: '(05) 262 9910', comprobantes: 2, facturado: 384.80 },
+  { id: 'e2', razonSocial: 'Verónica Intriago', identificacion: '1309876546',
+    tipo: 'CEDULA', ciudad: 'Manta', correo: 'veroin@gmail.com',
+    telefono: '099 512 3340', comprobantes: 1, facturado: 41.60 },
+  { id: 'e3', razonSocial: 'Jorge Delgado', identificacion: '1311223349',
+    tipo: 'CEDULA', ciudad: 'Manta', correo: 'jorgedelgado93@hotmail.com',
+    telefono: '098 741 2205', comprobantes: 1, facturado: 12.50 },
+];
+
+const PRODUCTOS_EMPRENDE = [
+  { codigo: 'PAST-001', descripcion: 'Torta de chocolate (18 porciones)', unidad: 'UNIDAD', precio: 32.00, iva: 15, tipo: 'Bien' },
+  { codigo: 'PAST-002', descripcion: 'Docena de empanadas de verde', unidad: 'DOCENA', precio: 8.50, iva: 15, tipo: 'Bien' },
+  { codigo: 'PAST-003', descripcion: 'Pan de agua (funda de 10 unidades)', unidad: 'FUNDA', precio: 2.50, iva: 0, tipo: 'Bien' },
+  { codigo: 'PAST-004', descripcion: 'Catering para eventos (por persona)', unidad: 'SERVICIO', precio: 6.00, iva: 15, tipo: 'Servicio' },
+];
+
+const lineasE012 = [
+  { codigo: 'PAST-004', descripcion: 'Catering para eventos (por persona)', cantidad: 40, precio: 6.00, descuento: 0, iva: 15 },
+  { codigo: 'PAST-001', descripcion: 'Torta de chocolate (18 porciones)', cantidad: 2, precio: 32.00, descuento: 10.00, iva: 15 },
+];
+const lineasE013 = [
+  { codigo: 'PAST-001', descripcion: 'Torta de chocolate (18 porciones)', cantidad: 1, precio: 32.00, descuento: 0, iva: 15 },
+  { codigo: 'PAST-002', descripcion: 'Docena de empanadas de verde', cantidad: 1, precio: 8.50, descuento: 0, iva: 15 },
+];
+const lineasE014 = [
+  { codigo: 'PAST-003', descripcion: 'Pan de agua (funda de 10 unidades)', cantidad: 5, precio: 2.50, descuento: 0, iva: 0 },
+];
+const lineasE015 = [
+  { codigo: 'PAST-004', descripcion: 'Catering para eventos (por persona)', cantidad: 25, precio: 6.00, descuento: 0, iva: 15 },
+];
+
+const COMPROBANTES_EMPRENDE = [
+  conTotales({
+    numero: '001-001-000000015', tipo: 'Factura', estado: 'ENVIADO',
+    cliente: CLIENTES_EMPRENDE[0], fecha: new Date(2026, 8, 28, 16, 40),
+    claveAcceso: '2809202601013012345610011100100100000001512345671147',
+    formaPago: '20 · Otros con utilización del sistema financiero',
+    lineas: lineasE015,
+  }),
+  conTotales({
+    numero: '001-001-000000014', tipo: 'Factura', estado: 'AUTORIZADO',
+    cliente: CLIENTES_EMPRENDE[2], fecha: new Date(2026, 8, 20, 9, 10),
+    fechaAutorizacion: new Date(2026, 8, 20, 9, 10, 38),
+    claveAcceso: '2009202601013012345610011100100100000001412345671142',
+    autorizacion: '2009202601013012345610011100100100000001412345671142',
+    formaPago: '01 · Sin utilización del sistema financiero',
+    lineas: lineasE014,
+  }),
+  conTotales({
+    numero: '001-001-000000013', tipo: 'Factura', estado: 'AUTORIZADO',
+    cliente: CLIENTES_EMPRENDE[1], fecha: new Date(2026, 8, 15, 11, 22),
+    fechaAutorizacion: new Date(2026, 8, 15, 11, 22, 51),
+    claveAcceso: '1509202601013012345610011100100100000001312345671131',
+    autorizacion: '1509202601013012345610011100100100000001312345671131',
+    formaPago: '20 · Otros con utilización del sistema financiero',
+    lineas: lineasE013,
+  }),
+  conTotales({
+    numero: '001-001-000000012', tipo: 'Factura', estado: 'AUTORIZADO',
+    cliente: CLIENTES_EMPRENDE[0], fecha: new Date(2026, 8, 10, 8, 5),
+    fechaAutorizacion: new Date(2026, 8, 10, 8, 5, 29),
+    claveAcceso: '1009202601013012345610011100100100000001212345671128',
+    autorizacion: '1009202601013012345610011100100100000001212345671128',
+    formaPago: '20 · Otros con utilización del sistema financiero',
+    lineas: lineasE012,
+  }),
+];
+
 const SEMILLA = {
   empresa: EMPRESA,
   puntos: PUNTOS_EMISION,
@@ -3224,10 +3353,15 @@ const SEMILLA = {
   resumen: RESUMEN,
   empresasAdmin: EMPRESAS_ADMIN,
   auditoria: AUDITORIA,
+  empresaEmprende: EMPRESA_EMPRENDE,
+  puntosEmprende: PUNTOS_EMISION_EMPRENDE,
+  clientesEmprende: CLIENTES_EMPRENDE,
+  productosEmprende: PRODUCTOS_EMPRENDE,
+  comprobantesEmprende: COMPROBANTES_EMPRENDE,
 };
 
 
-  return { TARIFAS_IVA, TIPOS_IDENTIFICACION, FORMAS_PAGO, EMPRESA, PUNTOS_EMISION, CERTIFICADO, CLIENTES, PRODUCTOS, USUARIOS, totalizar, COMPROBANTES, RESUMEN, EMPRESAS_ADMIN, AUDITORIA, SEMILLA };
+  return { TARIFAS_IVA, TIPOS_IDENTIFICACION, FORMAS_PAGO, EMPRESA, PUNTOS_EMISION, CERTIFICADO, CLIENTES, PRODUCTOS, USUARIOS, totalizar, COMPROBANTES, RESUMEN, EMPRESAS_ADMIN, AUDITORIA, EMPRESA_EMPRENDE, PUNTOS_EMISION_EMPRENDE, CLIENTES_EMPRENDE, PRODUCTOS_EMPRENDE, COMPROBANTES_EMPRENDE, SEMILLA };
 })();
 
 // ---- src/ui.js ---------------------------------------------------
@@ -5783,16 +5917,42 @@ const __src_sesion_js = (function () {
 
 const CLAVE = 'kontia.sesion';
 
+const AGROQUIMICOS = 'agroquimicos-perez';
+const DULCE_COSTA = 'dulce-costa';
+
+/**
+ * Qué empresas puede elegir cada papel al entrar, en la pantalla
+ * «¿Con qué empresa va a trabajar?».
+ *
+ * Uno por plan: Juan Carlos y María Elena solo ven Agroquímicos Pérez —el
+ * plan Empresa—; Sandra solo ve su propio negocio —el plan Emprende—; y
+ * Patricia, la contadora, ve las dos —el plan Estudio contable, que es
+ * justamente eso: varias empresas con un solo ingreso—.
+ */
 const PAPELES = {
   administrador: {
     nombre: 'Juan Carlos Pérez', iniciales: 'JP', rol: 'Administrador',
     correo: 'jperez@agroperez.com.ec', admin: false,
     empresa: 'Agroquímicos Pérez S.A.', ruc: '0912345678001', ambiente: 'PRUEBAS',
+    empresas: [AGROQUIMICOS],
   },
   facturador: {
     nombre: 'María Elena Vaca', iniciales: 'MV', rol: 'Facturador',
     correo: 'mvaca@agroperez.com.ec', admin: false,
     empresa: 'Agroquímicos Pérez S.A.', ruc: '0912345678001', ambiente: 'PRUEBAS',
+    empresas: [AGROQUIMICOS],
+  },
+  emprendedora: {
+    nombre: 'Sandra Loor', iniciales: 'SL', rol: 'Administradora',
+    correo: 'sandra@dulcecosta.ec', admin: false,
+    empresa: 'Dulce Costa', ruc: '1301234561001', ambiente: 'PRUEBAS',
+    empresas: [DULCE_COSTA],
+  },
+  contadora: {
+    nombre: 'Patricia Gómez', iniciales: 'PG', rol: 'Contadora externa',
+    correo: 'patricia@estudiogomez.ec', admin: false,
+    empresa: 'Varias empresas', ruc: '—', ambiente: 'PRUEBAS',
+    empresas: [AGROQUIMICOS, DULCE_COSTA],
   },
   // No hay papel de ejemplo para el super administrador: la administración de
   // la plataforma solo se abre con la cuenta real. Un papel guardado de una
@@ -5867,6 +6027,8 @@ const sesion = {
   activa: () => leer() !== null || haySesionEnLaNube(),
   esSuperAdmin: () => Boolean(perfilDeLaNube()?.esSuperAdmin),
   usuario: () => deLaNube() ?? PAPELES[leer() ?? 'administrador'],
+  /** El papel de demostración elegido, o null si se entró con cuenta real. */
+  papelActual: () => leer(),
   entrar(papel) {
     if (!PAPELES[papel]) throw new Error(`Papel desconocido: ${papel}`);
     enMemoria = papel;
@@ -6371,13 +6533,14 @@ function asientoDeCompra(c) {
  * saben, las piden al almacen y las pasan. El dia que los datos vengan de
  * Supabase, este archivo no cambia.
  */
-function diarioCon(compras = [], pagos = [], declaraciones = []) {
+function diarioCon(compras = [], pagos = [], declaraciones = [], cobros = []) {
   const deLosPagosAlSri = (declaraciones ?? []).filter((d) => d.pago).map(asientoDePagoAlSri);
   const deCompras = (compras ?? []).map(asientoDeCompra);
   const dePagos = (pagos ?? []).map(asientoDePago);
   const deDeclaraciones = (declaraciones ?? []).map(asientoDeDeclaracion);
+  const deCobros = (cobros ?? []).map(asientoDeCobro);
   return numerar([...MANUALES, ...DE_VENTAS, ...DE_RETENCIONES, ...DE_NOTAS, ...deCompras, ...dePagos,
-    ...deDeclaraciones, ...deLosPagosAlSri]);
+    ...deDeclaraciones, ...deLosPagosAlSri, ...deCobros]);
 }
 
 // Se arma la primera vez que se pide: las retenciones y las notas de crédito
@@ -6861,6 +7024,93 @@ function asientoDelDocumento(diario, origen, tipo = null) {
 }
 
 // ===========================================================================
+//  Cobros a clientes, uno o varios en un solo depósito
+//
+//  El mismo caso que el pago a proveedores, en espejo: el banco puede
+//  acreditar un solo depósito que cancela varias facturas de distintos
+//  clientes (una transferencia agrupada, una liquidación de tarjeta). Se
+//  registra igual que llega al banco, para que la conciliación lo empareje
+//  uno a uno.
+// ===========================================================================
+
+/** Lo que falta cobrar de cada factura, restando los cobros ya registrados. */
+function pendientesDeCobro(cartera = CARTERA_COBRAR, cobros = []) {
+  const cent = (n) => Math.round(Number(n || 0) * 100);
+  return cartera.map((x) => {
+    const cobrado = (cobros ?? []).flatMap((c) => c.documentos ?? [])
+      .filter((d) => d.documento === x.documento)
+      .reduce((s, d) => s + cent(d.valor), 0);
+    return {
+      ...x,
+      cobrado: cobrado / 100,
+      abonado: (cent(x.abonado) + cobrado) / 100,
+      saldo: (cent(x.monto) - cent(x.abonado) - cobrado) / 100,
+    };
+  });
+}
+
+/** Comprueba y ordena un cobro antes de guardarlo. Mismas reglas que un pago. */
+function prepararCobro(entrada, pendientes) {
+  const fecha = entrada.fecha instanceof Date ? entrada.fecha : new Date(`${entrada.fecha}T12:00:00`);
+  if (Number.isNaN(fecha.getTime())) throw new Error('Falta la fecha del cobro, tal como sale en el banco.');
+
+  const elegidos = (entrada.documentos ?? []).filter((d) => Number(d.valor) > 0);
+  if (!elegidos.length) throw new Error('Elija al menos una factura y el valor que se cobra.');
+
+  const vistos = new Set();
+  const documentos = elegidos.map((d) => {
+    if (vistos.has(d.documento)) throw new Error(`La factura ${d.documento} está dos veces en el mismo cobro.`);
+    vistos.add(d.documento);
+    const pendiente = pendientes.find((x) => x.documento === d.documento);
+    if (!pendiente) throw new Error(`La factura ${d.documento} no está entre las cuentas por cobrar.`);
+    const valor = Math.round(Number(d.valor) * 100) / 100;
+    if (valor > pendiente.saldo + 0.004) {
+      throw new Error(`De la factura ${d.documento} quedan ${pendiente.saldo.toFixed(2)}: no se puede cobrar ${valor.toFixed(2)}.`);
+    }
+    return { documento: d.documento, cliente: pendiente.cliente, valor };
+  });
+
+  const total = documentos.reduce((s, d) => s + Math.round(d.valor * 100), 0) / 100;
+  return {
+    fecha,
+    referencia: String(entrada.referencia ?? '').trim() || null,
+    cuentaBanco: entrada.cuentaBanco ?? '10101',
+    documentos,
+    total,
+  };
+}
+
+/** El asiento de un cobro: una línea por factura en cartera y UN solo depósito. */
+function asientoDeCobro(c) {
+  const docs = c.documentos ?? [];
+  const masivo = docs.length > 1;
+  const clientes = [...new Set(docs.map((d) => d.cliente))];
+  const total = docs.reduce((s, d) => s + Math.round(Number(d.valor) * 100), 0) / 100;
+  const ref = c.referencia ? ` · ref. ${c.referencia}` : '';
+  return {
+    numero: null,
+    fecha: new Date(c.fecha),
+    tipo: 'COBRO',
+    origen: c.referencia || c.id || null,
+    documentos: docs.map((d) => d.documento),
+    enlace: '#/por-cobrar',
+    enlaceTexto: 'Ver cuentas por cobrar',
+    glosa: masivo
+      ? `Cobro masivo de ${docs.length} facturas a ${clientes.length === 1 ? clientes[0] : `${clientes.length} clientes`}`
+      : `Cobro a ${clientes[0] ?? 'cliente'}`,
+    lineas: [
+      { cuenta: c.cuentaBanco ?? '10101', debe: total, haber: 0,
+        detalle: `${masivo ? 'Cobro masivo (depósito agrupado)' : 'Cobro'}${ref}`,
+        referencia: c.referencia ?? null },
+      ...docs.map((d) => ({
+        cuenta: '101020502', debe: 0, haber: d.valor, detalle: `${d.cliente} · factura ${d.documento}`,
+      })),
+    ],
+    generado: true,
+  };
+}
+
+// ===========================================================================
 //  Impuestos · lo que se declara cada mes
 //
 //  Las casillas son las del formulario 104 del SRI. Los valores NO se teclean:
@@ -7254,16 +7504,17 @@ function asientoDePagoAlSri(d) {
 }
 
 
-  return { CUENTAS, cuenta, nombreCuenta, AUX_IVA_COBRADO, asientoDeFactura, asientoDeCompra, diarioCon, diarioDelMes, balanceDeComprobacion, mayorDe, CARTERA_COBRAR, PROVEEDORES, CARTERA_PAGAR, BANCOS, saldoFinalDelBanco, INVENTARIO, EMPLEADOS, ACTIVOS_FIJOS, SUSCRIPCIONES, USO_MENSUAL, SOPORTE, RETENCIONES, NOTAS_CREDITO, GUIAS_REMISION, valoresDeRetencion, asientoDeRetencionEmitida, asientoDeNotaCredito, comprasDelLibro, pendientesDePago, prepararPago, asientoDePago, asientoDelDocumento, formulario104, CONCEPTOS_RENTA, formulario103, CUENTA_IVA_SIN_CREDITO, porPagarAlSri, lineasDelFormulario104, lineasDelFormulario103, prepararDeclaracion, asientoDeDeclaracion, prepararPagoAlSri, asientoDePagoAlSri };
+  return { CUENTAS, cuenta, nombreCuenta, AUX_IVA_COBRADO, asientoDeFactura, asientoDeCompra, diarioCon, diarioDelMes, balanceDeComprobacion, mayorDe, CARTERA_COBRAR, PROVEEDORES, CARTERA_PAGAR, BANCOS, saldoFinalDelBanco, INVENTARIO, EMPLEADOS, ACTIVOS_FIJOS, SUSCRIPCIONES, USO_MENSUAL, SOPORTE, RETENCIONES, NOTAS_CREDITO, GUIAS_REMISION, valoresDeRetencion, asientoDeRetencionEmitida, asientoDeNotaCredito, comprasDelLibro, pendientesDePago, prepararPago, asientoDePago, asientoDelDocumento, pendientesDeCobro, prepararCobro, asientoDeCobro, formulario104, CONCEPTOS_RENTA, formulario103, CUENTA_IVA_SIN_CREDITO, porPagarAlSri, lineasDelFormulario104, lineasDelFormulario103, prepararDeclaracion, asientoDeDeclaracion, prepararPagoAlSri, asientoDePagoAlSri };
 })();
 
 // ---- src/almacen.js ----------------------------------------------
 const __src_almacen_js = (function () {
   const { SEMILLA, totalizar, TARIFAS_IVA, TIPOS_IDENTIFICACION } = __src_datos_js;
   const { perfilDeLaNube, altaDeEmpresa, cargarPerfil } = __src_cuenta_nube_js;
+  const { sesion } = __src_sesion_js;
   const { clientesDeLaNube, clienteDeLaNube, guardarClienteEnLaNube, productosDeLaNube, productoDeLaNube, guardarProductoEnLaNube } = __src_catalogo_nube_js;
   const { puntosDeLaNube, comprobantesDeLaNube, comprobanteDeLaNube, borradorEnLaNube, emisionSimuladaNoPermitida } = __src_comprobantes_nube_js;
-  const { diarioCon, pendientesDePago, prepararPago, asientoDePago, CARTERA_PAGAR, formulario104, formulario103, balanceDeComprobacion, prepararDeclaracion, asientoDeDeclaracion, prepararPagoAlSri, asientoDePagoAlSri } = __src_datos_contables_js;
+  const { diarioCon, pendientesDePago, prepararPago, asientoDePago, CARTERA_PAGAR, PROVEEDORES, pendientesDeCobro, prepararCobro, asientoDeCobro, CARTERA_COBRAR, formulario104, formulario103, balanceDeComprobacion, prepararDeclaracion, asientoDeDeclaracion, prepararPagoAlSri, asientoDePagoAlSri } = __src_datos_contables_js;
 
 /**
  * El almacén: lo único que sabe dónde están los datos y cómo se guardan.
@@ -7294,6 +7545,7 @@ const __src_almacen_js = (function () {
 
 
 
+
 const CLAVE = 'kontia.datos.v1';
 const esperar = (valor) => Promise.resolve(valor);
 
@@ -7316,6 +7568,9 @@ function reviir(clave, valor) {
 /** La empresa de los datos de ejemplo. Todo lo de la semilla le pertenece. */
 const EMPRESA_SEMILLA = SEMILLA.empresa.id;
 
+/** La segunda empresa de ejemplo, la del plan Emprende. */
+const EMPRESA_EMPRENDE = SEMILLA.empresaEmprende.id;
+
 /**
  * El almacén guarda VARIAS empresas, y cada dato lleva a cuál pertenece.
  *
@@ -7330,19 +7585,44 @@ const EMPRESA_SEMILLA = SEMILLA.empresa.id;
  * que ve de verdad un cliente el primer día.
  */
 const copiaDeLaSemilla = () => ({
-  empresas: [{ ...SEMILLA.empresa, semilla: true }],
+  empresas: [
+    { ...SEMILLA.empresa, semilla: true },
+    { ...SEMILLA.empresaEmprende, semilla: true },
+  ],
   activa: EMPRESA_SEMILLA,
-  clientes: SEMILLA.clientes.map((c) => ({ ...c, empresaId: EMPRESA_SEMILLA, semilla: true })),
-  productos: SEMILLA.productos.map((p) => ({ ...p, empresaId: EMPRESA_SEMILLA, semilla: true })),
-  comprobantes: SEMILLA.comprobantes.map((c) => ({ ...c, empresaId: EMPRESA_SEMILLA, semilla: true })),
-  puntos: SEMILLA.puntos.map((p) => ({ ...p, empresaId: EMPRESA_SEMILLA })),
+  clientes: [
+    ...SEMILLA.clientes.map((c) => ({ ...c, empresaId: EMPRESA_SEMILLA, semilla: true })),
+    ...SEMILLA.clientesEmprende.map((c) => ({ ...c, empresaId: EMPRESA_EMPRENDE, semilla: true })),
+  ],
+  productos: [
+    ...SEMILLA.productos.map((p) => ({ ...p, empresaId: EMPRESA_SEMILLA, semilla: true })),
+    ...SEMILLA.productosEmprende.map((p) => ({ ...p, empresaId: EMPRESA_EMPRENDE, semilla: true })),
+  ],
+  // Las de Agroquímicos Pérez SÍ llevan «semilla»: son las que el tablero
+  // (cargar.resumen) suma aparte, con el resumen ya escrito a mano. Las de
+  // Dulce Costa NO la llevan a propósito: como no hay un resumen escrito a
+  // mano para su plan Emprende, es la única forma de que sus propias facturas
+  // cuenten para su propio tablero, en vez de enseñar un cero que no es cierto.
+  comprobantes: [
+    ...SEMILLA.comprobantes.map((c) => ({ ...c, empresaId: EMPRESA_SEMILLA, semilla: true })),
+    ...SEMILLA.comprobantesEmprende.map((c) => ({ ...c, empresaId: EMPRESA_EMPRENDE })),
+  ],
+  puntos: [
+    ...SEMILLA.puntos.map((p) => ({ ...p, empresaId: EMPRESA_SEMILLA })),
+    ...SEMILLA.puntosEmprende.map((p) => ({ ...p, empresaId: EMPRESA_EMPRENDE })),
+  ],
   // Las compras no se siembran: entran por el buzon, y lo que se quiere
   // ensenar es justamente ese recorrido —soltar el XML y verlo registrado—.
   compras: [],
   // Los pagos a proveedores registrados aquí (uno o masivos).
   pagos: [],
+  // Los cobros a clientes registrados aquí (uno o masivos).
+  cobros: [],
   // Los formularios que ya se presentaron en el SRI, con su asiento.
   declaraciones: [],
+  // Proveedores dados de alta a mano. Los del ejemplo (PROVEEDORES, en
+  // datos-contables.js) siguen siendo fijos; estos se suman a la lista.
+  proveedoresNuevos: [],
   // La cuenta con que se registró la última compra de cada proveedor, por
   // empresa: { empresaId: { rucProveedor: cuenta } }.
   cuentasProveedor: {},
@@ -7372,7 +7652,7 @@ let datos = leer();
 // Una coleccion nueva no existe en lo que guardo una version anterior. Sin
 // esto, quien ya tenia datos en el navegador abriria el buzon y le explotaria
 // en la cara por un `undefined`.
-for (const coleccion of ['clientes', 'productos', 'comprobantes', 'puntos', 'compras', 'pagos', 'declaraciones']) {
+for (const coleccion of ['clientes', 'productos', 'comprobantes', 'puntos', 'compras', 'pagos', 'cobros', 'declaraciones', 'proveedoresNuevos']) {
   if (!Array.isArray(datos[coleccion])) datos[coleccion] = [];
 }
 if (!datos.cuentasProveedor || typeof datos.cuentasProveedor !== 'object') datos.cuentasProveedor = {};
@@ -7467,6 +7747,35 @@ function comprobarCliente(c) {
   return { identificacion, razonSocial };
 }
 
+function comprobarProveedor(p) {
+  const ruc = String(p.ruc ?? '').trim();
+  const razonSocial = String(p.razonSocial ?? '').trim();
+
+  if (razonSocial.length < 3) {
+    fallo('La razón social tiene que tener al menos tres letras.');
+  }
+  if (!rucValido(ruc)) {
+    fallo('Ese RUC no es válido. Son trece dígitos y terminan en 001 para la matriz. ' +
+          'Un proveedor de bienes o servicios siempre se identifica con RUC, no con cédula.');
+  }
+  if (p.correo && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(p.correo)) {
+    fallo('Ese correo no tiene forma de correo.');
+  }
+  if (!['Bienes', 'Servicios'].includes(p.tipo)) {
+    fallo('El tipo tiene que ser Bienes o Servicios: de eso depende el porcentaje de retención.');
+  }
+  if (!(Number(p.retencionIR) >= 0)) fallo('El porcentaje de retención de renta tiene que ser un número.');
+  if (!(Number(p.retencionIVA) >= 0)) fallo('El porcentaje de retención de IVA tiene que ser un número.');
+
+  const repetido = [...PROVEEDORES, ...datos.proveedoresNuevos].find(
+    (x) => x.ruc === ruc && x.ruc !== p.rucOriginal);
+  if (repetido) {
+    fallo(`Ya existe un proveedor con ese RUC: ${repetido.razonSocial}. ` +
+          'Dos fichas del mismo proveedor reparten sus compras entre las dos.');
+  }
+  return { ruc, razonSocial };
+}
+
 function comprobarProducto(p) {
   const codigo = String(p.codigo ?? '').trim();
   const descripcion = String(p.descripcion ?? '').trim();
@@ -7504,8 +7813,26 @@ const deLaActiva = (lista) => lista.filter((x) => x.empresaId === idActiva());
 const CLAVE_ACTIVA_NUBE = 'kontia.nube.activa';
 const enLaNube = () => Boolean(perfilDeLaNube());
 
+/**
+ * Las empresas que el papel de demostración actual puede elegir.
+ *
+ * Sin esto, cambiar de papel en el mismo navegador —de Sandra a Patricia, por
+ * ejemplo— dejaría `datos.activa` apuntando a una empresa que ese papel no
+ * debería ver siquiera, porque es del papel anterior. Sin papel elegido
+ * todavía (o con uno que no se reconoce), no se filtra nada: es más seguro
+ * enseñar de más en ese instante pasajero que ocultar por error.
+ */
+const empresasDelPapel = () => {
+  const permitidas = sesion.papeles[sesion.papelActual()]?.empresas;
+  return permitidas ? datos.empresas.filter((e) => permitidas.includes(e.id)) : datos.empresas;
+};
+
 function idActiva() {
-  if (!enLaNube()) return datos.activa;
+  if (!enLaNube()) {
+    const permitidas = empresasDelPapel();
+    if (permitidas.length && !permitidas.some((e) => e.id === datos.activa)) return permitidas[0].id;
+    return datos.activa;
+  }
   const empresas = perfilDeLaNube().empresas;
   let elegida = null;
   try { elegida = sessionStorage.getItem(CLAVE_ACTIVA_NUBE); } catch { /* sin almacenamiento */ }
@@ -7519,10 +7846,17 @@ function recordarActivaNube(id) {
 /** La empresa con la que se trabaja ahora mismo. */
 const empresaActiva = () => (enLaNube()
   ? (perfilDeLaNube().empresas.find((e) => e.id === idActiva()) ?? null)
-  : (datos.empresas.find((e) => e.id === datos.activa) ?? datos.empresas[0]));
+  : (datos.empresas.find((e) => e.id === idActiva()) ?? datos.empresas[0]));
 
-/** Si la empresa activa es la de los datos de ejemplo. */
-const esLaDeEjemplo = () => !enLaNube() && datos.activa === EMPRESA_SEMILLA;
+/**
+ * Si la empresa activa es LA empresa de ejemplo —Agroquímicos Pérez, la del
+ * plan Empresa—, la única con su propio resumen y su propia cartera escritos
+ * a mano. Dulce Costa es igual de ficticia, pero no lleva esa historia
+ * completa: sus pantallas de cuentas por cobrar, certificado y proveedores se
+ * ven tan vacías como las de una empresa real recién dada de alta, que es
+ * justamente lo que un plan Emprende recién estrenado parece.
+ */
+const esLaDeEjemplo = () => !enLaNube() && idActiva() === EMPRESA_SEMILLA;
 
 /**
  * Si se está trabajando con una cuenta de verdad contra la base de datos.
@@ -7539,7 +7873,7 @@ const idEmpresaActiva = () => idActiva();
 
 const cargar = {
   empresa: () => esperar(empresaActiva()),
-  empresas: () => esperar(enLaNube() ? perfilDeLaNube().empresas : datos.empresas),
+  empresas: () => esperar(enLaNube() ? perfilDeLaNube().empresas : empresasDelPapel()),
   certificado: () => esperar(esLaDeEjemplo() ? SEMILLA.certificado : null),
   usuarios: () => esperar(esLaDeEjemplo() ? SEMILLA.usuarios : [
     { nombre: 'Juan Carlos Pérez', correo: 'jperez@agroperez.com.ec', rol: 'Administrador',
@@ -7553,6 +7887,18 @@ const cargar = {
     : esperar(activos(deLaActiva(datos.clientes)))),
   cliente: (id) => (enLaNube() ? clienteDeLaNube(idActiva(), id)
     : esperar(deLaActiva(datos.clientes).find((c) => c.id === id) ?? null)),
+
+  /**
+   * Los proveedores: los del ejemplo más los que se den de alta a mano.
+   * Con cuenta de verdad todavía no hay de dónde traerlos.
+   */
+  proveedores: () => esperar(esLaDeEjemplo()
+    ? [...datos.proveedoresNuevos, ...PROVEEDORES].filter((p) => p.activo !== false)
+    : []),
+
+  proveedor: (ruc) => esperar(esLaDeEjemplo()
+    ? ([...datos.proveedoresNuevos, ...PROVEEDORES].find((p) => p.ruc === ruc) ?? null)
+    : null),
 
   productos: () => (enLaNube() ? productosDeLaNube(idActiva())
     : esperar(activos(deLaActiva(datos.productos)))),
@@ -7577,12 +7923,19 @@ const cargar = {
   /** Las cuentas por pagar, con lo ya pagado descontado. */
   porPagar: () => esperar(esLaDeEjemplo() ? pendientesDePago(CARTERA_PAGAR, deLaActiva(datos.pagos)) : []),
 
+  /** Los cobros a clientes de la empresa activa. */
+  cobros: () => esperar(deLaActiva(datos.cobros)),
+
+  /** Las cuentas por cobrar, con lo ya cobrado descontado. */
+  porCobrar: () => esperar(esLaDeEjemplo() ? pendientesDeCobro(CARTERA_COBRAR, deLaActiva(datos.cobros)) : []),
+
   /**
-   * Los libros del mes: los asientos de ejemplo, las compras del buzón y los
-   * pagos registrados. Todas las pantallas contables piden esto.
+   * Los libros del mes: los asientos de ejemplo, las compras del buzón, los
+   * pagos y los cobros registrados. Todas las pantallas contables piden esto.
    */
   librosDelMes: async () => diarioCon(
-    deLaActiva(datos.compras), deLaActiva(datos.pagos), deLaActiva(datos.declaraciones)),
+    deLaActiva(datos.compras), deLaActiva(datos.pagos), deLaActiva(datos.declaraciones),
+    deLaActiva(datos.cobros)),
 
   /** Los formularios ya presentados en el SRI por la empresa activa. */
   declaraciones: () => esperar(deLaActiva(datos.declaraciones)),
@@ -7710,10 +8063,6 @@ function siguienteSecuencial(punto) {
 
 const guardar = {
   /**
-   * Registra un pago a proveedores: una o varias facturas, una sola salida del
-   * banco. Devuelve el pago y su asiento.
-   */
-  /**
    * Registra un formulario como presentado en el SRI y hace su asiento.
    * Las casillas se recalculan aquí, de los libros: no se confía en la pantalla.
    */
@@ -7742,6 +8091,10 @@ const guardar = {
     return esperar({ pago, asiento: asientoDePagoAlSri({ ...guardada, pago }) });
   },
 
+  /**
+   * Registra un pago a proveedores: una o varias facturas, una sola salida del
+   * banco. Devuelve el pago y su asiento.
+   */
   pagoProveedores(entrada) {
     if (enLaNube()) fallo('Con la cuenta de verdad, los pagos se habilitan cuando la contabilidad esté en la base.');
     const pendientes = pendientesDePago(CARTERA_PAGAR, deLaActiva(datos.pagos));
@@ -7753,6 +8106,23 @@ const guardar = {
     datos.pagos.push({ ...pago, fecha: pago.fecha.toISOString() });
     persistir();
     return esperar({ pago, asiento: asientoDePago(pago) });
+  },
+
+  /**
+   * Registra un cobro a clientes: una o varias facturas, un solo depósito en
+   * el banco. Devuelve el cobro y su asiento.
+   */
+  cobroClientes(entrada) {
+    if (enLaNube()) fallo('Con la cuenta de verdad, los cobros se habilitan cuando la contabilidad esté en la base.');
+    const pendientes = pendientesDeCobro(CARTERA_COBRAR, deLaActiva(datos.cobros));
+    const cobro = {
+      id: nuevoId(),
+      empresaId: idActiva(),
+      ...prepararCobro(entrada, pendientes),
+    };
+    datos.cobros.push({ ...cobro, fecha: cobro.fecha.toISOString() });
+    persistir();
+    return esperar({ cobro, asiento: asientoDeCobro(cobro) });
   },
 
   /**
@@ -7807,6 +8177,49 @@ const guardar = {
     };
     persistir();
     return esperar(validas.length);
+  },
+
+  /**
+   * Los datos de la empresa activa: identificación y condición tributaria.
+   *
+   * Solo en la empresa de ejemplo: con cuenta de verdad, cambiar esto son
+   * datos que el SRI compara con el RUC, y todavía no hay dónde guardarlos
+   * en la base.
+   */
+  datosEmpresa(cambios) {
+    if (enLaNube()) fallo('Con la cuenta de verdad, los datos de la empresa se editan cuando esté conectada la base.');
+    const e = datos.empresas.find((x) => x.id === datos.activa);
+    if (!e) fallo('No hay ninguna empresa activa.');
+
+    const razonSocial = String(cambios.razonSocial ?? '').trim();
+    const ruc = String(cambios.ruc ?? '').trim();
+    if (razonSocial.length < 3) fallo('La razón social tiene que tener al menos tres letras.');
+    // Aquí solo se comprueba la forma —trece dígitos, termina en 001—, no el
+    // dígito verificador completo: es el RUC con el que la empresa ya está
+    // dada de alta, no uno que se esté tecleando por primera vez. Esa
+    // comprobación más estricta es la que importa al crear un cliente o un
+    // proveedor nuevo, donde el error típico es un dígito cambiado de sitio.
+    if (!/^\d{13}$/.test(ruc) || !ruc.endsWith('001')) {
+      fallo('Ese RUC no es válido. Son trece dígitos y terminan en 001 para el establecimiento matriz.');
+    }
+    if (cambios.correo && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(cambios.correo)) {
+      fallo('Ese correo no tiene forma de correo.');
+    }
+
+    Object.assign(e, {
+      razonSocial,
+      nombreComercial: String(cambios.nombreComercial ?? '').trim(),
+      ruc,
+      correo: String(cambios.correo ?? '').trim(),
+      dirMatriz: String(cambios.dirMatriz ?? '').trim(),
+      obligadoContabilidad: Boolean(cambios.obligadoContabilidad),
+      contribuyenteEspecial: Boolean(cambios.contribuyenteEspecial),
+      agenteRetencion: Boolean(cambios.agenteRetencion),
+      manejaInventario: Boolean(cambios.manejaInventario),
+      plan: cambios.plan === 'Básico' ? 'Básico' : 'Profesional',
+    });
+    persistir();
+    return esperar({ ...e });
   },
 
   /**
@@ -7970,6 +8383,34 @@ const guardar = {
   },
 
   /**
+   * Da de alta un proveedor a mano. Solo en la empresa de ejemplo: con cuenta
+   * de verdad, los proveedores todavía no se guardan en la base.
+   */
+  proveedor(entrada) {
+    if (enLaNube()) fallo('Con la cuenta de verdad, los proveedores se habilitan cuando la contabilidad esté en la base.');
+    if (!esLaDeEjemplo()) fallo('Esta empresa todavía no tiene proveedores.');
+    const { ruc, razonSocial } = comprobarProveedor(entrada);
+    const proveedor = {
+      id: nuevoId(),
+      ruc,
+      razonSocial,
+      ciudad: String(entrada.ciudad ?? '').trim(),
+      tipo: entrada.tipo,
+      contribuyenteEspecial: Boolean(entrada.contribuyenteEspecial),
+      retencionIR: Number(entrada.retencionIR),
+      retencionIVA: Number(entrada.retencionIVA),
+      correo: String(entrada.correo ?? '').trim(),
+      telefono: String(entrada.telefono ?? '').trim(),
+      comprado: 0,
+      saldo: 0,
+      activo: true,
+    };
+    datos.proveedoresNuevos.unshift(proveedor);
+    persistir();
+    return esperar(proveedor);
+  },
+
+  /**
    * Guarda una factura como borrador y le asigna su número.
    *
    * El número se reserva aquí, al crearla, y no al emitirla. Podría parecer que
@@ -8050,6 +8491,39 @@ const guardar = {
     persistir();
     return esperar(c);
   },
+
+  /**
+   * Emisión firmada con el certificado de juguete, por el servidor de
+   * práctica (`apps/firma/herramientas/servidor-practica.mjs`).
+   *
+   * A diferencia de `emitirSimulado`, aquí sí hay una firma XAdES-BES real
+   * sobre un XML real —el mismo motor que se usaría con un certificado de
+   * verdad—. Lo que falta es el envío al SRI, que este camino ni intenta: un
+   * certificado de juguete no es de una entidad acreditada y el SRI lo
+   * rechazaría. `simulado` se queda en `false` a propósito: esto no es una
+   * simulación, es una firma de verdad sobre datos de prueba.
+   */
+  emitirFirmaDePractica(numero, resultado) {
+    if (enLaNube()) return emisionSimuladaNoPermitida();
+    const c = deLaActiva(datos.comprobantes).find((x) => x.numero === numero);
+    if (!c) fallo(`No existe el comprobante ${numero}.`);
+    if (c.estado !== 'BORRADOR') {
+      fallo(`El comprobante ${numero} ya salió de borrador y no se puede volver a emitir. ` +
+            'Un comprobante emitido se corrige con una nota de crédito, no editándolo.');
+    }
+    c.estado = 'AUTORIZADO';
+    c.fechaAutorizacion = new Date();
+    c.simulado = false;
+    c.claveAcceso = resultado.claveAcceso;
+    c.firmaPractica = {
+      xml: resultado.xmlFirmado,
+      firmaValida: resultado.firmaValida,
+      certificado: resultado.certificado,
+      cuando: new Date().toISOString(),
+    };
+    persistir();
+    return esperar(c);
+  },
 };
 
 /**
@@ -8116,6 +8590,72 @@ async function altaEnLaNube(entrada) {
 
 
   return { reiniciar, empresaActiva, esLaDeEjemplo, cuentaDeVerdad, idEmpresaActiva, cargar, guardar };
+})();
+
+// ---- src/motor-practica.js ---------------------------------------
+const __src_motor_practica_js = (function () {
+
+
+/**
+ * El puente del navegador al servidor de práctica del SRI.
+ *
+ * `apps/firma/herramientas/servidor-practica.mjs` es un servicio que corre en
+ * el propio equipo, firma con el certificado de juguete y nunca llama al SRI
+ * de verdad (ver ese archivo para el porqué). Este módulo es lo único que lo
+ * conoce desde las pantallas: si no está corriendo, `disponible()` dice que
+ * no y todo sigue como hasta ahora —nada se rompe por no tenerlo prendido—.
+ *
+ * SOLO PARA LA EMPRESA DE EJEMPLO. `cuentaDeVerdad()` en `almacen.js` ya
+ * impide que una empresa real llegue a este camino; aun así, quien llame a
+ * esto es responsable de comprobarlo antes, porque este módulo no vuelve a
+ * preguntar.
+ */
+
+const BASE = 'http://localhost:8788';
+
+/** Si el servidor de práctica está prendido en este equipo. No lanza. */
+async function disponible() {
+  try {
+    const r = await fetch(`${BASE}/salud`, { signal: AbortSignal.timeout(1000) });
+    if (!r.ok) return false;
+    const datos = await r.json();
+    return Boolean(datos.vivo);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Manda la factura al servidor de práctica y devuelve el resultado firmado.
+ *
+ * @param {object} datos
+ * @param {object} datos.empresa       razonSocial, nombreComercial, ruc, dirMatriz, obligadoContabilidad
+ * @param {object} datos.comprobante   numero, fecha, formaPago, lineas (sin el cliente adentro)
+ * @param {object} datos.cliente       razonSocial, identificacion, tipo, direccion
+ * @param {string} [datos.rucProveedor]
+ * @returns {Promise<{claveAcceso: string, xmlFirmado: string, firmaValida: boolean, certificado: object, nota: string}>}
+ */
+async function firmarFactura({ empresa, comprobante, cliente, rucProveedor }) {
+  let r;
+  try {
+    r = await fetch(`${BASE}/v1/practica/factura`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ empresa, comprobante, cliente, rucProveedor }),
+    });
+  } catch {
+    throw new Error(
+      'No se pudo llegar al servidor de práctica en localhost:8788. ¿Está corriendo? ' +
+      'node apps/firma/herramientas/servidor-practica.mjs'
+    );
+  }
+  const datos = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(datos.error ?? 'El servidor de práctica no pudo firmar la factura.');
+  return datos;
+}
+
+
+  return { disponible, firmarFactura };
 })();
 
 // ---- src/disposicion.js ------------------------------------------
@@ -8313,19 +8853,46 @@ const TEMA_ADMIN = {
  * @param {string} contenido  el HTML de la vista, ya construido
  * @param {object} opciones   ruta actual y si es el mundo del super admin
  */
+// Las mismas cuatro pantallas que RUTAS_PLAN_BASICO bloquea en app.js, aquí
+// para que el menú no ofrezca un enlace que la ruta va a rechazar.
+const RUTAS_FUERA_DEL_BASICO = new Set(['#/inventario', '#/nomina', '#/activos', '#/anexo']);
+
+// Las mismas cinco de RUTAS_SOLO_ADMIN en app.js: configurar la empresa, no
+// solo emitir desde ella.
+const RUTAS_SOLO_ADMIN = new Set([
+  '#/puntos-emision', '#/configuracion', '#/certificado', '#/usuarios', '#/conexion',
+]);
+
+const quitarRutas = (menu, rutas) => menu
+  .map((seccion) => ({ ...seccion, enlaces: seccion.enlaces.filter((e) => !rutas.has(e.ruta)) }))
+  .filter((seccion) => seccion.enlaces.length > 0);
+
 /**
- * El menú según cómo lleva sus cuentas la empresa.
+ * El menú según cómo lleva sus cuentas la empresa, qué plan tiene y qué rol
+ * tiene quien entró.
  *
  * Quien no está obligado a llevar contabilidad no ve plan de cuentas, diario ni
  * balances, que no le sirven y lo confunden: ve su registro de ingresos y egresos.
+ * El plan Básico no ofrece inventario, nómina, activos fijos ni el anexo
+ * transaccional: son operación de un negocio más grande, no contabilidad. Y
+ * quien no es administrador —un facturador, un contador externo— emite y
+ * consulta, pero no configura: no ve el grupo «Sistema».
  */
 function menuDeEmpresa(empresa) {
-  if (empresa?.obligadoContabilidad !== false) return MENU_EMPRESA;
-  return MENU_EMPRESA.map((seccion) => (seccion.grupo === 'Contabilidad'
-    ? { grupo: 'Registro', enlaces: [
-        { ico: 'menu_book', texto: 'Ingresos y egresos', ruta: '#/ingresos-gastos' },
-      ] }
-    : seccion));
+  let menu = MENU_EMPRESA;
+
+  if (empresa?.obligadoContabilidad === false) {
+    menu = menu.map((seccion) => (seccion.grupo === 'Contabilidad'
+      ? { grupo: 'Registro', enlaces: [
+          { ico: 'menu_book', texto: 'Ingresos y egresos', ruta: '#/ingresos-gastos' },
+        ] }
+      : seccion));
+  }
+
+  if (empresa?.plan === 'Básico') menu = quitarRutas(menu, RUTAS_FUERA_DEL_BASICO);
+  if (sesion.usuario().rol !== 'Administrador') menu = quitarRutas(menu, RUTAS_SOLO_ADMIN);
+
+  return menu;
 }
 
 let ultimoMenu = [];
@@ -9016,6 +9583,7 @@ const __src_vistas_comprobantes_js = (function () {
   const { cargar, guardar, esLaDeEjemplo } = __src_almacen_js;
   const { asientoDeFactura, diarioCon, asientoDelDocumento } = __src_datos_contables_js;
   const { registroContable, sinRegistroContable, celdaAsiento } = __src_vistas_asiento_js;
+  const { disponible: motorPracticaDisponible, firmarFactura } = __src_motor_practica_js;
 
 /**
  * Los comprobantes emitidos: la lista y la ficha de cada uno.
@@ -9025,6 +9593,7 @@ const __src_vistas_comprobantes_js = (function () {
  * factura y qué hago ahora**. El rechazo del SRI no se muestra como un código
  * de error, se traduce.
  */
+
 
 
 
@@ -9044,6 +9613,18 @@ const marcaSimulado = crudo(
   'font-bold uppercase tracking-wide bg-ambar-fondo text-ambar-texto border border-ambar-borde">' +
   '<span class="ms text-[12px]">science</span>Simulado</span>');
 
+/**
+ * La marca de firma de práctica.
+ *
+ * Distinta de «Simulado» a propósito: aquí sí hubo una firma XAdES-BES real,
+ * sobre un XML real, con el certificado de juguete. Lo que falta es el envío
+ * al SRI, no la firma.
+ */
+const marcaFirmaPractica = crudo(
+  '<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] ' +
+  'font-bold uppercase tracking-wide bg-[#EEF2F6] text-[#3E5A73] border border-[#C7D2DD]">' +
+  '<span class="ms text-[12px]">draw</span>Firmado · prueba local</span>');
+
 const FILTROS = [
   { id: '', texto: 'Todos' },
   { id: 'AUTORIZADO', texto: 'Autorizados' },
@@ -9060,7 +9641,8 @@ async function comprobantes() {
     ? asientoDelDocumento(diario, c.numero, 'VENTA') : null);
 
   const cuerpo = lista.map((c) => html`
-    <tr class="hover:bg-papel transition cursor-pointer" onclick="location.hash='#/comprobantes/${c.numero}'">
+    <tr class="hover:bg-papel transition cursor-pointer" onclick="location.hash='#/comprobantes/${c.numero}'"
+        data-estado="${c.estado}" data-buscar="${`${c.numero} ${c.cliente.razonSocial} ${c.cliente.identificacion}`.toLowerCase()}">
       <td class="px-5 py-3.5">
         <a href="#/comprobantes/${c.numero}" class="text-sm font-semibold tabular hover:text-verde">${c.numero}</a>
         <span class="block text-[11px] text-tinta-suave">${c.tipo}</span>
@@ -9074,7 +9656,7 @@ async function comprobantes() {
       ${diario ? celdaAsiento(asientoDe(c)) : ''}
       <td class="px-5 py-3.5 text-right">
         <span class="inline-flex items-center gap-1.5">
-          ${c.simulado ? marcaSimulado : ''}${chipEstado(c.estado)}
+          ${c.simulado ? marcaSimulado : c.firmaPractica ? marcaFirmaPractica : ''}${chipEstado(c.estado)}
         </span>
       </td>
     </tr>`);
@@ -9101,19 +9683,82 @@ async function comprobantes() {
 
     <div class="flex flex-wrap items-center gap-2 mb-5">
       ${FILTROS.map((f, i) => crudo(
-        `<button class="pestana px-3.5 py-2 rounded-xl text-xs font-bold ${
+        `<button type="button" data-filtro="${esc(f.id)}" class="pestana px-3.5 py-2 rounded-xl text-xs font-bold ${
           i === 0 ? 'pestana-activa text-white' : 'text-tinta-suave hover:text-verde'
         }">${esc(f.texto)}</button>`))}
       <div class="flex-1"></div>
       <div class="relative">
         <span class="ms absolute left-3 top-1/2 -translate-y-1/2 text-[18px] text-tinta-suave">search</span>
-        <input placeholder="Buscar por número o cliente"
+        <input id="buscar-comprobantes" placeholder="Buscar por número o cliente"
                class="w-64 pl-10 pr-4 py-2 rounded-xl border border-papel-linea bg-white text-sm
                       placeholder:text-tinta-suave/60 focus:outline-none focus:border-verde">
       </div>
     </div>
 
-    <section class="bg-white border border-papel-linea rounded-2xl relieve overflow-hidden">${crudo(contenido)}</section>`;
+    <section class="bg-white border border-papel-linea rounded-2xl relieve overflow-hidden">
+      ${crudo(contenido)}
+      <p id="comprobantes-sin-resultados" hidden class="px-5 py-10 text-center text-sm text-tinta-suave">
+        Ningún comprobante coincide con ese filtro o esa búsqueda.
+      </p>
+    </section>`;
+}
+
+// ===========================================================================
+//  Filtrar y buscar en la lista, sin volver a pedir los datos
+// ===========================================================================
+
+let listaConectada = false;
+
+/**
+ * Enchufa los botones de filtro y el buscador de la lista.
+ *
+ * No hace falta volver a pedir los comprobantes: ya están todos en la tabla,
+ * marcados con su estado y su texto de búsqueda en `data-*`. Filtrar es solo
+ * mostrar y esconder filas.
+ */
+function conectarListaComprobantes() {
+  const zona = document.getElementById('raiz');
+  if (!zona) return;
+
+  const filas = () => [...zona.querySelectorAll('tbody tr[data-estado]')];
+  const sinResultados = () => document.getElementById('comprobantes-sin-resultados');
+
+  let filtro = '';
+  const aplicar = () => {
+    const texto = (document.getElementById('buscar-comprobantes')?.value ?? '').trim().toLowerCase();
+    let visibles = 0;
+    for (const fila of filas()) {
+      const coincideEstado = !filtro || fila.dataset.estado === filtro;
+      const coincideTexto = !texto || (fila.dataset.buscar ?? '').includes(texto);
+      const mostrar = coincideEstado && coincideTexto;
+      fila.hidden = !mostrar;
+      if (mostrar) visibles += 1;
+    }
+    const aviso = sinResultados();
+    if (aviso) aviso.hidden = visibles > 0 || filas().length === 0;
+  };
+
+  if (!listaConectada) {
+    listaConectada = true;
+    zona.addEventListener('click', (ev) => {
+      const boton = ev.target.closest('[data-filtro]');
+      if (!boton) return;
+      filtro = boton.dataset.filtro;
+      for (const otro of zona.querySelectorAll('[data-filtro]')) {
+        otro.classList.toggle('pestana-activa', otro === boton);
+        otro.classList.toggle('text-white', otro === boton);
+        otro.classList.toggle('text-tinta-suave', otro !== boton);
+      }
+      aplicar();
+    });
+    zona.addEventListener('input', (ev) => {
+      if (ev.target.id === 'buscar-comprobantes') aplicar();
+    });
+  }
+  // Cada vez que se vuelve a dibujar la lista (nueva navegación a la misma
+  // ruta) el filtro empieza en «Todos»: es lo que espera ver quien entra.
+  filtro = '';
+  aplicar();
 }
 
 // ===========================================================================
@@ -9227,6 +9872,15 @@ async function comprobante(numero) {
            'No tiene validez tributaria y no sirve para entregársela a un cliente.',
   }) : '';
 
+  const avisoFirmaPractica = c.firmaPractica ? aviso({
+    tono: 'info', ico: 'draw',
+    titulo: 'Firmada de verdad, pero con un certificado que no vale',
+    texto: 'El XML se armó y se firmó con XAdES-BES de verdad —el mismo camino que se usaría ' +
+           'con un certificado real—, pero con el certificado de juguete y sin enviarla al ' +
+           'SRI: un certificado de juguete no es de una entidad acreditada por ARCOTEL, así ' +
+           'que el SRI lo rechazaría. Prueba que la firma funciona; no tiene validez tributaria.',
+  }) : '';
+
   const esperando = c.estado === 'ENVIADO' ? aviso({
     tono: 'ambar', ico: 'hourglass_top',
     titulo: 'El SRI recibió la factura pero todavía no la resuelve',
@@ -9245,7 +9899,7 @@ async function comprobante(numero) {
         <div class="flex items-center gap-3">
           <h1 class="text-2xl font-bold tracking-tight tabular">${c.numero}</h1>
           ${chipEstado(c.estado)}
-          ${c.simulado ? marcaSimulado : ''}
+          ${c.simulado ? marcaSimulado : c.firmaPractica ? marcaFirmaPractica : ''}
         </div>
         <p class="mt-1 text-sm text-tinta-suave">
           ${c.tipo} · ${c.cliente.razonSocial} · ${fechaHora(c.fecha)}
@@ -9258,7 +9912,13 @@ async function comprobante(numero) {
            <span class="ms text-[18px]">account_tree</span>Ver registro contable</button>`)}
         ${c.estado === 'AUTORIZADO' ? [
           boton('Descargar RIDE', { ico: 'picture_as_pdf', tipo: 'secundario' }),
-          boton('Descargar XML', { ico: 'code', tipo: 'secundario' }),
+          c.firmaPractica
+            ? crudo(`<a href="data:application/xml;charset=utf-8,${encodeURIComponent(c.firmaPractica.xml)}"
+                        download="${esc(c.numero)}.xml"
+                        class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl boton-3d-claro
+                               text-tinta border border-papel-linea hover:text-verde text-sm font-semibold transition">
+                        <span class="ms text-[18px]">code</span>Descargar XML firmado</a>`)
+            : boton('Descargar XML', { ico: 'code', tipo: 'secundario' }),
           boton('Enviar por WhatsApp', { ico: 'send' })] : ''}
         ${c.estado === 'DEVUELTO' ? boton('Corregir y reenviar', { ico: 'edit' }) : ''}
         ${c.estado === 'BORRADOR' ? crudo(
@@ -9270,6 +9930,7 @@ async function comprobante(numero) {
     </header>
 
     ${crudo(avisoSimulado)}
+    ${crudo(avisoFirmaPractica)}
     ${crudo(esBorrador)}
     ${crudo(explicacionRechazo)}
     ${crudo(esperando)}
@@ -9351,6 +10012,25 @@ async function comprobante(numero) {
             </p>
           </section>`}
 
+        ${c.firmaPractica ? html`
+          <section class="bg-white border border-papel-linea rounded-2xl relieve p-5">
+            <h2 class="text-sm font-bold flex items-center gap-2">
+              ${icono('draw', 'text-[18px]')} XML firmado · certificado de juguete
+            </h2>
+            <p class="mt-2 text-[11px] text-tinta-suave leading-relaxed">
+              Firmado por ${c.firmaPractica.certificado.titular}, emitido por
+              ${c.firmaPractica.certificado.emitidoPor}. La firma
+              ${c.firmaPractica.firmaValida ? 'se comprobó y es válida' : 'NO se pudo comprobar'}
+              contra el propio XML.
+            </p>
+            <details class="mt-3">
+              <summary class="text-[11px] font-bold text-verde cursor-pointer select-none">
+                Ver el XML completo
+              </summary>
+              <pre class="mt-2 font-mono text-[10px] leading-relaxed bg-papel rounded-lg p-3 overflow-x-auto whitespace-pre-wrap break-all max-h-80 overflow-y-auto">${c.firmaPractica.xml}</pre>
+            </details>
+          </section>` : ''}
+
         <section class="bg-white border border-papel-linea rounded-2xl relieve p-5">
           <h2 class="text-sm font-bold mb-4">Datos de emisión</h2>
           <dl class="space-y-4">
@@ -9373,10 +10053,13 @@ let conectado = false;
 /**
  * Enchufa el botón de emitir.
  *
- * Emitir de verdad son tres pasos —firmar con el certificado, entregar al SRI y
- * preguntar si autorizó— y ninguno de los tres está conectado todavía. Así que
- * el botón avisa de eso antes de hacer nada, y solo sigue si la persona dice
- * que sí. Lo que salga queda marcado como simulado para siempre.
+ * Emitir de verdad son tres pasos: firmar con el certificado, entregar al SRI
+ * y preguntar si autorizó. El envío no está conectado todavía —eso sigue
+ * pendiente de un certificado real—, pero la firma sí, si hay un servidor de
+ * práctica corriendo en este equipo (`apps/firma/herramientas/servidor-practica.mjs`):
+ * arma el XML de verdad y lo firma con XAdES-BES, con el certificado de
+ * juguete. Sin ese servidor, se sigue como antes: la emisión simulada, sin
+ * ninguna firma, marcada para siempre como tal.
  */
 function conectarComprobante() {
   const zona = document.getElementById('raiz');
@@ -9386,33 +10069,72 @@ function conectarComprobante() {
   zona.addEventListener('click', async (ev) => {
     const boton = ev.target.closest('#emitir');
     if (!boton) return;
+    const numero = boton.dataset.numero;
+
+    // El servidor de práctica (apps/firma/herramientas/servidor-practica.mjs)
+    // solo corre si alguien lo prendió en este equipo. Si no está, se sigue
+    // como hasta ahora: la emisión simulada, sin ninguna firma.
+    const hayServidorPractica = await motorPracticaDisponible();
+
+    if (!hayServidorPractica) {
+      const seguir = window.confirm([
+        'Todavía no está conectada ni la firma electrónica ni el envío al SRI.',
+        'Se puede simular el recorrido para verlo funcionando. La factura quedará marcada ' +
+        'como SIMULADA en todas las pantallas y no tendrá ninguna validez tributaria.',
+        '¿Simular la emisión?',
+      ].join('\n\n'));
+      if (!seguir) return;
+
+      try {
+        await guardar.emitirSimulado(numero);
+        dejarRecado({
+          tono: 'ambar', ico: 'science',
+          titulo: 'Emisión simulada',
+          texto: 'La factura recorrió los estados como lo haría de verdad, pero no se firmó ' +
+                 'ni se envió a ningún sitio. Queda marcada como simulada.',
+        });
+      } catch (e) {
+        dejarRecado({ tono: 'rojo', ico: 'error', titulo: 'No se pudo emitir', texto: e.message });
+      }
+      window.dispatchEvent(new CustomEvent('kontia:redibujar'));
+      return;
+    }
 
     const seguir = window.confirm([
-      'Todavía no está conectada ni la firma electrónica ni el envío al SRI.',
-      'Se puede simular el recorrido para verlo funcionando. La factura quedará marcada ' +
-      'como SIMULADA en todas las pantallas y no tendrá ninguna validez tributaria.',
-      '¿Simular la emisión?',
+      'El envío al SRI todavía no está conectado, pero la firma electrónica sí: se va a armar ' +
+      'el XML de verdad y a firmarlo con XAdES-BES, con el certificado de juguete, en este equipo.',
+      'No se envía a ningún sitio y no tiene validez tributaria: el SRI no acepta un certificado ' +
+      'que no sea de una entidad acreditada.',
+      '¿Firmar esta factura con el certificado de práctica?',
     ].join('\n\n'));
     if (!seguir) return;
 
     try {
-      await guardar.emitirSimulado(boton.dataset.numero);
-      dejarRecado({
-        tono: 'ambar', ico: 'science',
-        titulo: 'Emisión simulada',
-        texto: 'La factura recorrió los estados como lo haría de verdad, pero no se firmó ' +
-               'ni se envió a ningún sitio. Queda marcada como simulada.',
+      const c = await cargar.comprobante(numero);
+      const empresa = await cargar.empresa();
+      const { rucProveedor } = await cargar.plataforma();
+      const resultado = await firmarFactura({
+        empresa,
+        cliente: c.cliente,
+        comprobante: { numero: c.numero, fecha: c.fecha, formaPago: c.formaPago, lineas: c.lineas },
+        rucProveedor: rucProveedor || undefined,
       });
-      window.dispatchEvent(new CustomEvent('kontia:redibujar'));
+      await guardar.emitirFirmaDePractica(numero, resultado);
+      dejarRecado({
+        tono: 'info', ico: 'draw',
+        titulo: 'Factura firmada con el certificado de práctica',
+        texto: `Clave de acceso ${resultado.claveAcceso}. La firma es real y se comprobó; ` +
+               'no se envió al SRI.',
+      });
     } catch (e) {
-      dejarRecado({ tono: 'rojo', ico: 'error', titulo: 'No se pudo emitir', texto: e.message });
-      window.dispatchEvent(new CustomEvent('kontia:redibujar'));
+      dejarRecado({ tono: 'rojo', ico: 'error', titulo: 'No se pudo firmar', texto: e.message });
     }
+    window.dispatchEvent(new CustomEvent('kontia:redibujar'));
   });
 }
 
 
-  return { comprobantes, comprobante, conectarComprobante };
+  return { comprobantes, conectarListaComprobantes, comprobante, conectarComprobante };
 })();
 
 // ---- src/vistas/emision.js ---------------------------------------
@@ -10151,6 +10873,98 @@ async function formularioProducto(codigo) {
 }
 
 // ===========================================================================
+//  Proveedor
+// ===========================================================================
+
+async function formularioProveedor(ruc) {
+  const p = ruc && ruc !== 'nuevo' ? await cargar.proveedor(ruc) : null;
+  const nuevo = !p;
+
+  return html`
+    ${volver('#/proveedores', 'Proveedores')}
+    ${crudo(cabecera({
+      titulo: nuevo ? 'Nuevo proveedor' : p.razonSocial,
+      descripcion: 'Si vende bienes o servicios, y si es contribuyente especial, decide con ' +
+                   'qué porcentaje se le retiene al pagarle. No es la misma ficha que la de un cliente.',
+    }))}
+
+    <div id="recado"></div>
+
+    <form id="forma-proveedor" class="grid gap-5 lg:grid-cols-3" onsubmit="return false">
+      <section class="lg:col-span-2 bg-white border border-papel-linea rounded-2xl relieve p-5 space-y-4">
+        <h2 class="text-sm font-bold">Identificación</h2>
+        <div class="grid gap-4 sm:grid-cols-2">
+          ${campo({
+            id: 'ruc', etiqueta: 'RUC', valor: p?.ruc ?? '', marcador: '0990123456001',
+            ayuda: 'Trece dígitos terminados en 001 para la matriz. Un proveedor siempre se ' +
+                   'identifica con RUC, no con cédula.',
+          })}
+          ${campo({
+            id: 'razonSocial', etiqueta: 'Razón social', valor: p?.razonSocial ?? '',
+            marcador: 'Fertilizantes del Pacífico S.A.',
+          })}
+        </div>
+        ${campo({ id: 'ciudad', etiqueta: 'Ciudad', valor: p?.ciudad ?? '', marcador: 'Guayaquil' })}
+
+        <h2 class="text-sm font-bold pt-2">Qué le compra, y cómo se le retiene</h2>
+        <div class="grid gap-4 sm:grid-cols-3">
+          ${seleccion({
+            id: 'tipo', etiqueta: 'Vende', opciones: [['Bienes', 'Bienes'], ['Servicios', 'Servicios']],
+            valor: p?.tipo ?? 'Bienes',
+            ayuda: 'El porcentaje de retención de renta no es el mismo para uno que para otro.',
+          })}
+          ${campo({
+            id: 'retencionIR', etiqueta: 'Retención de renta', valor: p?.retencionIR ?? '',
+            tipo: 'number', marcador: '2', extra: 'min="0" max="100" step="0.01"',
+            ayuda: 'El porcentaje, no el valor.',
+          })}
+          ${campo({
+            id: 'retencionIVA', etiqueta: 'Retención de IVA', valor: p?.retencionIVA ?? '',
+            tipo: 'number', marcador: '30', extra: 'min="0" max="100" step="0.01"',
+          })}
+        </div>
+        <label class="flex items-center gap-2.5 pt-1">
+          <input id="contribuyenteEspecial" type="checkbox" ${p?.contribuyenteEspecial ? 'checked' : ''}
+                 class="w-4 h-4 accent-[#0C3A27]">
+          <span class="text-sm">Es contribuyente especial</span>
+        </label>
+
+        <h2 class="text-sm font-bold pt-2">Contacto</h2>
+        <div class="grid gap-4 sm:grid-cols-2">
+          ${campo({ id: 'correo', etiqueta: 'Correo', valor: p?.correo ?? '', tipo: 'email', marcador: 'ventas@proveedor.com.ec' })}
+          ${campo({ id: 'telefono', etiqueta: 'Teléfono', valor: p?.telefono ?? '', marcador: '(04) 216 7788' })}
+        </div>
+
+        <div class="flex flex-wrap justify-end gap-2 pt-2">
+          ${boton('Cancelar', { ruta: '#/proveedores', tipo: 'secundario' })}
+          <button id="guardar-proveedor" data-editando="${p?.ruc ?? ''}"
+                  class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-verde text-white
+                         text-sm font-semibold hover:bg-verde-oscuro transition">
+            <span class="ms text-[18px]">save</span>${nuevo ? 'Registrar proveedor' : 'Guardar cambios'}
+          </button>
+        </div>
+      </section>
+
+      <section class="bg-white border border-papel-linea rounded-2xl relieve p-5 h-fit">
+        <div class="flex items-center gap-2 mb-3">
+          ${icono('content_cut', 'text-[20px] text-verde')}
+          <h2 class="text-sm font-bold">Por qué esto decide cuánto se le paga</h2>
+        </div>
+        <div class="space-y-3 text-[12px] text-tinta-suave leading-relaxed">
+          <p>
+            Al registrar una compra de este proveedor, el sistema propone sola la retención con
+            estos porcentajes. Si están mal aquí, la retención sale mal en cada compra.
+          </p>
+          <p class="text-tinta">
+            Si no sabe con certeza el porcentaje, es exactamente la clase de pregunta para la
+            consulta legal-tributaria: equivocarlo es una retención mal declarada.
+          </p>
+        </div>
+      </section>
+    </form>`;
+}
+
+// ===========================================================================
 //  Lo que hacen los formularios al pulsar guardar
 // ===========================================================================
 
@@ -10197,6 +11011,32 @@ function conectarFormularios() {
       return;
     }
 
+    if (ev.target.closest('#guardar-proveedor')) {
+      const boton = ev.target.closest('#guardar-proveedor');
+      try {
+        const p = await guardar.proveedor({
+          rucOriginal: boton.dataset.editando || undefined,
+          ruc: valor('ruc'),
+          razonSocial: valor('razonSocial'),
+          ciudad: valor('ciudad'),
+          tipo: valor('tipo'),
+          retencionIR: valor('retencionIR'),
+          retencionIVA: valor('retencionIVA'),
+          contribuyenteEspecial: document.getElementById('contribuyenteEspecial')?.checked ?? false,
+          correo: valor('correo'),
+          telefono: valor('telefono'),
+        });
+        dejarRecado({
+          tono: 'info', ico: 'check_circle', titulo: 'Proveedor registrado',
+          texto: `${p.razonSocial} ya está en su lista. La próxima compra que le registre va a proponer su retención sola.`,
+        });
+        location.hash = '#/proveedores';
+      } catch (e) {
+        mostrarError(e);
+      }
+      return;
+    }
+
     if (ev.target.closest('#guardar-producto')) {
       const boton = ev.target.closest('#guardar-producto');
       try {
@@ -10222,7 +11062,7 @@ function conectarFormularios() {
 }
 
 
-  return { formularioCliente, formularioProducto, conectarFormularios };
+  return { formularioCliente, formularioProducto, formularioProveedor, conectarFormularios };
 })();
 
 // ---- src/vistas/importar.js --------------------------------------
@@ -10477,7 +11317,7 @@ function conectarImportar() {
 // ---- src/vistas/empresa.js ---------------------------------------
 const __src_vistas_empresa_js = (function () {
   const { html, crudo, esc, icono, tabla, boton, cabecera, aviso, dato, chipEstado, fechaLarga, dejarRecado } = __src_ui_js;
-  const { cargar, cuentaDeVerdad, idEmpresaActiva } = __src_almacen_js;
+  const { cargar, guardar, cuentaDeVerdad, idEmpresaActiva } = __src_almacen_js;
   const { hayServicioDeFirma, estadoDelCertificado, subirCertificado } = __src_firma_nube_js;
 
 /**
@@ -10502,24 +11342,26 @@ const __src_vistas_empresa_js = (function () {
 async function configuracion() {
   const e = await cargar.empresa();
 
-  const campo = (etiqueta, valor, ayuda = '') => html`
+  const campo = (id, etiqueta, valor, ayuda = '') => html`
     <label class="block">
       <span class="text-[11px] font-bold uppercase tracking-wide text-tinta-suave">${etiqueta}</span>
-      <input value="${valor}" class="mt-1.5 w-full px-3.5 py-2.5 rounded-xl border border-papel-linea
+      <input id="${id}" value="${valor}" class="mt-1.5 w-full px-3.5 py-2.5 rounded-xl border border-papel-linea
                                      bg-white text-sm focus:outline-none focus:border-verde">
       ${ayuda ? crudo(`<span class="mt-1.5 block text-[11px] text-tinta-suave leading-relaxed">${esc(ayuda)}</span>`) : ''}
     </label>`;
 
-  const interruptor = (etiqueta, activo, ayuda) => html`
+  const interruptor = (campo, etiqueta, activo, ayuda) => html`
     <div class="flex items-start justify-between gap-4 py-4 border-b border-papel-linea last:border-0">
       <div class="min-w-0">
         <p class="text-sm font-semibold">${etiqueta}</p>
         <p class="mt-0.5 text-[11px] text-tinta-suave leading-relaxed">${ayuda}</p>
       </div>
-      <span class="shrink-0 w-11 h-6 rounded-full flex items-center px-0.5 ${crudo(
-        activo ? 'bg-verde justify-end' : 'bg-papel-linea justify-start')}">
+      <button type="button" data-interruptor="${campo}" data-activo="${activo ? '1' : ''}"
+              aria-pressed="${activo ? 'true' : 'false'}"
+              class="shrink-0 w-11 h-6 rounded-full flex items-center px-0.5 transition-colors ${crudo(
+                activo ? 'bg-verde justify-end' : 'bg-papel-linea justify-start')}">
         <span class="w-5 h-5 rounded-full bg-white shadow"></span>
-      </span>
+      </button>
     </div>`;
 
   return html`
@@ -10527,21 +11369,25 @@ async function configuracion() {
       titulo: 'Datos de la empresa',
       descripcion: 'Lo que aparece en la cabecera de cada comprobante. El SRI compara estos ' +
                    'datos con los de su RUC: si no coinciden, rechaza.',
-      acciones: boton('Guardar cambios', { ico: 'save' }),
+      acciones: crudo(`<button id="guardar-empresa" class="inline-flex items-center gap-2 px-4 py-2.5
+                       rounded-xl bg-verde text-white text-sm font-semibold hover:bg-verde-oscuro transition">
+                       <span class="ms text-[18px]">save</span>Guardar cambios</button>`),
     }))}
+
+    <div id="recado"></div>
 
     <div class="grid gap-5 lg:grid-cols-3">
       <div class="lg:col-span-2 space-y-5">
         <section class="bg-white border border-papel-linea rounded-2xl relieve p-5">
           <h2 class="text-sm font-bold mb-4">Identificación</h2>
           <div class="grid gap-4 sm:grid-cols-2">
-            ${campo('Razón social', e.razonSocial, 'Tal como consta en el RUC. No es el nombre comercial.')}
-            ${campo('Nombre comercial', e.nombreComercial, 'El de la puerta del local. Es opcional.')}
-            ${campo('RUC', e.ruc, 'Trece dígitos terminados en 001 para el establecimiento matriz.')}
-            ${campo('Correo de facturación', e.correo, 'A donde llegan las copias de lo emitido.')}
+            ${campo('empresa-razonSocial', 'Razón social', e.razonSocial, 'Tal como consta en el RUC. No es el nombre comercial.')}
+            ${campo('empresa-nombreComercial', 'Nombre comercial', e.nombreComercial, 'El de la puerta del local. Es opcional.')}
+            ${campo('empresa-ruc', 'RUC', e.ruc, 'Trece dígitos terminados en 001 para el establecimiento matriz.')}
+            ${campo('empresa-correo', 'Correo de facturación', e.correo, 'A donde llegan las copias de lo emitido.')}
           </div>
           <div class="mt-4">
-            ${campo('Dirección matriz', e.dirMatriz)}
+            ${campo('empresa-dirMatriz', 'Dirección matriz', e.dirMatriz)}
           </div>
         </section>
 
@@ -10551,14 +11397,14 @@ async function configuracion() {
             Estos datos cambian lo que se imprime en cada factura, lo que viaja en el XML y
             cómo se registran las compras. No se marcan por costumbre: se marcan si es así.
           </p>
-          ${interruptor('Obligado a llevar contabilidad', e.obligadoContabilidad,
+          ${interruptor('obligadoContabilidad', 'Obligado a llevar contabilidad', e.obligadoContabilidad,
             'Se imprime en el RIDE de cada comprobante. Depende de sus ingresos y su capital.')}
-          ${interruptor('Contribuyente especial', e.contribuyenteEspecial,
+          ${interruptor('contribuyenteEspecial', 'Contribuyente especial', e.contribuyenteEspecial,
             'Solo si el SRI lo designó por resolución. Lleva el número de esa resolución.')}
-          ${interruptor('Agente de retención', e.agenteRetencion,
+          ${interruptor('agenteRetencion', 'Agente de retención', e.agenteRetencion,
             'Si lo es, está obligado a retener al pagar a sus proveedores y a emitir el ' +
             'comprobante de retención.')}
-          ${interruptor('Maneja inventario', e.manejaInventario !== false,
+          ${interruptor('manejaInventario', 'Maneja inventario', e.manejaInventario !== false,
             'Si lleva inventario, la mercadería comprada va a la cuenta de inventario y pasa al ' +
             'costo recién al vender. Si no, la compra va directo al costo.')}
         </section>
@@ -10581,16 +11427,32 @@ async function configuracion() {
             Pasar a producción es una decisión que no se deshace: a partir de ese momento
             cada factura emitida existe para el SRI y anularla exige una nota de crédito.
           </p>
-          <button class="mt-3 w-full py-2.5 rounded-xl border border-papel-linea text-sm font-semibold
-                         hover:border-verde hover:text-verde transition">
+          <button disabled title="Falta un certificado de firma real y el servicio de firma conectado"
+                  class="mt-3 w-full py-2.5 rounded-xl border border-papel-linea text-sm font-semibold
+                         text-tinta-suave/50 cursor-not-allowed">
             Pasar a producción
           </button>
+          <p class="mt-2 text-[11px] text-tinta-suave leading-relaxed">
+            Todavía no disponible: hace falta un certificado de firma real (no el de pruebas) y
+            que el servicio de firma esté conectado. Kontia no deja pasar a producción con un
+            clic mientras falte cualquiera de las dos.
+          </p>
         </section>
 
         <section class="bg-white border border-papel-linea rounded-2xl relieve p-5">
           <h2 class="text-sm font-bold mb-4">Plan contratado</h2>
+          <label class="block mb-4">
+            <span class="text-[11px] font-bold uppercase tracking-wide text-tinta-suave">Plan</span>
+            <select id="empresa-plan" class="mt-1.5 w-full px-3.5 py-2.5 rounded-xl border border-papel-linea
+                                              bg-white text-sm focus:outline-none focus:border-verde">
+              <option value="Profesional" ${e.plan === 'Básico' ? '' : 'selected'}>Profesional — todas las pantallas</option>
+              <option value="Básico" ${e.plan === 'Básico' ? 'selected' : ''}>Básico — sin inventario, nómina, activos fijos ni anexo</option>
+            </select>
+            <span class="mt-1.5 block text-[11px] text-tinta-suave leading-relaxed">
+              El plan Básico oculta esas cuatro pantallas y bloquea su dirección aunque se teclee a mano.
+            </span>
+          </label>
           <dl class="space-y-4">
-            ${dato('Plan', e.plan)}
             ${dato('Régimen', e.regimen)}
             ${dato('Teléfono', e.telefono)}
           </dl>
@@ -10977,8 +11839,76 @@ function conectarCertificado() {
   });
 }
 
+// ===========================================================================
+//  Guardar los datos de la empresa
+// ===========================================================================
 
-  return { configuracion, certificado, usuarios, puntosEmision, conectarCertificado };
+let conectadoConfiguracion = false;
+
+/**
+ * Enchufa los interruptores y el botón de guardar de «Datos de la empresa».
+ *
+ * Los interruptores son un botón, no una casilla, porque tienen que verse
+ * como el resto del sistema. Se voltean al tocarlos, y lo que valga cada uno
+ * en ese momento —no en el que se dibujó la pantalla— es lo que se manda al
+ * guardar.
+ */
+function conectarConfiguracion() {
+  const zona = document.getElementById('raiz');
+  if (!zona || conectadoConfiguracion) return;
+  conectadoConfiguracion = true;
+
+  zona.addEventListener('click', async (ev) => {
+    const interruptor = ev.target.closest('[data-interruptor]');
+    if (interruptor) {
+      const activo = interruptor.dataset.activo === '1';
+      interruptor.dataset.activo = activo ? '' : '1';
+      interruptor.setAttribute('aria-pressed', String(!activo));
+      interruptor.classList.toggle('bg-verde', !activo);
+      interruptor.classList.toggle('justify-end', !activo);
+      interruptor.classList.toggle('bg-papel-linea', activo);
+      interruptor.classList.toggle('justify-start', activo);
+      return;
+    }
+
+    const boton = ev.target.closest('#guardar-empresa');
+    if (!boton) return;
+
+    const valor = (id) => document.getElementById(id)?.value ?? '';
+    const activo = (campo) => zona.querySelector(`[data-interruptor="${campo}"]`)?.dataset.activo === '1';
+
+    boton.disabled = true;
+    try {
+      await guardar.datosEmpresa({
+        razonSocial: valor('empresa-razonSocial'),
+        nombreComercial: valor('empresa-nombreComercial'),
+        ruc: valor('empresa-ruc'),
+        correo: valor('empresa-correo'),
+        dirMatriz: valor('empresa-dirMatriz'),
+        obligadoContabilidad: activo('obligadoContabilidad'),
+        contribuyenteEspecial: activo('contribuyenteEspecial'),
+        agenteRetencion: activo('agenteRetencion'),
+        manejaInventario: activo('manejaInventario'),
+        plan: document.getElementById('empresa-plan')?.value,
+      });
+      dejarRecado({
+        tono: 'verde', ico: 'check_circle', titulo: 'Datos guardados',
+        texto: 'Los próximos comprobantes van a salir con estos datos.',
+      });
+      window.dispatchEvent(new CustomEvent('kontia:redibujar'));
+    } catch (e) {
+      const sitio = document.getElementById('recado');
+      if (sitio) {
+        sitio.innerHTML = String(aviso({ tono: 'rojo', ico: 'error', titulo: 'No se pudo guardar', texto: e.message }));
+        sitio.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
+      boton.disabled = false;
+    }
+  });
+}
+
+
+  return { configuracion, certificado, usuarios, puntosEmision, conectarCertificado, conectarConfiguracion };
 })();
 
 // ---- src/vistas/admin.js -----------------------------------------
@@ -12737,7 +13667,7 @@ async function guiasRemision() {
 const __src_vistas_finanzas_js = (function () {
   const { html, crudo, esc, usd, dinero, icono, tabla, cabecera, aviso, boton, fecha, empresaEnBlanco, dejarRecado } = __src_ui_js;
   const { dona, leyenda, barraCompuesta, VERDE, AMBAR, ROJO } = __src_graficos_js;
-  const { CARTERA_COBRAR, CARTERA_PAGAR, BANCOS, saldoFinalDelBanco, diarioCon } = __src_datos_contables_js;
+  const { CARTERA_PAGAR, BANCOS, saldoFinalDelBanco, diarioCon } = __src_datos_contables_js;
   const { esLaDeEjemplo, cargar } = __src_almacen_js;
   const { movimientosDeLibros, conciliar, asientoDeAjuste, queEs, leerEstadoDeCuenta, PLANTILLA_ESTADO_DE_CUENTA, TOLERANCIA_DIAS } = __src_conciliacion_js;
   const { registroContable } = __src_vistas_asiento_js;
@@ -12824,7 +13754,7 @@ function pantallaCartera({ lista, campo, titulo, descripcion, etiquetaContrapart
   return html`
     ${crudo(cabecera({
       titulo, descripcion,
-      acciones: cobrar ? boton('Registrar cobro', { ico: 'payments' })
+      acciones: cobrar ? boton('Registrar cobro', { ico: 'payments', ruta: '#/por-cobrar/cobrar' })
         : boton('Registrar pago', { ico: 'payments', ruta: '#/por-pagar/pagar' }),
     }))}
 
@@ -12895,7 +13825,8 @@ function pantallaCartera({ lista, campo, titulo, descripcion, etiquetaContrapart
 }
 
 const cuentasPorCobrar = async () => (esLaDeEjemplo() ? pantallaCartera({
-  lista: CARTERA_COBRAR, campo: 'cliente', cobrar: true, ico: 'request_quote',
+  // Con los cobros registrados ya descontados.
+  lista: (await cargar.porCobrar()).filter((x) => x.saldo > 0.004), campo: 'cliente', cobrar: true, ico: 'request_quote',
   titulo: 'Cuentas por cobrar',
   descripcion: 'Lo que le deben, ordenado por lo que lleva más tiempo esperando.',
   etiquetaContraparte: 'Cliente',
@@ -13267,7 +14198,7 @@ function conectarBancos() {
 const __src_vistas_pagos_js = (function () {
   const { html, crudo, esc, icono, usd, dinero, fecha, cabecera, boton, aviso, vacio, dejarRecado } = __src_ui_js;
   const { cargar, guardar, esLaDeEjemplo } = __src_almacen_js;
-  const { prepararPago, asientoDePago } = __src_datos_contables_js;
+  const { prepararPago, asientoDePago, prepararCobro, asientoDeCobro } = __src_datos_contables_js;
   const { registroContable } = __src_vistas_asiento_js;
 
 /**
@@ -13478,8 +14409,202 @@ function conectarPago() {
   });
 }
 
+// ===========================================================================
+//  Registrar un cobro (el mismo patrón, del lado de las cuentas por cobrar)
+// ===========================================================================
 
-  return { registrarPago, conectarPago };
+async function registrarCobro() {
+  const pendientes = esLaDeEjemplo() ? (await cargar.porCobrar()).filter((x) => x.saldo > 0.004) : [];
+
+  if (!pendientes.length) {
+    return html`
+      ${crudo(cabecera({ titulo: 'Registrar cobro' }))}
+      <section class="bg-white border border-papel-linea rounded-2xl relieve">
+        ${crudo(vacio({
+          ico: 'task_alt', titulo: 'No hay facturas pendientes de cobro',
+          texto: 'Todo lo que le deben los clientes está cobrado.',
+          accion: boton('Volver a cuentas por cobrar', { ruta: '#/por-cobrar', tipo: 'secundario' }),
+        }))}
+      </section>`;
+  }
+
+  const hoy = new Date(2026, 8, 30).toISOString().slice(0, 10);
+
+  return html`
+    <a href="#/por-cobrar" class="inline-flex items-center gap-1.5 text-xs font-bold text-tinta-suave hover:text-verde mb-4">
+      ${icono('arrow_back', 'text-[16px]')} Cuentas por cobrar
+    </a>
+    ${crudo(cabecera({
+      titulo: 'Registrar cobro',
+      descripcion: 'Una factura o varias en un solo cobro, registrado igual que en el banco.',
+    }))}
+
+    ${crudo(aviso({
+      tono: 'info', ico: 'account_balance',
+      titulo: 'Un cobro masivo es un solo depósito',
+      texto: 'Si el banco muestra un solo depósito que cancela varias facturas (cash management), ' +
+             'elíjalas todas aquí: queda un solo cobro con la fecha y la referencia del banco, y la ' +
+             'conciliación lo empareja uno a uno.',
+    }))}
+
+    <form id="forma-cobro" class="space-y-5">
+      <section class="bg-white border border-papel-linea rounded-2xl relieve p-5 grid gap-4 sm:grid-cols-3">
+        <label class="block">
+          <span class="text-[11px] font-bold uppercase tracking-wide text-tinta-suave">Fecha del cobro</span>
+          <input id="cobro-fecha" type="date" value="${hoy}"
+                 class="mt-1.5 w-full px-3.5 py-2.5 rounded-xl border border-papel-linea bg-white text-sm focus:outline-none focus:border-verde">
+        </label>
+        <label class="block sm:col-span-2">
+          <span class="text-[11px] font-bold uppercase tracking-wide text-tinta-suave">Referencia del banco</span>
+          <input id="cobro-referencia" type="text" autocomplete="off" placeholder="Ej.: CM-20260930 o número de depósito"
+                 class="mt-1.5 w-full px-3.5 py-2.5 rounded-xl border border-papel-linea bg-white text-sm focus:outline-none focus:border-verde">
+          <span class="mt-1 block text-[11px] text-tinta-suave">
+            La que aparece en el estado de cuenta. Con ella, la conciliación encuentra el cobro aunque el banco lo registre otro día.
+          </span>
+        </label>
+      </section>
+
+      <section class="bg-white border border-papel-linea rounded-2xl relieve overflow-hidden">
+        <header class="px-5 py-4 border-b border-papel-linea">
+          <h2 class="text-sm font-bold">Facturas que se cobran</h2>
+          <p class="text-[11px] text-tinta-suave mt-0.5">Marque cada una y ajuste el valor si es un cobro parcial.</p>
+        </header>
+        <div class="overflow-x-auto">
+          <table class="w-full text-sm min-w-[600px]">
+            <thead>
+              <tr class="text-[11px] uppercase tracking-wide text-tinta-suave">
+                <th class="px-5 py-2 w-10"></th>
+                <th class="px-2 py-2 text-left font-bold">Cliente y factura</th>
+                <th class="px-3 py-2 text-left font-bold">Vence</th>
+                <th class="px-3 py-2 text-right font-bold">Saldo</th>
+                <th class="px-5 py-2 text-right font-bold w-40">Se cobra</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-papel-linea">
+              ${pendientes.map((x, i) => html`
+                <tr>
+                  <td class="px-5 py-3">
+                    <input type="checkbox" id="cobro-marca-${String(i)}" data-cobro-marca="${x.documento}" class="accent-[#0C3A27] w-4 h-4">
+                  </td>
+                  <td class="px-2 py-3">
+                    <label for="cobro-marca-${String(i)}" class="block cursor-pointer">
+                      <span class="block font-semibold">${x.cliente}</span>
+                      <span class="block text-[11px] text-tinta-suave tabular">Factura ${x.documento}</span>
+                    </label>
+                  </td>
+                  <td class="px-3 py-3 whitespace-nowrap text-tinta-suave">${fecha(x.vence)}</td>
+                  <td class="px-3 py-3 text-right tabular">${dinero(x.saldo)}</td>
+                  <td class="px-5 py-3 text-right">
+                    <input type="number" step="0.01" min="0" max="${String(x.saldo)}" value="${x.saldo.toFixed(2)}"
+                           id="cobro-valor-${String(i)}" data-cobro-valor="${x.documento}"
+                           class="w-32 px-3 py-2 rounded-lg border border-papel-linea text-right tabular focus:outline-none focus:border-verde">
+                  </td>
+                </tr>`)}
+            </tbody>
+          </table>
+        </div>
+        <div class="flex flex-wrap items-center justify-between gap-3 px-5 py-4 border-t border-papel-linea bg-papel/60">
+          <span class="text-sm text-tinta-suave" id="cobro-cuantas">Ninguna factura elegida</span>
+          <span class="text-lg font-extrabold tabular" id="cobro-total">${usd(0)}</span>
+        </div>
+      </section>
+
+      <div id="cobro-vista-previa"></div>
+      <div id="cobro-recado"></div>
+
+      <div class="flex flex-wrap justify-end gap-2">
+        ${boton('Cancelar', { ruta: '#/por-cobrar', tipo: 'secundario' })}
+        <button type="submit" class="px-5 py-2.5 rounded-xl bg-verde text-white text-sm font-bold hover:bg-verde-oscuro transition">
+          Registrar cobro
+        </button>
+      </div>
+    </form>`;
+}
+
+function leerFormularioCobro() {
+  const documentos = [...document.querySelectorAll('[data-cobro-marca]')]
+    .filter((m) => m.checked)
+    .map((m) => {
+      const campo = document.querySelector(`[data-cobro-valor="${CSS.escape(m.dataset.cobroMarca)}"]`);
+      return { documento: m.dataset.cobroMarca, valor: Number(campo?.value || 0) };
+    });
+  return {
+    fecha: document.getElementById('cobro-fecha')?.value,
+    referencia: document.getElementById('cobro-referencia')?.value,
+    documentos,
+  };
+}
+
+async function actualizarVistaPreviaCobro() {
+  const entrada = leerFormularioCobro();
+  const cuantas = document.getElementById('cobro-cuantas');
+  const total = document.getElementById('cobro-total');
+  const previa = document.getElementById('cobro-vista-previa');
+  const recado = document.getElementById('cobro-recado');
+  if (recado) recado.innerHTML = '';
+
+  const suma = entrada.documentos.reduce((s, d) => s + Math.round(d.valor * 100), 0) / 100;
+  if (total) total.textContent = usd(suma);
+  if (cuantas) {
+    const n = entrada.documentos.length;
+    cuantas.textContent = n === 0 ? 'Ninguna factura elegida'
+      : n === 1 ? '1 factura · un cobro'
+        : `${n} facturas · un solo cobro masivo`;
+  }
+  if (!previa) return;
+  if (!entrada.documentos.length) { previa.innerHTML = ''; return; }
+  try {
+    const pendientes = (await cargar.porCobrar()).filter((x) => x.saldo > 0.004);
+    const cobro = prepararCobro(entrada, pendientes);
+    previa.innerHTML = String(registroContable(asientoDeCobro(cobro), {
+      vistaPrevia: true, id: 'cobro-asiento',
+      nota: 'Una línea por factura en cartera y un solo depósito del banco, como en el estado de cuenta.',
+    }));
+  } catch (error) {
+    previa.innerHTML = String(aviso({ tono: 'ambar', ico: 'rule', titulo: 'Revise el cobro', texto: error.message }));
+  }
+}
+
+let conectadoCobro = false;
+
+function conectarCobro() {
+  const zona = document.getElementById('raiz');
+  if (!zona || conectadoCobro) return;
+  conectadoCobro = true;
+
+  const siEsDelCobro = (ev) => ev.target.closest('#forma-cobro');
+  zona.addEventListener('change', (ev) => { if (siEsDelCobro(ev)) actualizarVistaPreviaCobro(); });
+  zona.addEventListener('input', (ev) => { if (siEsDelCobro(ev)) actualizarVistaPreviaCobro(); });
+
+  zona.addEventListener('submit', async (ev) => {
+    if (!ev.target.closest('#forma-cobro')) return;
+    ev.preventDefault();
+    try {
+      const { cobro, asiento } = await guardar.cobroClientes(leerFormularioCobro());
+      const libros = await cargar.librosDelMes();
+      const enLibros = libros.find((a) => a.tipo === 'COBRO' && a.origen === asiento.origen
+        && String(a.fecha) === String(asiento.fecha));
+      dejarRecado({
+        tono: 'exito', ico: 'check_circle',
+        titulo: cobro.documentos.length > 1
+          ? `Cobro masivo registrado: ${cobro.documentos.length} facturas por ${usd(cobro.total)}`
+          : `Cobro registrado por ${usd(cobro.total)}`,
+        texto: `Queda como un solo depósito del banco${cobro.referencia ? ` con la referencia ${cobro.referencia}` : ''}` +
+               (enLibros ? `, en el asiento #${enLibros.numero} del diario.` : '.'),
+      });
+      location.hash = '#/por-cobrar';
+    } catch (error) {
+      const recado = document.getElementById('cobro-recado');
+      if (recado) {
+        recado.innerHTML = String(aviso({ tono: 'rojo', ico: 'error', titulo: 'No se registró el cobro', texto: error.message }));
+        recado.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
+    }
+  });
+}
+
+
+  return { registrarPago, conectarPago, registrarCobro, conectarCobro };
 })();
 
 // ---- src/vistas/operaciones.js -----------------------------------
@@ -13821,7 +14946,7 @@ async function activosFijos() {
 const __src_vistas_proveedores_js = (function () {
   const { html, crudo, esc, usd, dinero, icono, tabla, cabecera, aviso, boton, vacio, dato, fecha, empresaEnBlanco } = __src_ui_js;
   const { dona, leyenda, barras } = __src_graficos_js;
-  const { PROVEEDORES, RETENCIONES, CARTERA_PAGAR, comprasDelLibro, diarioCon, valoresDeRetencion } = __src_datos_contables_js;
+  const { RETENCIONES, CARTERA_PAGAR, comprasDelLibro, diarioCon, valoresDeRetencion } = __src_datos_contables_js;
   const { esLaDeEjemplo, cargar } = __src_almacen_js;
 
 /**
@@ -13858,7 +14983,7 @@ async function proveedores() {
     })}`;
   }
 
-  const lista = PROVEEDORES.filter((p) => p.activo !== false);
+  const lista = await cargar.proveedores();
   const total = lista.reduce((s, p) => s + Math.round(p.comprado * 100), 0) / 100;
   const conDeuda = lista.filter((p) => p.saldo > 0);
   const deuda = conDeuda.reduce((s, p) => s + Math.round(p.saldo * 100), 0) / 100;
@@ -13911,7 +15036,7 @@ async function proveedores() {
     ${crudo(cabecera({
       titulo: 'Proveedores',
       descripcion: 'A quién le compra la empresa, y con qué porcentajes se le retiene al pagarle.',
-      acciones: boton('Añadir proveedor', { ico: 'add_business' }),
+      acciones: boton('Añadir proveedor', { ico: 'add_business', ruta: '#/proveedores/nuevo' }),
     }))}
 
     ${crudo(aviso({
@@ -13970,7 +15095,7 @@ async function proveedores() {
         ico: 'local_shipping', titulo: 'Todavía no tiene proveedores registrados',
         texto: 'Registrarlos evita teclear su RUC en cada compra y permite que la retención ' +
                'se proponga sola.',
-        accion: boton('Registrar el primer proveedor', { ico: 'add_business' }),
+        accion: boton('Registrar el primer proveedor', { ico: 'add_business', ruta: '#/proveedores/nuevo' }),
       }))}
     </section>`;
 }
@@ -13984,7 +15109,7 @@ async function proveedores() {
  * que se le debe. Cada línea lleva a su documento, y el documento a su asiento.
  */
 async function proveedor(ruc) {
-  const p = esLaDeEjemplo() ? PROVEEDORES.find((x) => x.ruc === ruc) : null;
+  const p = await cargar.proveedor(ruc);
   if (!p) {
     return html`
       <section class="bg-white border border-papel-linea rounded-2xl relieve">
@@ -17006,19 +18131,19 @@ const __src_app_js = (function () {
   const { marco, suelta, conectarMenu } = __src_disposicion_js;
   const { seleccionEmpresa } = __src_vistas_acceso_js;
   const { resumen } = __src_vistas_resumen_js;
-  const { comprobantes, comprobante, conectarComprobante } = __src_vistas_comprobantes_js;
+  const { comprobantes, comprobante, conectarComprobante, conectarListaComprobantes } = __src_vistas_comprobantes_js;
   const { emision, conectarEmision } = __src_vistas_emision_js;
   const { clientes, productos } = __src_vistas_catalogo_js;
   const { importarClientes, importarProductos, conectarImportar } = __src_vistas_importar_js;
-  const { formularioCliente, formularioProducto, conectarFormularios } = __src_vistas_formularios_js;
-  const { configuracion, certificado, usuarios, puntosEmision, conectarCertificado } = __src_vistas_empresa_js;
+  const { formularioCliente, formularioProducto, formularioProveedor, conectarFormularios } = __src_vistas_formularios_js;
+  const { configuracion, certificado, usuarios, puntosEmision, conectarCertificado, conectarConfiguracion } = __src_vistas_empresa_js;
   const { adminEmpresas, adminAlta, adminFicha, adminAuditoria, conectarAlta, conectarFicha } = __src_vistas_admin_js;
   const { pendiente } = __src_vistas_pendiente_js;
   const { planDeCuentas, libroDiario, libroMayor, balanceComprobacion, enfocarAsiento } = __src_vistas_contabilidad_js;
   const { estadoResultados, balanceGeneral } = __src_vistas_estados_js;
   const { retenciones, retencion, notasCredito, notaCredito, guiasRemision } = __src_vistas_documentos_js;
   const { cuentasPorCobrar, cuentasPorPagar, bancos, conectarBancos } = __src_vistas_finanzas_js;
-  const { registrarPago, conectarPago } = __src_vistas_pagos_js;
+  const { registrarPago, conectarPago, registrarCobro, conectarCobro } = __src_vistas_pagos_js;
   const { inventario, nomina, activosFijos } = __src_vistas_operaciones_js;
   const { proveedores, proveedor } = __src_vistas_proveedores_js;
   const { buzon, conectarBuzon } = __src_vistas_buzon_js;
@@ -17087,7 +18212,7 @@ const RUTAS = [
   { patron: /^#\/empresas\/?$/, vista: seleccionEmpresa, sinMarco: true },
 
   { patron: /^#\/resumen\/?$/, vista: resumen },
-  { patron: /^#\/comprobantes\/?$/, vista: comprobantes },
+  { patron: /^#\/comprobantes\/?$/, vista: comprobantes, alDibujar: conectarListaComprobantes },
   { patron: /^#\/comprobantes\/nuevo\/?$/, vista: emision, alDibujar: conectarEmision },
   { patron: /^#\/comprobantes\/([\d-]+)\/?$/, vista: comprobante, alDibujar: conectarComprobante },
   { patron: /^#\/clientes\/?$/, vista: clientes },
@@ -17102,7 +18227,7 @@ const RUTAS = [
   { patron: /^#\/productos\/(nuevo)\/?$/, vista: formularioProducto, alDibujar: conectarFormularios },
   { patron: /^#\/productos\/([^/]+)\/?$/, vista: formularioProducto, alDibujar: conectarFormularios },
   { patron: /^#\/usuarios\/?$/, vista: usuarios },
-  { patron: /^#\/configuracion\/?$/, vista: configuracion },
+  { patron: /^#\/configuracion\/?$/, vista: configuracion, alDibujar: conectarConfiguracion },
   { patron: /^#\/certificado\/?$/, vista: certificado, alDibujar: conectarCertificado },
   { patron: /^#\/conexion\/?$/, vista: conexion },
   { patron: /^#\/puntos-emision\/?$/, vista: puntosEmision },
@@ -17125,9 +18250,11 @@ const RUTAS = [
   { patron: /^#\/por-cobrar\/?$/, vista: cuentasPorCobrar },
   { patron: /^#\/por-pagar\/?$/, vista: cuentasPorPagar },
   { patron: /^#\/por-pagar\/pagar\/?$/, vista: registrarPago, alDibujar: conectarPago },
+  { patron: /^#\/por-cobrar\/cobrar\/?$/, vista: registrarCobro, alDibujar: conectarCobro },
   { patron: /^#\/bancos\/?$/, vista: bancos, alDibujar: conectarBancos },
 
   { patron: /^#\/proveedores\/?$/, vista: proveedores },
+  { patron: /^#\/proveedores\/(nuevo)\/?$/, vista: formularioProveedor, alDibujar: conectarFormularios },
   { patron: /^#\/proveedores\/(\d{13})\/?$/, vista: proveedor },
   { patron: /^#\/buzon\/?$/, vista: buzon, alDibujar: conectarBuzon },
   { patron: /^#\/compras\/?$/, vista: compras },
@@ -17169,6 +18296,20 @@ const PENDIENTES = {
  * no las tiene: tiene su registro de ingresos y egresos.
  */
 const RUTAS_DE_LIBROS = /^#\/(plan-cuentas|diario|mayor|comprobacion|resultados|situacion)(\/|$)/;
+
+/**
+ * Las pantallas que el plan Básico no incluye: inventario, nómina, activos
+ * fijos y el anexo transaccional. No son de contabilidad —esas las decide
+ * `obligadoContabilidad`, no el plan— sino operación de un negocio más grande.
+ */
+const RUTAS_PLAN_BASICO = /^#\/(inventario|nomina|activos|anexo)(\/|$)/;
+
+/**
+ * Las pantallas de configuración de la empresa. Un facturador emite desde sus
+ * puntos asignados, pero no configura: no ve puntos de emisión, certificado,
+ * usuarios ni la conexión con Supabase.
+ */
+const RUTAS_SOLO_ADMIN = /^#\/(puntos-emision|configuracion|certificado|usuarios|conexion)(\/|$)/;
 
 /**
  * Las pantallas que todavía no leen de la base de datos.
@@ -17351,6 +18492,19 @@ async function dibujar() {
              'ingresos y egresos (Reglamento de la LRTI, art. 38), no libros contables. Lo encuentra ' +
              'en «Ingresos y egresos».',
     });
+  } else if (!admin && opciones.empresa?.plan === 'Básico' && RUTAS_PLAN_BASICO.test(r.ruta)) {
+    contenido = pendiente({
+      titulo: 'Esta pantalla no está en el plan Básico', ico: 'workspace_premium', etiqueta: 'Cambie de plan',
+      texto: 'Factura, cuentas por cobrar y por pagar, y su registro contable ya están incluidos. ' +
+             'Inventario, nómina, activos fijos y el anexo transaccional se habilitan al pasar a un ' +
+             'plan mayor.',
+    });
+  } else if (!admin && sesion.usuario().rol !== 'Administrador' && RUTAS_SOLO_ADMIN.test(r.ruta)) {
+    contenido = pendiente({
+      titulo: 'Esto lo ve el administrador de la empresa', ico: 'lock', etiqueta: 'Sin acceso',
+      texto: 'Su rol emite y consulta comprobantes, pero no configura la empresa. Si necesita entrar ' +
+             'aquí, pídaselo al administrador.',
+    });
   } else if (!admin && perfilDeLaNube() && RUTAS_SIN_BASE.test(r.ruta)) {
     contenido = pendiente({
       titulo: 'Todavía sin datos reales', ico: 'cloud_sync', etiqueta: 'En preparación',
@@ -17432,6 +18586,24 @@ function ofrecerIngresoReal() {
 
 window.addEventListener('hashchange', dibujar);
 
+/**
+ * Las tarjetas de «pruébelo ahora mismo» solo salen en la dirección de
+ * demostración (…/demo), no en la real: a quien ya tiene una empresa no le
+ * sirve de nada un botón para entrar como Sandra o Juan Carlos, y confunde.
+ *
+ * La dirección de demostración no es una pantalla nueva ni un archivo aparte
+ * —sería el mismo error de los dos `index.html` de antes, pero con dos
+ * `demo.html`—: es esta misma página con `?demo` en la URL, puesta ahí por
+ * el 404 de GitHub Pages cuando alguien pide «/demo» (ver
+ * `construir-archivo-unico.py`).
+ */
+function ajustarSegunDireccion() {
+  if (new URLSearchParams(location.search).has('demo')) return;
+  document.querySelector('.papeles')?.remove();
+  document.querySelector('.separa')?.remove();
+  document.getElementById('nota-demo')?.remove();
+}
+
 /*
  * Se pregunta por la base de datos ANTES de dibujar nada. Si se dibujara
  * primero, la pantalla de ingreso apareceria diciendo que no hay cuentas y se
@@ -17439,6 +18611,7 @@ window.addEventListener('hashchange', dibujar);
  * dudar de un sistema.
  */
 async function arrancar() {
+  ajustarSegunDireccion();
   try {
     if (await arrancarNube()) {
       ofrecerIngresoReal();

@@ -26,11 +26,17 @@
    *
    * Se comprueba que no estemos ya en la raiz para no dar vueltas en redondo si
    * algun dia falta el index.html.
+   *
+   * Y un caso mas: /demo no es un archivo, asi que GitHub Pages tambien sirve
+   * esta misma pagina para esa direccion. Se reconoce aqui y se manda con
+   * ?demo, que es lo unico que distingue la direccion de demostracion de la
+   * real (ver `ajustarSegunDireccion` en app.js).
    */
   (function () {
     var aqui = location.pathname;
-    if (!/\/$/.test(aqui) && !/index\.html$/.test(aqui)) {
-      location.replace('./' + location.hash);
+    var esDemo = /\/demo\/?$/i.test(aqui);
+    if (esDemo || (!/\/$/.test(aqui) && !/index\.html$/.test(aqui))) {
+      location.replace('./' + (esDemo ? '?demo' : '') + location.hash);
     }
   })();
 </script>
