@@ -18,7 +18,7 @@
  * instala el trabajador nuevo solo, y al activarse borra lo guardado por el
  * anterior (mas abajo). Ya no hay que acordarse de subir un numero a mano.
  */
-const VERSION = '3a1a60bac62f';
+const VERSION = '1215ca88bf2c';
 const CACHE = 'kontia-' + VERSION;
 const PROPIOS = ['./', './index.html', './manifiesto.json',
                  './iconos/icono-192.png', './iconos/icono-512.png'];

@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <!-- La version publicada: la pone el empaquetador y la pagina la compara con la del servidor. -->
-<meta name="kontia-version" content="3a1a60bac62f">
+<meta name="kontia-version" content="1215ca88bf2c">
 <title>Kontia</title>
 <meta name="theme-color" content="#0F7B4F">
 <link rel="manifest" href="manifiesto.json">
@@ -18598,10 +18598,43 @@ window.addEventListener('hashchange', dibujar);
  * `construir-archivo-unico.py`).
  */
 function ajustarSegunDireccion() {
-  if (new URLSearchParams(location.search).has('demo')) return;
+  const pideDemo = new URLSearchParams(location.search).has('demo');
+  if (pideDemo && !DEMO_SUSPENDIDA) return;
   document.querySelector('.papeles')?.remove();
   document.querySelector('.separa')?.remove();
-  document.getElementById('nota-demo')?.remove();
+  if (!(pideDemo && DEMO_SUSPENDIDA)) {
+    document.getElementById('nota-demo')?.remove();
+    return;
+  }
+  // Quien llega por «…/demo» con la demostración suspendida tiene que enterarse
+  // de por qué no ve las tarjetas: sin aviso, parece que el enlace está roto.
+  const nota = document.getElementById('nota-demo');
+  if (nota) {
+    nota.textContent = 'La demostración está suspendida por ahora. Si quiere conocer '
+      + 'Kontia, escríbanos desde Contacto y se la enseñamos.';
+  }
+  for (const enlace of document.querySelectorAll('a[href="#ingresar"]')) {
+    if (enlace.textContent.trim() !== 'Probar la demostración') continue;
+    enlace.textContent = 'Pedir una demostración';
+    enlace.setAttribute('href', '#contacto');
+  }
+  if (!location.hash) location.hash = '#ingresar';
+}
+
+/**
+ * La demostración (…/demo) está SUSPENDIDA por decisión del dueño desde el
+ * 12-oct-2026: «yo te confirmaré cuando lo actives». Para reactivarla basta
+ * poner `false` aquí y publicar.
+ *
+ * Mientras esté en `true`, las tarjetas de ejemplo no salen ni con `?demo`, y
+ * al arrancar se suelta cualquier papel de demostración que el navegador
+ * recordara de una visita anterior (si no, quien ya había entrado seguiría
+ * dentro). Las cuentas de verdad no se tocan.
+ */
+const DEMO_SUSPENDIDA = true;
+
+function cerrarDemoSiEstaSuspendida() {
+  if (DEMO_SUSPENDIDA && sesion.papelActual()) sesion.olvidarPapel();
 }
 
 /*
@@ -18611,6 +18644,7 @@ function ajustarSegunDireccion() {
  * dudar de un sistema.
  */
 async function arrancar() {
+  cerrarDemoSiEstaSuspendida();
   ajustarSegunDireccion();
   try {
     if (await arrancarNube()) {
