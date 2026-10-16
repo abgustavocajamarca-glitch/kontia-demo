@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <!-- La version publicada: la pone el empaquetador y la pagina la compara con la del servidor. -->
-<meta name="kontia-version" content="1215ca88bf2c">
+<meta name="kontia-version" content="4f5de8aea97b">
 <title>Kontia</title>
 <meta name="theme-color" content="#0F7B4F">
 <link rel="manifest" href="manifiesto.json">
@@ -1949,7 +1949,7 @@
       <span class="rotulo">Planes</span>
       <h1>Lo que trae cada plan</h1>
       <p>
-        Tres formas de usar Kontia, según quién lleva la contabilidad. Las tarifas se
+        Cuatro formas de usar Kontia, según cuánto vende y quién lleva la contabilidad. Las tarifas se
         publican cuando el servicio salga de la demostración: preferimos no poner un
         número que después haya que corregir.
       </p>
@@ -1958,7 +1958,21 @@
 
   <section class="bloque franja">
     <div class="centro">
-      <div class="rejilla col-3" style="margin-top:0">
+      <div class="rejilla col-2" style="margin-top:0">
+        <div class="carta plan">
+          <h3>Vende</h3>
+          <p>Para el negocio pequeño que factura y cobra desde el celular.</p>
+          <ul class="ticks">
+            <li>Facturas y proformas, con PDF para enviar</li>
+            <li>Ventas al contado y a crédito</li>
+            <li>Cuentas por cobrar y recibos de cobro</li>
+            <li>Estado de cuenta de cada cliente</li>
+            <li>Anulación guiada según las reglas del SRI</li>
+            <li>Reporte de ventas</li>
+          </ul>
+          <div class="precio">Por definir<small>Tarifa mensual, sin contrato de permanencia.</small></div>
+        </div>
+
         <div class="carta plan">
           <h3>Emprende</h3>
           <p>Para quien factura poco y necesita estar en regla.</p>
@@ -2207,6 +2221,14 @@
           cuenta real.
         -->
         <div class="papeles">
+          <button type="button" class="papel" data-papel="vendedora">
+            <span class="ini">CR</span>
+            <span>
+              <b>Carmen Rivas</b>
+              <i>Dueña del negocio · plan Vende</i>
+              <em>Ve Papelería La Esquina: factura, proformas, cobros, estado de cuenta de cada cliente y reporte de ventas.</em>
+            </span>
+          </button>
           <button type="button" class="papel" data-papel="emprendedora">
             <span class="ini">SL</span>
             <span>
@@ -3342,6 +3364,122 @@ const COMPROBANTES_EMPRENDE = [
   }),
 ];
 
+// ===========================================================================
+//  Tercera empresa de ejemplo: plan Vende
+//
+//  Un negocio pequeño que solo factura y cobra: proformas, ventas al contado y
+//  a crédito, cobros con recibo y estado de cuenta de cada cliente. Las fechas
+//  dejan una factura que todavía se puede anular en el SRI (octubre), otras que
+//  ya solo admiten nota de crédito (septiembre) y una a consumidor final, que
+//  no se puede anular. Todo es ficticio.
+// ===========================================================================
+
+const EMPRESA_VENDE = {
+  id: 'papeleria-la-esquina',
+  razonSocial: 'Carmen Rivas Mendoza',
+  nombreComercial: 'Papelería La Esquina',
+  ruc: '0917654329001',
+  dirMatriz: 'Av. Principal y calle 2, Daule, Guayas',
+  regimen: 'RIMPE Emprendedor',
+  obligadoContabilidad: false,
+  manejaInventario: false,
+  contribuyenteEspecial: false,
+  agenteRetencion: false,
+  ambiente: 'PRUEBAS',
+  plan: 'Vende',
+  correo: 'ventas@papelerialaesquina.ec',
+  telefono: '099 000 1122',
+};
+
+const PUNTOS_EMISION_VENDE = [
+  { codigo: '001-001', nombre: 'Mostrador', lugar: 'Matriz, Daule', ultimo: 9, activo: true },
+];
+
+const CLIENTES_VENDE = [
+  { id: 'v0', razonSocial: 'CONSUMIDOR FINAL', identificacion: '9999999999999',
+    tipo: 'CONSUMIDOR_FINAL', ciudad: '', correo: '', telefono: '', comprobantes: 0, facturado: 0 },
+  { id: 'v1', razonSocial: 'Unidad Educativa El Ejemplo', identificacion: '0960000000001',
+    tipo: 'RUC', ciudad: 'Daule', correo: 'compras@ueejemplo.ec',
+    telefono: '099 111 2233', comprobantes: 0, facturado: 0 },
+  { id: 'v2', razonSocial: 'Rosa Ejemplo Pérez', identificacion: '0922334453',
+    tipo: 'CEDULA', ciudad: 'Daule', correo: 'rosa.ejemplo@correo.ec',
+    telefono: '099 222 3344', comprobantes: 0, facturado: 0 },
+  { id: 'v3', razonSocial: 'Tienda Don Ejemplo', identificacion: '0911223360',
+    tipo: 'CEDULA', ciudad: 'Nobol', correo: '',
+    telefono: '099 333 4455', comprobantes: 0, facturado: 0 },
+];
+
+const PRODUCTOS_VENDE = [
+  { codigo: 'CUA-100', descripcion: 'Cuaderno universitario 100 hojas', unidad: 'UNIDAD', precio: 1.85, iva: 15, tipo: 'Bien' },
+  { codigo: 'RES-A4', descripcion: 'Resma de papel bond A4', unidad: 'RESMA', precio: 4.60, iva: 15, tipo: 'Bien' },
+  { codigo: 'ESF-AZ', descripcion: 'Esferográfico azul', unidad: 'UNIDAD', precio: 0.35, iva: 15, tipo: 'Bien' },
+  { codigo: 'MOC-01', descripcion: 'Mochila escolar', unidad: 'UNIDAD', precio: 18.50, iva: 15, tipo: 'Bien' },
+  { codigo: 'COP-BN', descripcion: 'Copia blanco y negro', unidad: 'HOJA', precio: 0.05, iva: 15, tipo: 'Servicio' },
+  { codigo: 'LIB-LEC', descripcion: 'Libro de lectura', unidad: 'UNIDAD', precio: 9.90, iva: 0, tipo: 'Bien' },
+];
+
+const lineaV = (codigo, cantidad, descuento = 0) => {
+  const p = PRODUCTOS_VENDE.find((x) => x.codigo === codigo);
+  return { codigo, descripcion: p.descripcion, cantidad, precio: p.precio, descuento, iva: p.iva };
+};
+
+/** Clave de acceso de 49 dígitos con su verificador módulo 11 (ficha técnica, numeral 4). */
+function claveDeEjemplo(fecha, secuencial) {
+  const dd = String(fecha.getDate()).padStart(2, '0');
+  const mm = String(fecha.getMonth() + 1).padStart(2, '0');
+  const base = `${dd}${mm}${fecha.getFullYear()}01${EMPRESA_VENDE.ruc}1001001${String(secuencial).padStart(9, '0')}${String(10000000 + secuencial).slice(-8)}1`;
+  let suma = 0, factor = 2;
+  for (let i = base.length - 1; i >= 0; i--) { suma += Number(base[i]) * factor; factor = factor === 7 ? 2 : factor + 1; }
+  const dv = 11 - (suma % 11);
+  return base + (dv === 11 ? 0 : dv === 10 ? 1 : dv);
+}
+
+const facturaV = (secuencial, fecha, cliente, lineas, { credito = null, formaPago = '01 · Sin utilización del sistema financiero' } = {}) => {
+  const clave = claveDeEjemplo(fecha, secuencial);
+  return conTotales({
+    numero: `001-001-${String(secuencial).padStart(9, '0')}`, tipo: 'Factura', estado: 'AUTORIZADO',
+    cliente, fecha, fechaAutorizacion: new Date(fecha.getTime() + 40000),
+    claveAcceso: clave, autorizacion: clave, formaPago, lineas,
+    credito: credito ? { dias: credito, vence: new Date(fecha.getFullYear(), fecha.getMonth(), fecha.getDate() + credito) } : null,
+  });
+};
+
+const COMPROBANTES_VENDE = [
+  facturaV(9, new Date(2026, 9, 14, 17, 5), CLIENTES_VENDE[0], [lineaV('COP-BN', 60), lineaV('ESF-AZ', 3)]),
+  facturaV(8, new Date(2026, 9, 6, 10, 30), CLIENTES_VENDE[2], [lineaV('LIB-LEC', 1), lineaV('CUA-100', 2)],
+    { formaPago: '20 · Otros con utilización del sistema financiero' }),
+  facturaV(7, new Date(2026, 9, 5, 9, 15), CLIENTES_VENDE[3], [lineaV('MOC-01', 2)], { credito: 15 }),
+  facturaV(6, new Date(2026, 9, 3, 11, 0), CLIENTES_VENDE[1], [lineaV('RES-A4', 10), lineaV('LIB-LEC', 15)], { credito: 30 }),
+  facturaV(5, new Date(2026, 8, 26, 16, 20), CLIENTES_VENDE[2], [lineaV('CUA-100', 3)],
+    { formaPago: '16 · Tarjeta de débito' }),
+  facturaV(4, new Date(2026, 8, 20, 12, 40), CLIENTES_VENDE[0], [lineaV('COP-BN', 120)]),
+  facturaV(3, new Date(2026, 8, 14, 15, 10), CLIENTES_VENDE[3], [lineaV('CUA-100', 24), lineaV('ESF-AZ', 48)], { credito: 15 }),
+  facturaV(2, new Date(2026, 8, 9, 10, 5), CLIENTES_VENDE[2], [lineaV('MOC-01', 1), lineaV('LIB-LEC', 2)],
+    { formaPago: '20 · Otros con utilización del sistema financiero' }),
+  facturaV(1, new Date(2026, 8, 5, 9, 0), CLIENTES_VENDE[1], [lineaV('RES-A4', 20), lineaV('ESF-AZ', 50)], { credito: 30 }),
+];
+
+const facturaVende = (n) => COMPROBANTES_VENDE.find((c) => c.numero.endsWith(String(n).padStart(9, '0')));
+
+/** Cobros: la escuela pagó su primera factura completa; la tienda abonó la mitad de la suya. */
+const RECIBOS_VENDE = [
+  { numero: 'RC-000001', fecha: new Date(2026, 9, 2, 10, 0), cliente: CLIENTES_VENDE[3],
+    monto: Math.round(facturaVende(3).totales.total * 50) / 100, forma: 'Efectivo', nota: '',
+    aplicaciones: [{ numero: facturaVende(3).numero, monto: Math.round(facturaVende(3).totales.total * 50) / 100 }],
+    estado: 'VIGENTE' },
+  { numero: 'RC-000002', fecha: new Date(2026, 9, 4, 11, 30), cliente: CLIENTES_VENDE[1],
+    monto: facturaVende(1).totales.total, forma: 'Transferencia', nota: 'Transferencia del colegio',
+    aplicaciones: [{ numero: facturaVende(1).numero, monto: facturaVende(1).totales.total }],
+    estado: 'VIGENTE' },
+];
+
+const lineasProforma = [lineaV('MOC-01', 30), lineaV('CUA-100', 60)];
+const PROFORMAS_VENDE = [
+  { numero: 'PRO-000001', fecha: new Date(2026, 9, 7, 9, 0), cliente: CLIENTES_VENDE[1],
+    lineas: lineasProforma, totales: totalizar(lineasProforma), validezDias: 15,
+    validaHasta: new Date(2026, 9, 22), nota: 'Precio especial por volumen.', estado: 'VIGENTE' },
+];
+
 const SEMILLA = {
   empresa: EMPRESA,
   puntos: PUNTOS_EMISION,
@@ -3358,10 +3496,311 @@ const SEMILLA = {
   clientesEmprende: CLIENTES_EMPRENDE,
   productosEmprende: PRODUCTOS_EMPRENDE,
   comprobantesEmprende: COMPROBANTES_EMPRENDE,
+  empresaVende: EMPRESA_VENDE,
+  puntosVende: PUNTOS_EMISION_VENDE,
+  clientesVende: CLIENTES_VENDE,
+  productosVende: PRODUCTOS_VENDE,
+  comprobantesVende: COMPROBANTES_VENDE,
+  recibosVende: RECIBOS_VENDE,
+  proformasVende: PROFORMAS_VENDE,
 };
 
 
-  return { TARIFAS_IVA, TIPOS_IDENTIFICACION, FORMAS_PAGO, EMPRESA, PUNTOS_EMISION, CERTIFICADO, CLIENTES, PRODUCTOS, USUARIOS, totalizar, COMPROBANTES, RESUMEN, EMPRESAS_ADMIN, AUDITORIA, EMPRESA_EMPRENDE, PUNTOS_EMISION_EMPRENDE, CLIENTES_EMPRENDE, PRODUCTOS_EMPRENDE, COMPROBANTES_EMPRENDE, SEMILLA };
+  return { TARIFAS_IVA, TIPOS_IDENTIFICACION, FORMAS_PAGO, EMPRESA, PUNTOS_EMISION, CERTIFICADO, CLIENTES, PRODUCTOS, USUARIOS, totalizar, COMPROBANTES, RESUMEN, EMPRESAS_ADMIN, AUDITORIA, EMPRESA_EMPRENDE, PUNTOS_EMISION_EMPRENDE, CLIENTES_EMPRENDE, PRODUCTOS_EMPRENDE, COMPROBANTES_EMPRENDE, EMPRESA_VENDE, PUNTOS_EMISION_VENDE, CLIENTES_VENDE, PRODUCTOS_VENDE, COMPROBANTES_VENDE, RECIBOS_VENDE, PROFORMAS_VENDE, SEMILLA };
+})();
+
+// ---- src/ventas.js -----------------------------------------------
+const __src_ventas_js = (function () {
+
+
+/**
+ * Las reglas del plan Vende, sin pantalla: anulación de facturas, cobros a
+ * crédito, estado de cuenta de cada cliente y reporte de ventas.
+ *
+ * Vienen de Kontiarito (otra plataforma, independiente) y se reescribieron para
+ * los datos de Kontia: aquí los totales están en dólares y las fechas son
+ * objetos Date. Por dentro todo se cuenta en centavos enteros, como en
+ * `totalizar()`, para que una suma de cien facturas no termine en ,9999.
+ */
+
+const cent = (d) => Math.round(Number(d || 0) * 100);
+const dol = (c) => c / 100;
+
+// ===========================================================================
+//  Fechas
+// ===========================================================================
+
+/** 'AAAA-MM-DD' de una fecha local (sin corrimiento por zona horaria). */
+const iso = (d) => {
+  const x = new Date(d);
+  return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}-${String(x.getDate()).padStart(2, '0')}`;
+};
+const deIso = (s) => { const [a, m, d] = s.split('-').map(Number); return new Date(a, m - 1, d); };
+/** 2026-09-29 -> 29/09/2026, como se escribe en el país. */
+const dma = (d) => iso(d).split('-').reverse().join('/');
+const sumarDias = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); return x; };
+const diasEntre = (desde, hasta) => Math.round((deIso(iso(hasta)) - deIso(iso(desde))) / 86400000);
+
+/** Domingo de Pascua (algoritmo de Gauss / Meeus). */
+function pascua(anio) {
+  const a = anio % 19; const b = Math.floor(anio / 100); const c = anio % 100;
+  const d = Math.floor(b / 4); const e = b % 4; const f = Math.floor((b + 8) / 25);
+  const g = Math.floor((b - f + 1) / 3); const h = (19 * a + b - d - g + 15) % 30;
+  const i = Math.floor(c / 4); const k = c % 4; const l = (32 + 2 * e + 2 * i - h - k) % 7;
+  const m = Math.floor((a + 11 * h + 22 * l) / 451);
+  const mes = Math.floor((h + l - 7 * m + 114) / 31);
+  const dia = ((h + l - 7 * m + 114) % 31) + 1;
+  return iso(new Date(anio, mes - 1, dia));
+}
+
+/**
+ * Feriados nacionales fijos más Carnaval y Viernes Santo. Los traslados que
+ * decreta el Gobierno cada año y los feriados locales no están: por eso la
+ * pantalla avisa que, si el último día es feriado, el plazo corre al siguiente.
+ */
+function feriadosNacionales(anio) {
+  const p = deIso(pascua(anio));
+  return new Set([
+    `${anio}-01-01`, iso(sumarDias(p, -48)), iso(sumarDias(p, -47)), iso(sumarDias(p, -2)),
+    `${anio}-05-01`, `${anio}-05-24`, `${anio}-08-10`, `${anio}-10-09`,
+    `${anio}-11-02`, `${anio}-11-03`, `${anio}-12-25`,
+  ]);
+}
+
+const esHabil = (d) => {
+  const dia = d.getDay();
+  return dia !== 0 && dia !== 6 && !feriadosNacionales(d.getFullYear()).has(iso(d));
+};
+
+// ===========================================================================
+//  Anulación (Res. NAC-DGERCGC25-00000014, reformada por la 25-00000017)
+// ===========================================================================
+
+/**
+ * Último día para anular en línea: el 7 del mes siguiente al de emisión, o el
+ * siguiente día hábil si cae en descanso o feriado (art. 3).
+ */
+function limiteAnulacion(fechaEmision) {
+  const f = new Date(fechaEmision);
+  let d = new Date(f.getFullYear(), f.getMonth() + 1, 7);
+  while (!esHabil(d)) d = sumarDias(d, 1);
+  return d;
+}
+
+/**
+ * Qué se puede hacer para dejar sin efecto una factura.
+ *  - SRI: anularla en el portal del SRI (art. 2: «a través del portal web
+ *    institucional o el Facturador SRI»; un sistema de terceros no puede).
+ *  - NOTA_CREDITO: pasado el plazo, solo con nota de crédito (art. 3).
+ *  - NINGUNA: factura a consumidor final, desde el 1-ene-2026 (art. 3, último inciso).
+ *  - NO_APLICA: no está autorizada (borrador, devuelta, esperando al SRI).
+ */
+function viaDeAnulacion(c, hoy = new Date()) {
+  if (c.estado === 'ANULADO' || c.anulacion) return { via: 'YA_ANULADA' };
+  if (c.notaCredito) return { via: 'YA_CON_NOTA' };
+  if (c.estado !== 'AUTORIZADO') return { via: 'NO_APLICA' };
+  if (c.cliente?.tipo === 'CONSUMIDOR_FINAL' && new Date(c.fecha) >= new Date(2026, 0, 1)) {
+    return { via: 'NINGUNA' };
+  }
+  const limite = limiteAnulacion(c.fecha);
+  return { via: iso(hoy) <= iso(limite) ? 'SRI' : 'NOTA_CREDITO', limite };
+}
+
+// ===========================================================================
+//  Cobros y cartera
+// ===========================================================================
+
+/** Si la factura cuenta como venta (ni borrador, ni anulada, ni devuelta). */
+const esVentaVigente = (c) =>
+  c.tipo === 'Factura' && !['BORRADOR', 'DEVUELTO', 'NO_AUTORIZADO', 'ANULADO'].includes(c.estado);
+
+/** Lo que el cliente todavía debe de una factura a crédito, en dólares. */
+function saldoDeFactura(c, recibos) {
+  if (!c.credito || !esVentaVigente(c) || c.notaCredito) return 0;
+  const pagado = recibos
+    .filter((r) => r.estado !== 'ANULADO')
+    .flatMap((r) => r.aplicaciones)
+    .filter((a) => a.numero === c.numero)
+    .reduce((s, a) => s + cent(a.monto), 0);
+  return dol(cent(c.totales.total) - pagado);
+}
+
+/** Reparte un cobro entre las facturas pendientes, de la más antigua a la más nueva. */
+function repartirCobro(monto, facturas, recibos) {
+  const pendientes = facturas
+    .map((c) => ({ c, saldo: cent(saldoDeFactura(c, recibos)) }))
+    .filter((x) => x.saldo > 0)
+    .sort((a, b) => new Date(a.c.fecha) - new Date(b.c.fecha) || a.c.numero.localeCompare(b.c.numero));
+  let resto = cent(monto);
+  const aplicaciones = [];
+  for (const { c, saldo } of pendientes) {
+    if (resto <= 0) break;
+    const parte = Math.min(resto, saldo);
+    aplicaciones.push({ numero: c.numero, monto: dol(parte) });
+    resto -= parte;
+  }
+  return { aplicaciones, sobrante: dol(resto) };
+}
+
+const cubeta = (atraso) => (atraso <= 0 ? 'porVencer' : atraso <= 30 ? 'd1a30'
+  : atraso <= 60 ? 'd31a60' : atraso <= 90 ? 'd61a90' : 'mas90');
+
+/**
+ * Estado de cuenta de un cliente: cargos (facturas), abonos (pagos al contado,
+ * cobros y notas de crédito) con saldo corrido, y la deuda por antigüedad.
+ */
+function estadoDeCuenta(clienteId, comprobantes, recibos, hoy = new Date()) {
+  const propias = comprobantes.filter((c) => c.cliente?.id === clienteId && c.tipo === 'Factura'
+    && c.estado !== 'BORRADOR');
+  const mov = [];
+  for (const c of propias) {
+    const anulada = c.estado === 'ANULADO';
+    mov.push({
+      fecha: new Date(c.fecha), tipo: 'FACTURA', ref: c.numero,
+      detalle: anulada ? 'Factura anulada' : c.credito ? `Factura a crédito, vence ${dma(c.credito.vence)}` : 'Factura',
+      cargo: anulada ? 0 : cent(c.totales.total), abono: 0, anulada,
+    });
+    if (!anulada && !c.credito) {
+      mov.push({ fecha: new Date(c.fecha), tipo: 'CONTADO', ref: c.numero,
+        detalle: 'Pagada al contado', cargo: 0, abono: cent(c.totales.total) });
+    }
+    if (c.notaCredito) {
+      mov.push({ fecha: new Date(c.notaCredito.fecha), tipo: 'NOTA', ref: c.notaCredito.numero,
+        detalle: `Nota de crédito a ${c.numero}`, cargo: 0, abono: cent(c.totales.total) });
+      // Sobre una factura de contado, la nota de crédito devuelve plata: es un cargo de devolución.
+      if (!c.credito) {
+        mov.push({ fecha: new Date(c.notaCredito.fecha), tipo: 'DEVOLUCION', ref: c.notaCredito.numero,
+          detalle: 'Devolución del pago al cliente', cargo: cent(c.totales.total), abono: 0 });
+      }
+    }
+  }
+  for (const r of recibos.filter((x) => x.cliente?.id === clienteId)) {
+    const anulado = r.estado === 'ANULADO';
+    mov.push({ fecha: new Date(r.fecha), tipo: 'COBRO', ref: r.numero,
+      detalle: anulado ? 'Recibo anulado' : `Recibo de cobro (${r.forma})`,
+      cargo: 0, abono: anulado ? 0 : cent(r.monto), anulada: anulado });
+  }
+  const orden = { FACTURA: 0, CONTADO: 1, NOTA: 2, DEVOLUCION: 3, COBRO: 4 };
+  mov.sort((a, b) => a.fecha - b.fecha || orden[a.tipo] - orden[b.tipo] || a.ref.localeCompare(b.ref));
+  let saldo = 0;
+  for (const m of mov) { saldo += m.cargo - m.abono; m.saldo = saldo; }
+
+  const vivos = recibos.filter((r) => r.estado !== 'ANULADO');
+  const edades = { porVencer: 0, d1a30: 0, d31a60: 0, d61a90: 0, mas90: 0 };
+  const pendientes = [];
+  let deuda = 0;
+  for (const c of propias) {
+    const s = cent(saldoDeFactura(c, vivos));
+    if (s <= 0) continue;
+    const atraso = diasEntre(c.credito.vence, hoy);
+    deuda += s;
+    edades[cubeta(atraso)] += s;
+    pendientes.push({ c, saldo: dol(s), atraso });
+  }
+  const aDolares = (o) => Object.fromEntries(Object.entries(o).map(([k, v]) => [k, dol(v)]));
+  return {
+    movimientos: mov.map((m) => ({ ...m, cargo: dol(m.cargo), abono: dol(m.abono), saldo: dol(m.saldo) })),
+    saldo: dol(saldo), deuda: dol(deuda), aFavor: dol(Math.max(0, deuda - saldo)),
+    edades: aDolares(edades),
+    pendientes: pendientes.sort((a, b) => new Date(a.c.credito.vence) - new Date(b.c.credito.vence)),
+  };
+}
+
+/** La cartera de todo el negocio: quién debe, cuánto está vencido y desde cuándo. */
+function cartera(comprobantes, recibos, hoy = new Date()) {
+  const porCliente = new Map();
+  for (const c of comprobantes) {
+    const s = cent(saldoDeFactura(c, recibos));
+    if (s <= 0) continue;
+    const atraso = diasEntre(c.credito.vence, hoy);
+    const x = porCliente.get(c.cliente.id) ?? { cliente: c.cliente, deuda: 0, vencido: 0, maxAtraso: 0, facturas: 0 };
+    x.deuda += s; x.facturas += 1;
+    if (atraso > 0) { x.vencido += s; x.maxAtraso = Math.max(x.maxAtraso, atraso); }
+    porCliente.set(c.cliente.id, x);
+  }
+  return [...porCliente.values()]
+    .map((x) => ({ ...x, deuda: dol(x.deuda), vencido: dol(x.vencido) }))
+    .sort((a, b) => b.vencido - a.vencido || b.deuda - a.deuda);
+}
+
+// ===========================================================================
+//  Reporte de ventas
+// ===========================================================================
+
+/**
+ * Ventas de un período. Las facturas anuladas no cuentan; las notas de crédito
+ * restan en el mes en que se emiten (así se declaran).
+ */
+function reporteVentas(comprobantes, recibos, desde, hasta) {
+  const dentro = (d) => { const s = iso(d); return s >= iso(desde) && s <= iso(hasta); };
+  const facturas = comprobantes.filter((c) => c.tipo === 'Factura' && dentro(c.fecha));
+  const validas = facturas.filter(esVentaVigente);
+  const anuladas = facturas.filter((c) => c.estado === 'ANULADO');
+  const notas = comprobantes.filter((c) => c.notaCredito && dentro(c.notaCredito.fecha));
+
+  const r = {
+    cantidad: validas.length, anuladas: anuladas.length,
+    anuladasMonto: anuladas.reduce((s, c) => s + cent(c.totales.total), 0),
+    base15: 0, base0: 0, iva: 0, descuento: 0, bruto: 0, notas: notas.length, notasMonto: 0,
+    porDia: {}, porForma: {}, porCliente: {}, porProducto: {},
+  };
+  for (const c of validas) {
+    const t = c.totales;
+    r.base15 += cent(t.base15); r.base0 += cent(t.base0); r.iva += cent(t.iva);
+    r.descuento += cent(t.descuento); r.bruto += cent(t.total);
+    const dia = iso(c.fecha);
+    r.porDia[dia] = (r.porDia[dia] ?? 0) + cent(t.total);
+    const forma = c.credito ? 'A crédito' : String(c.formaPago ?? '').split('·').pop().trim() || 'Contado';
+    r.porForma[forma] = (r.porForma[forma] ?? 0) + cent(t.total);
+    r.porCliente[c.cliente.razonSocial] = (r.porCliente[c.cliente.razonSocial] ?? 0) + cent(t.total);
+    for (const l of c.lineas ?? []) {
+      const x = r.porProducto[l.descripcion] ?? { cantidad: 0, monto: 0 };
+      x.cantidad += Number(l.cantidad); x.monto += cent(l.cantidad * l.precio) - cent(l.descuento);
+      r.porProducto[l.descripcion] = x;
+    }
+  }
+  for (const c of notas) {
+    r.notasMonto += cent(c.totales.total);
+    r.base15 -= cent(c.totales.base15); r.base0 -= cent(c.totales.base0); r.iva -= cent(c.totales.iva);
+  }
+  const cobrado = validas.filter((c) => !c.credito).reduce((s, c) => s + cent(c.totales.total), 0)
+    + recibos.filter((x) => x.estado !== 'ANULADO' && dentro(x.fecha)).reduce((s, x) => s + cent(x.monto), 0);
+  const aCredito = validas.filter((c) => c.credito).reduce((s, c) => s + cent(c.totales.total), 0);
+  const top = (o) => Object.entries(o).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([k, v]) => [k, dol(v)]);
+  return {
+    cantidad: r.cantidad, anuladas: r.anuladas, anuladasMonto: dol(r.anuladasMonto),
+    base15: dol(r.base15), base0: dol(r.base0), iva: dol(r.iva), descuento: dol(r.descuento),
+    bruto: dol(r.bruto), notas: r.notas, notasMonto: dol(r.notasMonto),
+    neto: dol(r.bruto - r.notasMonto),
+    ticketPromedio: r.cantidad ? dol(Math.round(r.bruto / r.cantidad)) : 0,
+    cobrado: dol(cobrado), aCredito: dol(aCredito),
+    porDia: Object.fromEntries(Object.entries(r.porDia).map(([k, v]) => [k, dol(v)])),
+    porForma: top(r.porForma), topClientes: top(r.porCliente),
+    topProductos: Object.entries(r.porProducto).sort((a, b) => b[1].monto - a[1].monto).slice(0, 5)
+      .map(([k, v]) => [k, { cantidad: v.cantidad, monto: dol(v.monto) }]),
+  };
+}
+
+/** Períodos rápidos para el reporte. */
+function periodo(nombre, hoy = new Date()) {
+  const a = hoy.getFullYear(); const m = hoy.getMonth();
+  switch (nombre) {
+    case 'hoy': return [hoy, hoy];
+    case 'semana': return [sumarDias(hoy, -((hoy.getDay() + 6) % 7)), hoy];
+    case 'mesAnterior': return [new Date(a, m - 1, 1), new Date(a, m, 0)];
+    case 'anio': return [new Date(a, 0, 1), hoy];
+    default: return [new Date(a, m, 1), hoy];
+  }
+}
+
+/** Línea de CSV con «;» (como lo abre Excel en español) y comillas cuando hace falta. */
+const filaCsv = (valores) => valores.map((v) => {
+  const s = String(v ?? '');
+  return /[;"\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+}).join(';');
+
+
+  return { iso, sumarDias, diasEntre, pascua, feriadosNacionales, limiteAnulacion, viaDeAnulacion, esVentaVigente, saldoDeFactura, repartirCobro, estadoDeCuenta, cartera, reporteVentas, periodo, filaCsv };
 })();
 
 // ---- src/ui.js ---------------------------------------------------
@@ -3644,6 +4083,299 @@ const barra = (proporcion, clase = 'bg-verde') => crudo(
 
 
   return { esc, crudo, html, dinero, usd, fecha, fechaLarga, fechaHora, claveLegible, icono, ESTADOS, chipEstado, cabecera, boton, vacio, dato, aviso, dejarRecado, recogerRecado, empresaEnBlanco, tabla, barra };
+})();
+
+// ---- src/pdf.js --------------------------------------------------
+const __src_pdf_js = (function () {
+
+
+/**
+ * Los PDF del plan Vende: factura (representación impresa), proforma, recibo
+ * de cobro y estado de cuenta. Se arman en el navegador con jsPDF; nada se sube
+ * a ningún sitio.
+ *
+ * jsPDF se carga la primera vez que hace falta, no al abrir Kontia: pesa más
+ * que media aplicación y la mayoría de las visitas no imprime nada.
+ */
+
+const JSPDF = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
+let cargando = null;
+
+function cargarJsPdf() {
+  if (window.jspdf) return Promise.resolve(window.jspdf.jsPDF);
+  cargando = cargando ?? new Promise((ok, mal) => {
+    const s = document.createElement('script');
+    s.src = JSPDF;
+    s.onload = () => ok(window.jspdf.jsPDF);
+    s.onerror = () => { cargando = null; mal(new Error('No se pudo cargar el generador de PDF. Revise la conexión a internet.')); };
+    document.head.append(s);
+  });
+  return cargando;
+}
+
+const VERDE = [15, 123, 79];
+const GRIS = [92, 102, 96];
+const NEGRO = [26, 29, 31];
+const AMBAR = [154, 84, 16];
+const LEYENDA = {
+  'RIMPE Emprendedor': 'CONTRIBUYENTE RÉGIMEN RIMPE',
+  'RIMPE Negocio Popular': 'CONTRIBUYENTE NEGOCIO POPULAR - RÉGIMEN RIMPE',
+};
+const MESES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+const f = (d) => { const x = new Date(d); return `${x.getDate()} ${MESES[x.getMonth()]} ${x.getFullYear()}`; };
+const din = (n) => {
+  const neg = Number(n) < 0;
+  const t = Math.abs(Number(n) || 0).toFixed(2).replace('.', ',').replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+  return `${neg ? '-' : ''}$${t}`;
+};
+
+/** Hoja A4 con un cursor que baja y salta de página cuando hace falta. */
+async function hoja() {
+  const JsPDF = await cargarJsPdf();
+  const doc = new JsPDF({ unit: 'mm', format: 'a4' });
+  const h = { doc, x: 14, y: 16, ancho: 182 };
+  h.bajar = (mm) => { h.y += mm; if (h.y > 275) { doc.addPage(); h.y = 18; } };
+  h.texto = (t, x, o = {}) => {
+    doc.setFont('helvetica', o.negrita ? 'bold' : 'normal');
+    doc.setFontSize(o.tam || 9);
+    doc.setTextColor(...(o.color || NEGRO));
+    doc.text(String(t), x, h.y, { align: o.alinear || 'left', maxWidth: o.max });
+  };
+  return h;
+}
+
+function cabecera(h, e, titulo, numero, filas) {
+  const { doc } = h;
+  doc.setFillColor(...VERDE); doc.rect(0, 0, 210, 4, 'F');
+  h.texto(e.nombreComercial || e.razonSocial, h.x, { negrita: true, tam: 14, max: 110 });
+  h.texto(titulo, 196, { negrita: true, tam: 13, alinear: 'right', color: VERDE });
+  h.bajar(6);
+  h.texto(e.razonSocial, h.x, { color: GRIS, max: 110 });
+  if (numero) h.texto(`N.º ${numero}`, 196, { tam: 10, alinear: 'right', negrita: true });
+  h.bajar(5); h.texto(`RUC ${e.ruc}`, h.x);
+  h.bajar(4.5); h.texto(`Dirección matriz: ${e.dirMatriz || '-'}`, h.x, { tam: 8.5, color: GRIS, max: 110 });
+  if (e.telefono || e.correo) { h.bajar(4.5); h.texto([e.telefono, e.correo].filter(Boolean).join(' · '), h.x, { tam: 8.5, color: GRIS }); }
+  h.bajar(4.5); h.texto(`Obligado a llevar contabilidad: ${e.obligadoContabilidad ? 'SÍ' : 'NO'}`, h.x, { tam: 8.5, color: GRIS });
+  if (LEYENDA[e.regimen]) { h.bajar(4.5); h.texto(LEYENDA[e.regimen], h.x, { tam: 8.5, negrita: true }); }
+  let y = 28;
+  for (const [k, v] of filas) {
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(...GRIS);
+    doc.text(k, 130, y);
+    doc.setTextColor(...NEGRO); doc.setFontSize(8.5);
+    if (String(v).length > 28) y += 4; // un valor largo va debajo de su título, no encima
+    const lineas = doc.splitTextToSize(String(v), 66);
+    doc.text(lineas, 196, y, { align: 'right' });
+    y += 4.5 * lineas.length;
+  }
+  h.y = Math.max(h.y, y) + 9;
+}
+
+function bloqueCliente(h, c, extra = []) {
+  const { doc } = h;
+  const alto = 14 + extra.length * 4.5;
+  doc.setDrawColor(215, 223, 216); doc.setFillColor(243, 245, 241);
+  doc.roundedRect(h.x, h.y - 5, h.ancho, alto, 2, 2, 'FD');
+  h.texto('Cliente', h.x + 4, { tam: 8, color: GRIS });
+  h.texto(c.razonSocial, h.x + 22, { negrita: true, max: 100 });
+  h.texto(`Identificación: ${c.identificacion}`, 192, { alinear: 'right' });
+  h.bajar(5);
+  h.texto([c.direccion, c.telefono, c.correo].filter(Boolean).join(' · ') || ' ', h.x + 22, { tam: 8.5, color: GRIS, max: 168 });
+  for (const [k, v] of extra) { h.bajar(4.5); h.texto(`${k}: ${v}`, h.x + 22, { tam: 8.5 }); }
+  h.y += alto - 4;
+}
+
+function tablaLineas(h, lineas) {
+  const { doc } = h;
+  doc.setFillColor(...VERDE); doc.rect(h.x, h.y - 4.5, h.ancho, 7, 'F');
+  const cab = (t, x, a) => { doc.setFont('helvetica', 'bold'); doc.setFontSize(8); doc.setTextColor(255, 255, 255); doc.text(t, x, h.y, { align: a }); };
+  cab('Código', h.x + 2, 'left'); cab('Descripción', 36, 'left'); cab('Cant.', 128, 'right');
+  cab('P. unit.', 150, 'right'); cab('Desc.', 170, 'right'); cab('Total', 194, 'right');
+  h.bajar(7);
+  for (const l of lineas) {
+    const desc = doc.splitTextToSize(`${l.descripcion}${Number(l.iva) === 0 ? ' (IVA 0%)' : ''}`, 80);
+    h.texto(l.codigo || '-', h.x + 2, { tam: 8, color: GRIS });
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5); doc.setTextColor(...NEGRO);
+    doc.text(desc, 36, h.y);
+    h.texto(String(l.cantidad), 128, { alinear: 'right', tam: 8.5 });
+    h.texto(Number(l.precio).toFixed(2), 150, { alinear: 'right', tam: 8.5 });
+    h.texto(Number(l.descuento || 0).toFixed(2), 170, { alinear: 'right', tam: 8.5 });
+    h.texto((Math.round(l.cantidad * l.precio * 100) / 100 - Number(l.descuento || 0)).toFixed(2), 194, { alinear: 'right', tam: 8.5 });
+    h.bajar(4.5 * desc.length + 1.5);
+    doc.setDrawColor(215, 223, 216); doc.line(h.x, h.y - 3.5, 196, h.y - 3.5);
+  }
+  h.bajar(2);
+}
+
+function bloqueTotales(h, t, izquierda = []) {
+  const filas = [['Subtotal 15 %', t.base15], ['Subtotal 0 %', t.base0], ['Subtotal sin impuestos', t.sinImpuestos],
+    ['Descuento', t.descuento], ['IVA 15 %', t.iva]];
+  const inicio = h.y;
+  for (const [k, v] of filas) {
+    h.texto(k, 150, { tam: 8.5, color: GRIS, alinear: 'right' });
+    h.texto(din(v), 196, { tam: 8.5, alinear: 'right' });
+    h.bajar(4.8);
+  }
+  h.doc.setFillColor(232, 245, 238); h.doc.rect(120, h.y - 4.2, 76, 7, 'F');
+  h.texto('VALOR TOTAL', 150, { negrita: true, alinear: 'right', tam: 10 });
+  h.texto(din(t.total), 196, { negrita: true, alinear: 'right', tam: 10 });
+  const fin = h.y;
+  h.y = inicio;
+  for (const [k, v] of izquierda) {
+    h.texto(k, h.x, { tam: 8, color: GRIS }); h.bajar(4);
+    h.texto(v, h.x, { tam: 8.5, max: 95 }); h.bajar(6);
+  }
+  h.y = Math.max(fin, h.y) + 8;
+}
+
+function aviso(h, texto) {
+  const { doc } = h;
+  doc.setDrawColor(...AMBAR); doc.setLineDashPattern([1.5, 1.2], 0);
+  doc.roundedRect(h.x, h.y - 4.5, h.ancho, 10, 2, 2);
+  doc.setLineDashPattern([], 0);
+  h.texto(texto, 105, { negrita: true, tam: 8, alinear: 'center', color: AMBAR });
+  h.bajar(4);
+}
+
+function pie(h) {
+  const n = h.doc.getNumberOfPages();
+  for (let i = 1; i <= n; i++) {
+    h.doc.setPage(i);
+    h.doc.setFont('helvetica', 'normal'); h.doc.setFontSize(7.5); h.doc.setTextColor(...GRIS);
+    h.doc.text(`Hecho con Kontia · página ${i} de ${n}`, 105, 290, { align: 'center' });
+  }
+}
+
+// ===========================================================================
+//  Documentos
+// ===========================================================================
+
+async function pdfFactura(c, e) {
+  const h = await hoja();
+  cabecera(h, e, 'FACTURA', c.numero, [
+    ['Fecha de emisión', f(c.fecha)],
+    ['Ambiente', e.ambiente === 'PRODUCCIÓN' ? 'PRODUCCIÓN' : 'PRUEBAS'],
+    ['Emisión', 'NORMAL'],
+    ['Número de autorización / clave de acceso', c.autorizacion || c.claveAcceso || 'Pendiente de autorización'],
+  ]);
+  bloqueCliente(h, c.cliente);
+  tablaLineas(h, c.lineas);
+  bloqueTotales(h, c.totales, [
+    ['Forma de pago', c.credito ? `A crédito, ${c.credito.dias} días (vence ${f(c.credito.vence)})` : String(c.formaPago ?? '').split('·').pop().trim()],
+    ...(c.estado === 'ANULADO' ? [['Estado', `ANULADA el ${f(c.anulacion.fecha)}: ${c.anulacion.motivo}`]] : []),
+  ]);
+  if (c.simulado || e.ambiente !== 'PRODUCCIÓN') {
+    aviso(h, 'AMBIENTE DE PRUEBAS · ESTE DOCUMENTO NO TIENE VALIDEZ TRIBUTARIA');
+  }
+  pie(h);
+  return h.doc;
+}
+
+async function pdfProforma(p, e) {
+  const h = await hoja();
+  cabecera(h, e, 'PROFORMA', p.numero, [['Fecha', f(p.fecha)], ['Válida hasta', f(p.validaHasta)]]);
+  bloqueCliente(h, p.cliente);
+  tablaLineas(h, p.lineas);
+  bloqueTotales(h, p.totales, [
+    ['Condiciones', `Precios válidos por ${p.validezDias} días. Esta proforma no es un comprobante de venta.`],
+    ...(p.nota ? [['Observaciones', p.nota]] : []),
+  ]);
+  pie(h);
+  return h.doc;
+}
+
+async function pdfRecibo(r, e) {
+  const h = await hoja();
+  cabecera(h, e, 'RECIBO DE COBRO', r.numero, [
+    ['Fecha', f(r.fecha)], ['Forma de pago', r.forma], ['Estado', r.estado === 'ANULADO' ? 'ANULADO' : 'Vigente'],
+  ]);
+  bloqueCliente(h, r.cliente);
+  h.texto('Recibimos de', h.x, { color: GRIS });
+  h.texto(din(r.monto), 196, { negrita: true, tam: 16, alinear: 'right', color: VERDE });
+  h.bajar(6); h.texto(r.cliente.razonSocial, h.x, { negrita: true, tam: 11 });
+  h.bajar(8); h.texto('Aplicado a', h.x, { color: GRIS }); h.bajar(5);
+  for (const a of r.aplicaciones) {
+    h.texto(`Factura ${a.numero}`, h.x); h.texto(din(a.monto), 196, { alinear: 'right' }); h.bajar(5);
+  }
+  if (r.nota) { h.bajar(2); h.texto(`Nota: ${r.nota}`, h.x, { tam: 8.5, color: GRIS, max: 180 }); h.bajar(5); }
+  h.bajar(10); h.doc.line(h.x, h.y, h.x + 70, h.y); h.bajar(4);
+  h.texto('Recibí conforme', h.x, { tam: 8, color: GRIS });
+  h.bajar(10);
+  h.texto('Este recibo deja constancia del pago; no es un comprobante de venta.', h.x, { tam: 8, color: GRIS });
+  pie(h);
+  return h.doc;
+}
+
+async function pdfEstadoCuenta(cliente, ec, e, corte = new Date()) {
+  const h = await hoja();
+  cabecera(h, e, 'ESTADO DE CUENTA', '', [
+    ['Corte al', f(corte)],
+    ['Saldo', ec.saldo >= 0 ? `${din(ec.saldo)} por cobrar` : `${din(-ec.saldo)} a favor del cliente`],
+  ]);
+  bloqueCliente(h, cliente);
+  const edades = [['Por vencer', ec.edades.porVencer], ['1 a 30 días', ec.edades.d1a30],
+    ['31 a 60', ec.edades.d31a60], ['61 a 90', ec.edades.d61a90], ['Más de 90', ec.edades.mas90]];
+  edades.forEach(([k, v], i) => {
+    const x = h.x + i * 36.4;
+    h.doc.setFillColor(243, 245, 241); h.doc.roundedRect(x, h.y - 4, 34.4, 12, 1.5, 1.5, 'F');
+    h.texto(k, x + 2, { tam: 7.5, color: GRIS });
+    h.y += 5; h.texto(din(v), x + 2, { negrita: true }); h.y -= 5;
+  });
+  h.bajar(16);
+  const { doc } = h;
+  doc.setFillColor(...VERDE); doc.rect(h.x, h.y - 4.5, h.ancho, 7, 'F');
+  const cab = (t, x, a = 'left') => { doc.setFont('helvetica', 'bold'); doc.setFontSize(8); doc.setTextColor(255, 255, 255); doc.text(t, x, h.y, { align: a }); };
+  cab('Fecha', h.x + 2); cab('Documento', 40); cab('Detalle', 82); cab('Cargo', 146, 'right'); cab('Abono', 170, 'right'); cab('Saldo', 194, 'right');
+  h.bajar(7);
+  for (const m of ec.movimientos) {
+    const color = m.anulada ? GRIS : NEGRO;
+    const detalle = doc.splitTextToSize(m.detalle, 50);
+    h.texto(f(m.fecha), h.x + 2, { tam: 8, color });
+    h.texto(m.ref, 40, { tam: 8, color });
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(...color); doc.text(detalle, 82, h.y);
+    h.texto(m.cargo ? din(m.cargo) : '', 146, { tam: 8, alinear: 'right', color });
+    h.texto(m.abono ? din(m.abono) : '', 170, { tam: 8, alinear: 'right', color });
+    h.texto(din(m.saldo), 194, { tam: 8, alinear: 'right', negrita: true, color });
+    h.bajar(4 * detalle.length + 1.6);
+  }
+  h.bajar(3);
+  h.texto(ec.saldo >= 0 ? 'SALDO POR COBRAR' : 'SALDO A FAVOR DEL CLIENTE', 170, { negrita: true, alinear: 'right', tam: 10 });
+  h.texto(din(Math.abs(ec.saldo)), 194, { negrita: true, alinear: 'right', tam: 10 });
+  pie(h);
+  return h.doc;
+}
+
+/**
+ * Entrega el PDF: en el celular abre el menú de compartir (WhatsApp, correo…)
+ * si el teléfono lo permite; si no, lo descarga.
+ */
+async function entregar(doc, nombre, { compartir = false, texto = '' } = {}) {
+  const blob = doc.output('blob');
+  const archivo = new File([blob], nombre, { type: 'application/pdf' });
+  if (compartir && navigator.canShare?.({ files: [archivo] })) {
+    try {
+      await navigator.share({ files: [archivo], title: nombre, text: texto });
+      return 'compartido';
+    } catch (err) {
+      if (err.name === 'AbortError') return 'cancelado';
+    }
+  }
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = nombre;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+  return 'descargado';
+}
+
+/** WhatsApp con el texto; si hay teléfono del cliente, directo a su chat. */
+function enviarWhatsApp(texto, telefono) {
+  let numero = String(telefono || '').replace(/\D/g, '');
+  if (numero.startsWith('0')) numero = `593${numero.slice(1)}`;
+  window.open(`https://wa.me/${numero}?text=${encodeURIComponent(texto)}`, '_blank', 'noopener');
+}
+
+
+  return { pdfFactura, pdfProforma, pdfRecibo, pdfEstadoCuenta, entregar, enviarWhatsApp };
 })();
 
 // ---- src/graficos.js ---------------------------------------------
@@ -5919,6 +6651,7 @@ const CLAVE = 'kontia.sesion';
 
 const AGROQUIMICOS = 'agroquimicos-perez';
 const DULCE_COSTA = 'dulce-costa';
+const LA_ESQUINA = 'papeleria-la-esquina';
 
 /**
  * Qué empresas puede elegir cada papel al entrar, en la pantalla
@@ -5947,6 +6680,12 @@ const PAPELES = {
     correo: 'sandra@dulcecosta.ec', admin: false,
     empresa: 'Dulce Costa', ruc: '1301234561001', ambiente: 'PRUEBAS',
     empresas: [DULCE_COSTA],
+  },
+  vendedora: {
+    nombre: 'Carmen Rivas', iniciales: 'CR', rol: 'Administrador',
+    correo: 'carmen@papelerialaesquina.ec', admin: false,
+    empresa: 'Papelería La Esquina', ruc: '0917654329001', ambiente: 'PRUEBAS',
+    empresas: [LA_ESQUINA],
   },
   contadora: {
     nombre: 'Patricia Gómez', iniciales: 'PG', rol: 'Contadora externa',
@@ -7512,6 +8251,7 @@ const __src_almacen_js = (function () {
   const { SEMILLA, totalizar, TARIFAS_IVA, TIPOS_IDENTIFICACION } = __src_datos_js;
   const { perfilDeLaNube, altaDeEmpresa, cargarPerfil } = __src_cuenta_nube_js;
   const { sesion } = __src_sesion_js;
+  const { saldoDeFactura, repartirCobro, viaDeAnulacion } = __src_ventas_js;
   const { clientesDeLaNube, clienteDeLaNube, guardarClienteEnLaNube, productosDeLaNube, productoDeLaNube, guardarProductoEnLaNube } = __src_catalogo_nube_js;
   const { puntosDeLaNube, comprobantesDeLaNube, comprobanteDeLaNube, borradorEnLaNube, emisionSimuladaNoPermitida } = __src_comprobantes_nube_js;
   const { diarioCon, pendientesDePago, prepararPago, asientoDePago, CARTERA_PAGAR, PROVEEDORES, pendientesDeCobro, prepararCobro, asientoDeCobro, CARTERA_COBRAR, formulario104, formulario103, balanceDeComprobacion, prepararDeclaracion, asientoDeDeclaracion, prepararPagoAlSri, asientoDePagoAlSri } = __src_datos_contables_js;
@@ -7546,6 +8286,7 @@ const __src_almacen_js = (function () {
 
 
 
+
 const CLAVE = 'kontia.datos.v1';
 const esperar = (valor) => Promise.resolve(valor);
 
@@ -7554,6 +8295,7 @@ const esperar = (valor) => Promise.resolve(valor);
 // como cadenas y cualquier resta entre ellas da NaN.
 const FECHAS = new Set([
   'fecha', 'fechaAutorizacion', 'fechaPresentacion', 'alta', 'cuando', 'desde', 'hasta', 'certificadoVence',
+  'vence', 'validaHasta',
 ]);
 
 function reviir(clave, valor) {
@@ -7571,6 +8313,21 @@ const EMPRESA_SEMILLA = SEMILLA.empresa.id;
 /** La segunda empresa de ejemplo, la del plan Emprende. */
 const EMPRESA_EMPRENDE = SEMILLA.empresaEmprende.id;
 
+/** La tercera, la del plan Vende: factura, proformas, cobros y estado de cuenta. */
+const EMPRESA_VENDE = SEMILLA.empresaVende.id;
+
+/** Lo de la empresa del plan Vende, listo para sumar a cualquier copia del almacén. */
+const semillaVende = () => ({
+  empresa: { ...SEMILLA.empresaVende, semilla: true },
+  clientes: SEMILLA.clientesVende.map((c) => ({ ...c, empresaId: EMPRESA_VENDE, semilla: true })),
+  productos: SEMILLA.productosVende.map((p) => ({ ...p, empresaId: EMPRESA_VENDE, semilla: true })),
+  // Sin «semilla», igual que las de Dulce Costa: así cuentan para su propio tablero.
+  comprobantes: SEMILLA.comprobantesVende.map((c) => ({ ...c, empresaId: EMPRESA_VENDE })),
+  puntos: SEMILLA.puntosVende.map((p) => ({ ...p, empresaId: EMPRESA_VENDE })),
+  recibos: SEMILLA.recibosVende.map((r) => ({ ...r, id: r.numero, empresaId: EMPRESA_VENDE })),
+  proformas: SEMILLA.proformasVende.map((p) => ({ ...p, id: p.numero, empresaId: EMPRESA_VENDE })),
+});
+
 /**
  * El almacén guarda VARIAS empresas, y cada dato lleva a cuál pertenece.
  *
@@ -7584,7 +8341,7 @@ const EMPRESA_EMPRENDE = SEMILLA.empresaEmprende.id;
  * de paso es la única forma de ver las pantallas de estado vacío, que son las
  * que ve de verdad un cliente el primer día.
  */
-const copiaDeLaSemilla = () => ({
+const copiaDeLaSemilla = () => sumarVende({
   empresas: [
     { ...SEMILLA.empresa, semilla: true },
     { ...SEMILLA.empresaEmprende, semilla: true },
@@ -7628,7 +8385,24 @@ const copiaDeLaSemilla = () => ({
   cuentasProveedor: {},
   // Los datos de Kontia como proveedor del sistema de facturación ante el SRI.
   plataforma: { rucProveedor: '' },
+  // Plan Vende: proformas (cotizaciones) y recibos de los cobros a crédito.
+  proformas: [],
+  recibos: [],
 });
+
+/**
+ * Suma la empresa del plan Vende a un almacén que no la tiene: el recién
+ * sembrado, o el que guardó en el navegador una versión anterior de Kontia.
+ */
+function sumarVende(d) {
+  if (d.empresas.some((e) => e.id === EMPRESA_VENDE)) return d;
+  const v = semillaVende();
+  d.empresas.push(v.empresa);
+  for (const k of ['clientes', 'productos', 'comprobantes', 'puntos', 'recibos', 'proformas']) {
+    d[k] = [...(d[k] ?? []), ...v[k]];
+  }
+  return d;
+}
 
 function leer() {
   try {
@@ -7652,9 +8426,10 @@ let datos = leer();
 // Una coleccion nueva no existe en lo que guardo una version anterior. Sin
 // esto, quien ya tenia datos en el navegador abriria el buzon y le explotaria
 // en la cara por un `undefined`.
-for (const coleccion of ['clientes', 'productos', 'comprobantes', 'puntos', 'compras', 'pagos', 'cobros', 'declaraciones', 'proveedoresNuevos']) {
+for (const coleccion of ['clientes', 'productos', 'comprobantes', 'puntos', 'compras', 'pagos', 'cobros', 'declaraciones', 'proveedoresNuevos', 'proformas', 'recibos']) {
   if (!Array.isArray(datos[coleccion])) datos[coleccion] = [];
 }
+sumarVende(datos);
 if (!datos.cuentasProveedor || typeof datos.cuentasProveedor !== 'object') datos.cuentasProveedor = {};
 if (!datos.plataforma || typeof datos.plataforma !== 'object') datos.plataforma = { rucProveedor: '' };
 
@@ -7712,6 +8487,16 @@ function rucValido(ruc) {
 }
 
 const fallo = (mensaje) => { throw new Error(mensaje); };
+
+const SIN_BASE_VENDE = 'Con la cuenta de verdad, esto se habilita cuando proformas y cobros se guarden en la base.';
+
+/** El crédito de una factura: plazo en días y fecha de vencimiento. Sin plazo, es de contado. */
+function creditoDe(dias) {
+  const n = Number(dias);
+  if (!(n > 0)) return null;
+  const hoy = new Date();
+  return { dias: n, vence: new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate() + n) };
+}
 
 function comprobarCliente(c) {
   const identificacion = String(c.identificacion ?? '').trim();
@@ -7912,6 +8697,16 @@ const cargar = {
       .sort((a, b) => new Date(b.fecha) - new Date(a.fecha)))),
   comprobante: (numero) => (enLaNube() ? comprobanteDeLaNube(idActiva(), numero)
     : esperar(deLaActiva(datos.comprobantes).find((c) => c.numero === numero) ?? null)),
+
+  /** Plan Vende: las proformas, la más reciente primero. */
+  proformas: () => esperar(deLaActiva(datos.proformas).slice()
+    .sort((a, b) => new Date(b.fecha) - new Date(a.fecha) || b.numero.localeCompare(a.numero))),
+  proforma: (numero) => esperar(deLaActiva(datos.proformas).find((p) => p.numero === numero) ?? null),
+
+  /** Plan Vende: los recibos de cobro, el más reciente primero. */
+  recibos: () => esperar(deLaActiva(datos.recibos).slice()
+    .sort((a, b) => new Date(b.fecha) - new Date(a.fecha) || b.numero.localeCompare(a.numero))),
+  recibo: (numero) => esperar(deLaActiva(datos.recibos).find((r) => r.numero === numero) ?? null),
 
   /** Las compras registradas, la mas reciente primero. */
   compras: () => esperar(
@@ -8461,11 +9256,122 @@ const guardar = {
       lineas: entrada.lineas.map((l) => ({ ...l })),
       totales: totalizar(entrada.lineas),
       simulado: false,
+      // Venta a crédito: el plazo viaja en el XML (pagos/plazo) y la factura queda
+      // en las cuentas por cobrar del cliente hasta que se cobre.
+      credito: creditoDe(entrada.creditoDias),
+      proforma: entrada.proforma ?? null,
     };
+    if (comprobante.credito && cliente.tipo === 'CONSUMIDOR_FINAL') {
+      fallo('Una venta a crédito necesita los datos del cliente, para poder cobrarle después.');
+    }
 
     datos.comprobantes.unshift(comprobante);
+    if (entrada.proforma) {
+      const p = deLaActiva(datos.proformas).find((x) => x.numero === entrada.proforma);
+      if (p) { p.estado = 'FACTURADA'; p.factura = comprobante.numero; }
+    }
     persistir();
     return esperar(comprobante);
+  },
+
+  /** Plan Vende: guarda una proforma (cotización). No es un comprobante de venta. */
+  proforma(entrada) {
+    if (enLaNube()) fallo(SIN_BASE_VENDE);
+    const cliente = deLaActiva(datos.clientes).find((c) => c.id === entrada.clienteId);
+    if (!cliente) fallo('Hay que elegir a quién va la proforma.');
+    if (!entrada.lineas?.length) fallo('Una proforma sin líneas no dice nada.');
+    const fecha = new Date();
+    const dias = Number(entrada.validezDias) || 15;
+    const numero = `PRO-${String(deLaActiva(datos.proformas).length + 1).padStart(6, '0')}`;
+    const proforma = {
+      id: numero, empresaId: idActiva(), numero, fecha, cliente,
+      lineas: entrada.lineas.map((l) => ({ ...l })), totales: totalizar(entrada.lineas),
+      validezDias: dias, validaHasta: new Date(fecha.getFullYear(), fecha.getMonth(), fecha.getDate() + dias),
+      nota: String(entrada.nota ?? '').trim(), estado: 'VIGENTE',
+    };
+    datos.proformas.unshift(proforma);
+    persistir();
+    return esperar(proforma);
+  },
+
+  anularProforma(numero) {
+    const p = deLaActiva(datos.proformas).find((x) => x.numero === numero);
+    if (p && p.estado === 'VIGENTE') { p.estado = 'ANULADA'; persistir(); }
+    return esperar(p);
+  },
+
+  /**
+   * Plan Vende: recibo de cobro de una o varias facturas a crédito.
+   * Se reparte de la más antigua a la más nueva, salvo que se elija una factura.
+   */
+  reciboCobro(entrada) {
+    if (enLaNube()) fallo(SIN_BASE_VENDE);
+    const cliente = deLaActiva(datos.clientes).find((c) => c.id === entrada.clienteId);
+    if (!cliente) fallo('Hay que elegir el cliente que paga.');
+    const monto = Math.round(Number(entrada.monto) * 100) / 100;
+    if (!(monto > 0)) fallo('El valor cobrado tiene que ser mayor que cero.');
+    const recibos = deLaActiva(datos.recibos);
+    const facturas = deLaActiva(datos.comprobantes)
+      .filter((c) => c.cliente?.id === cliente.id && (!entrada.factura || c.numero === entrada.factura));
+    const deuda = facturas.reduce((s, c) => s + saldoDeFactura(c, recibos), 0);
+    if (monto > Math.round(deuda * 100) / 100) {
+      fallo(`Se deben ${deuda.toFixed(2).replace('.', ',')} dólares; no se puede cobrar más que eso.`);
+    }
+    const { aplicaciones } = repartirCobro(monto, facturas, recibos);
+    const numero = `RC-${String(recibos.length + 1).padStart(6, '0')}`;
+    const recibo = {
+      id: numero, empresaId: idActiva(), numero, fecha: new Date(), cliente,
+      monto, forma: entrada.forma || 'Efectivo', nota: String(entrada.nota ?? '').trim(),
+      aplicaciones, estado: 'VIGENTE',
+    };
+    datos.recibos.unshift(recibo);
+    persistir();
+    return esperar(recibo);
+  },
+
+  anularRecibo(numero, motivo) {
+    const r = deLaActiva(datos.recibos).find((x) => x.numero === numero);
+    if (!r || r.estado === 'ANULADO') fallo('Ese recibo ya estaba anulado.');
+    if (String(motivo ?? '').trim().length < 5) fallo('Escriba el motivo de la anulación.');
+    r.estado = 'ANULADO';
+    r.anulacion = { fecha: new Date(), motivo: String(motivo).trim() };
+    persistir();
+    return esperar(r);
+  },
+
+  /**
+   * Deja constancia de que la factura YA se anuló en el portal del SRI. Kontia
+   * no puede anularla: lo hace el emisor en el SRI dentro del plazo
+   * (Res. NAC-DGERCGC25-00000014, art. 2).
+   */
+  anuladaEnSri(numero, motivo) {
+    if (enLaNube()) fallo(SIN_BASE_VENDE);
+    const c = deLaActiva(datos.comprobantes).find((x) => x.numero === numero);
+    if (!c) fallo(`No existe el comprobante ${numero}.`);
+    if (viaDeAnulacion(c).via !== 'SRI') fallo('Esta factura ya no se puede anular en el SRI.');
+    if (String(motivo ?? '').trim().length < 5) fallo('Escriba el motivo de la anulación.');
+    c.estado = 'ANULADO';
+    c.anulacion = { fecha: new Date(), motivo: String(motivo).trim() };
+    persistir();
+    return esperar(c);
+  },
+
+  /** Nota de crédito por el total, cuando ya pasó el plazo para anular en línea. */
+  notaCreditoTotal(numero, motivo) {
+    if (enLaNube()) fallo(SIN_BASE_VENDE);
+    const c = deLaActiva(datos.comprobantes).find((x) => x.numero === numero);
+    if (!c) fallo(`No existe el comprobante ${numero}.`);
+    if (!['SRI', 'NOTA_CREDITO'].includes(viaDeAnulacion(c).via)) {
+      fallo('A esta factura no se le puede hacer nota de crédito.');
+    }
+    if (String(motivo ?? '').trim().length < 5) fallo('Escriba la razón de la nota de crédito.');
+    const emitidas = deLaActiva(datos.comprobantes).filter((x) => x.notaCredito).length;
+    c.notaCredito = {
+      numero: `001-001-${String(emitidas + 1).padStart(9, '0')}`,
+      fecha: new Date(), motivo: String(motivo).trim(), simulada: true,
+    };
+    persistir();
+    return esperar(c);
   },
 
   /**
@@ -8740,6 +9646,38 @@ const MENU_EMPRESA = [
   ] },
 ];
 
+/**
+ * El menú del plan Vende: el negocio que solo factura y cobra.
+ *
+ * No es el menú grande con grupos escondidos: es otro, corto, ordenado como
+ * trabaja quien vende —vender, cobrar, mirar cómo va—. No tiene compras,
+ * libros ni declaraciones: para eso están los planes mayores.
+ */
+const MENU_VENDE = [
+  { grupo: 'Ventas', enlaces: [
+    { ico: 'dashboard', texto: 'Resumen', ruta: '#/resumen' },
+    { ico: 'receipt_long', texto: 'Facturas', ruta: '#/comprobantes' },
+    { ico: 'request_page', texto: 'Proformas', ruta: '#/proformas' },
+  ] },
+  { grupo: 'Cobros', enlaces: [
+    { ico: 'request_quote', texto: 'Cuentas por cobrar', ruta: '#/cartera' },
+    { ico: 'contact_page', texto: 'Estado de cuenta', ruta: '#/estado-cuenta' },
+    { ico: 'payments', texto: 'Recibos de cobro', ruta: '#/recibos' },
+  ] },
+  { grupo: 'Reportes', enlaces: [
+    { ico: 'bar_chart', texto: 'Reporte de ventas', ruta: '#/reporte-ventas' },
+  ] },
+  { grupo: 'Catálogo', enlaces: [
+    { ico: 'group', texto: 'Clientes', ruta: '#/clientes' },
+    { ico: 'inventory_2', texto: 'Productos', ruta: '#/productos' },
+  ] },
+  { grupo: 'Sistema', enlaces: [
+    { ico: 'settings', texto: 'Configuración', ruta: '#/configuracion' },
+    { ico: 'verified', texto: 'Certificado de firma', ruta: '#/certificado' },
+    { ico: 'manage_accounts', texto: 'Usuarios', ruta: '#/usuarios' },
+  ] },
+];
+
 const MENU_ADMIN = [
   { grupo: 'Plataforma', enlaces: [
     { ico: 'domain', texto: 'Empresas', ruta: '#/admin/empresas' },
@@ -8879,6 +9817,9 @@ const quitarRutas = (menu, rutas) => menu
  * consulta, pero no configura: no ve el grupo «Sistema».
  */
 function menuDeEmpresa(empresa) {
+  if (empresa?.plan === 'Vende') {
+    return sesion.usuario().rol !== 'Administrador' ? quitarRutas(MENU_VENDE, RUTAS_SOLO_ADMIN) : MENU_VENDE;
+  }
   let menu = MENU_EMPRESA;
 
   if (empresa?.obligadoContabilidad === false) {
@@ -9078,7 +10019,7 @@ function conectarMenu() {
 }
 
 
-  return { MENU_EMPRESA, MENU_ADMIN, marco, suelta, conectarMenu };
+  return { MENU_EMPRESA, MENU_VENDE, MENU_ADMIN, marco, suelta, conectarMenu };
 })();
 
 // ---- src/vistas/pendiente.js -------------------------------------
@@ -9579,7 +10520,9 @@ async function resumen() {
 
 // ---- src/vistas/comprobantes.js ----------------------------------
 const __src_vistas_comprobantes_js = (function () {
-  const { html, crudo, esc, usd, dinero, icono, chipEstado, fechaHora, claveLegible, tabla, vacio, boton, cabecera, aviso, dato, dejarRecado } = __src_ui_js;
+  const { html, crudo, esc, usd, dinero, icono, chipEstado, fechaHora, claveLegible, tabla, vacio, boton, cabecera, aviso, dato, dejarRecado, fechaLarga } = __src_ui_js;
+  const { viaDeAnulacion, saldoDeFactura } = __src_ventas_js;
+  const { pdfFactura, entregar, enviarWhatsApp } = __src_pdf_js;
   const { cargar, guardar, esLaDeEjemplo } = __src_almacen_js;
   const { asientoDeFactura, diarioCon, asientoDelDocumento } = __src_datos_contables_js;
   const { registroContable, sinRegistroContable, celdaAsiento } = __src_vistas_asiento_js;
@@ -9593,6 +10536,8 @@ const __src_vistas_comprobantes_js = (function () {
  * factura y qué hago ahora**. El rechazo del SRI no se muestra como un código
  * de error, se traduce.
  */
+
+
 
 
 
@@ -9797,6 +10742,108 @@ function recorrido(c) {
     </ol>`;
 }
 
+// ===========================================================================
+//  Plan Vende: crédito y anulación guiada
+// ===========================================================================
+
+const caja = (titulo, cuerpo) => html`
+  <section class="bg-white border border-papel-linea rounded-2xl relieve p-5">
+    <h2 class="text-sm font-bold mb-3">${titulo}</h2>
+    ${cuerpo}
+  </section>`;
+
+const botonAccion = (id, texto, ico, tono = 'claro') => crudo(
+  `<button type="button" id="${esc(id)}" class="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl ` +
+  `text-sm font-semibold transition ${tono === 'peligro'
+    ? 'boton-3d-claro text-rojo-texto border border-rojo-borde'
+    : tono === 'principal' ? 'boton-3d bg-verde text-white'
+      : 'boton-3d-claro text-tinta border border-papel-linea hover:text-verde'}">` +
+  `<span class="ms text-[18px]">${esc(ico)}</span>${esc(texto)}</button>`);
+
+/** La venta a crédito: plazo, vencimiento y lo que falta cobrar. */
+function seccionCredito(c, recibos) {
+  if (!c.credito || c.estado === 'BORRADOR') return '';
+  const saldo = saldoDeFactura(c, recibos);
+  const pagado = c.totales.total - saldo;
+  return caja('Venta a crédito', html`
+    <dl class="space-y-3">
+      ${dato('Plazo', `${c.credito.dias} días`)}
+      ${dato('Vence', fechaLarga(c.credito.vence))}
+      ${dato('Cobrado', usd(pagado))}
+      ${dato('Por cobrar', html`<span class="text-base font-extrabold ${crudo(saldo > 0 ? 'text-rojo-texto' : 'text-verde')}">${usd(saldo)}</span>`)}
+    </dl>
+    ${saldo > 0 && c.estado === 'AUTORIZADO' && !c.notaCredito ? html`
+      <div class="mt-4">${boton('Registrar cobro', { ruta: `#/recibos/nuevo/${c.cliente.id}`, ico: 'payments' })}</div>` : ''}
+    <a href="#/estado-cuenta/${c.cliente.id}" class="mt-3 inline-block text-xs font-bold text-verde hover:underline">
+      Ver el estado de cuenta del cliente
+    </a>`);
+}
+
+/**
+ * Qué se puede hacer para dejar sin efecto esta factura, según las reglas del
+ * SRI (Res. NAC-DGERCGC25-00000014, reformada por la 25-00000017): anularla en
+ * SRI en línea dentro del plazo, nota de crédito después, y nada para las de
+ * consumidor final desde el 1-ene-2026. Kontia no anula: guía y deja constancia.
+ */
+function seccionAnulacion(c, recibos) {
+  const v = viaDeAnulacion(c);
+  const conCobros = c.credito && saldoDeFactura(c, recibos) < c.totales.total;
+  const avisoCobros = conCobros ? html`
+    <p class="mt-3 p-3 rounded-lg bg-ambar-fondo border border-ambar-borde text-[12px] text-ambar-texto leading-relaxed">
+      Esta factura ya tiene cobros registrados. Si la deja sin efecto, anule también esos recibos
+      o devuelva el dinero al cliente.
+    </p>` : '';
+  switch (v.via) {
+    case 'YA_ANULADA':
+      return caja('Factura anulada', html`
+        <p class="text-sm leading-relaxed">Anulada en SRI en línea el ${fechaLarga(c.anulacion?.fecha)}.
+          Motivo: ${c.anulacion?.motivo ?? '—'}.</p>
+        <p class="mt-2 text-[11px] text-tinta-suave leading-relaxed">No cuenta como venta ni como deuda del cliente.
+          El SRI obliga a avisarle al cliente que su factura cambió de estado.</p>
+        <div class="mt-3">${botonAccion('avisar-anulacion', 'Avisar al cliente', 'send')}</div>`);
+    case 'YA_CON_NOTA':
+      return caja('Dejada sin efecto', html`
+        <p class="text-sm leading-relaxed">Tiene la nota de crédito <b class="tabular">${c.notaCredito.numero}</b>
+          por el total, del ${fechaLarga(c.notaCredito.fecha)}. Motivo: ${c.notaCredito.motivo}.</p>
+        ${c.notaCredito.simulada ? html`<p class="mt-2 text-[11px] text-ambar-texto">Nota de crédito de demostración:
+          no se firmó ni se envió al SRI.</p>` : ''}`);
+    case 'NINGUNA':
+      return caja('Anular esta factura', html`
+        <p class="text-sm leading-relaxed"><b>No se puede anular.</b> Desde el 1 de enero de 2026, las facturas a
+          consumidor final no se anulan ni se corrigen con nota de crédito una vez enviadas al SRI
+          (Res. NAC-DGERCGC25-00000014, art. 3).</p>
+        <p class="mt-2 text-[11px] text-tinta-suave">Por eso conviene revisar bien antes de emitir a consumidor final.</p>`);
+    case 'SRI':
+      return caja('Anular esta factura', html`
+        <p class="text-sm leading-relaxed"><b>Puede anularla hasta el ${fechaLarga(v.limite)}.</b> Después, solo
+          con nota de crédito. Si ese día es feriado en su cantón, tiene hasta el siguiente día hábil.</p>
+        ${avisoCobros}
+        <ol class="mt-3 space-y-1.5 text-[13px] leading-relaxed list-decimal pl-5">
+          <li>Entre a SRI en línea con su RUC y su clave.</li>
+          <li>Busque la anulación de comprobantes electrónicos.</li>
+          <li>Pegue la clave de acceso de esta factura y confirme.</li>
+          <li>Vuelva aquí y toque «Ya la anulé en el SRI». Luego avise al cliente.</li>
+        </ol>
+        <div class="mt-4 flex flex-wrap gap-2">
+          ${botonAccion('copiar-clave', 'Copiar clave de acceso', 'content_copy')}
+          ${crudo(`<a href="https://srienlinea.sri.gob.ec/sri-en-linea/inicio/NAT" target="_blank" rel="noopener"
+              class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold boton-3d-claro text-tinta
+                     border border-papel-linea hover:text-verde transition"><span class="ms text-[18px]">open_in_new</span>SRI en línea</a>`)}
+        </div>
+        <div class="mt-2">${botonAccion('anulada-sri', 'Ya la anulé en el SRI', 'block', 'peligro')}</div>
+        <p class="mt-3 text-[11px] text-tinta-suave leading-relaxed">La anulación la hace usted en el portal del SRI:
+          ningún sistema de facturación puede hacerla por usted (Res. NAC-DGERCGC25-00000014, art. 2).</p>`);
+    case 'NOTA_CREDITO':
+      return caja('Anular esta factura', html`
+        <p class="text-sm leading-relaxed"><b>El plazo para anular venció el ${fechaLarga(v.limite)}.</b> Ahora
+          solo se puede dejar sin efecto con una nota de crédito por el total.</p>
+        ${avisoCobros}
+        <div class="mt-4">${botonAccion('nota-credito', 'Hacer nota de crédito', 'undo', 'principal')}</div>`);
+    default:
+      return '';
+  }
+}
+
 async function comprobante(numero) {
   const c = await cargar.comprobante(numero);
   if (!c) {
@@ -9811,6 +10858,8 @@ async function comprobante(numero) {
   }
 
   const t = c.totales;
+  const vende = (await cargar.empresa())?.plan === 'Vende';
+  const recibos = vende ? await cargar.recibos() : [];
 
   // El registro contable de la factura. Solo una autorizada tiene asiento: una
   // devuelta o un borrador no existen para el SRI, y por eso tampoco para los
@@ -9906,12 +10955,12 @@ async function comprobante(numero) {
         </p>
       </div>
       <div class="flex flex-wrap items-center gap-2">
-        ${crudo(`<button type="button" onclick="document.getElementById('registro-contable')?.scrollIntoView({behavior:'smooth',block:'start'})"
+        ${vende ? '' : crudo(`<button type="button" onclick="document.getElementById('registro-contable')?.scrollIntoView({behavior:'smooth',block:'start'})"
                  class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-papel-linea bg-white
                         text-sm font-semibold hover:border-verde hover:text-verde transition">
            <span class="ms text-[18px]">account_tree</span>Ver registro contable</button>`)}
         ${c.estado === 'AUTORIZADO' ? [
-          boton('Descargar RIDE', { ico: 'picture_as_pdf', tipo: 'secundario' }),
+          botonAccion('pdf-factura', 'Descargar PDF', 'picture_as_pdf'),
           c.firmaPractica
             ? crudo(`<a href="data:application/xml;charset=utf-8,${encodeURIComponent(c.firmaPractica.xml)}"
                         download="${esc(c.numero)}.xml"
@@ -9919,7 +10968,7 @@ async function comprobante(numero) {
                                text-tinta border border-papel-linea hover:text-verde text-sm font-semibold transition">
                         <span class="ms text-[18px]">code</span>Descargar XML firmado</a>`)
             : boton('Descargar XML', { ico: 'code', tipo: 'secundario' }),
-          boton('Enviar por WhatsApp', { ico: 'send' })] : ''}
+          botonAccion('whatsapp-factura', 'Enviar por WhatsApp', 'send', 'principal')] : ''}
         ${c.estado === 'DEVUELTO' ? boton('Corregir y reenviar', { ico: 'edit' }) : ''}
         ${c.estado === 'BORRADOR' ? crudo(
           `<button id="emitir" data-numero="${esc(c.numero)}"
@@ -9936,7 +10985,7 @@ async function comprobante(numero) {
     ${crudo(esperando)}
 
     <div class="grid gap-5 lg:grid-cols-3">
-      <div class="lg:col-span-2 space-y-5">
+      <div class="lg:col-span-2 space-y-5 min-w-0">
 
         <section class="bg-white border border-papel-linea rounded-2xl relieve p-5">
           <h2 class="text-sm font-bold mb-4">Cliente</h2>
@@ -9984,10 +11033,12 @@ async function comprobante(numero) {
           </div>
         </section>
 
-        ${registro}
+        ${vende ? '' : registro}
       </div>
 
-      <div class="space-y-5">
+      <div class="space-y-5 min-w-0">
+        ${vende ? seccionCredito(c, recibos) : ''}
+        ${vende ? seccionAnulacion(c, recibos) : ''}
         <section class="bg-white border border-papel-linea rounded-2xl relieve p-5">
           <h2 class="text-sm font-bold mb-4">Qué pasó con el SRI</h2>
           ${recorrido(c)}
@@ -10067,6 +11118,7 @@ function conectarComprobante() {
   conectado = true;
 
   zona.addEventListener('click', async (ev) => {
+    if (await accionesDeVenta(ev)) return;
     const boton = ev.target.closest('#emitir');
     if (!boton) return;
     const numero = boton.dataset.numero;
@@ -10133,6 +11185,58 @@ function conectarComprobante() {
   });
 }
 
+/** El número de la factura que está abierta, sacado de la dirección. */
+const numeroAbierto = () => (location.hash.match(/^#\/comprobantes\/([\d-]+)/) ?? [])[1];
+
+const avisar = (recado) => {
+  dejarRecado(recado);
+  window.dispatchEvent(new CustomEvent('kontia:redibujar'));
+};
+
+/** PDF, WhatsApp, copiar la clave y la anulación guiada. Devuelve si atendió el toque. */
+async function accionesDeVenta(ev) {
+  const b = ev.target.closest('#pdf-factura, #whatsapp-factura, #copiar-clave, #anulada-sri, #nota-credito, #avisar-anulacion');
+  if (!b) return false;
+  const numero = numeroAbierto();
+  const c = numero ? await cargar.comprobante(numero) : null;
+  if (!c) return true;
+  const empresa = await cargar.empresa();
+  const quien = empresa.nombreComercial || empresa.razonSocial;
+  try {
+    if (b.id === 'pdf-factura' || b.id === 'whatsapp-factura') {
+      b.disabled = true;
+      const doc = await pdfFactura(c, empresa);
+      const texto = `Hola, le enviamos la factura ${c.numero} de ${quien} por ${usd(c.totales.total)}.`;
+      const como = await entregar(doc, `Factura-${c.numero}.pdf`, { compartir: b.id === 'whatsapp-factura', texto });
+      // Si el teléfono no deja adjuntar el PDF, se abre WhatsApp con el mensaje y el PDF queda descargado.
+      if (b.id === 'whatsapp-factura' && como === 'descargado') enviarWhatsApp(`${texto} Le adjunto el PDF.`, c.cliente.telefono);
+      b.disabled = false;
+    } else if (b.id === 'copiar-clave') {
+      await navigator.clipboard?.writeText(c.claveAcceso ?? '');
+      b.querySelector('.ms').textContent = 'check';
+    } else if (b.id === 'avisar-anulacion') {
+      enviarWhatsApp(`Hola, le informamos que la factura ${c.numero} de ${quien} por ${usd(c.totales.total)} ` +
+        `fue anulada en el SRI. Motivo: ${c.anulacion?.motivo ?? ''}.`, c.cliente.telefono);
+    } else if (b.id === 'anulada-sri') {
+      const motivo = window.prompt('¿Por qué se anuló? (queda en el historial de la factura)');
+      if (motivo === null) return true;
+      await guardar.anuladaEnSri(numero, motivo);
+      avisar({ tono: 'info', ico: 'block', titulo: 'Factura registrada como anulada',
+        texto: 'Ya no cuenta como venta ni como deuda del cliente. Avísele al cliente.' });
+    } else if (b.id === 'nota-credito') {
+      const motivo = window.prompt('Razón de la nota de crédito (por ejemplo: devolución de la mercadería)');
+      if (motivo === null) return true;
+      await guardar.notaCreditoTotal(numero, motivo);
+      avisar({ tono: 'ambar', ico: 'undo', titulo: 'Nota de crédito de demostración',
+        texto: 'Quedó registrada por el total. Con la firma conectada, se firmará y se enviará al SRI como cualquier comprobante.' });
+    }
+  } catch (e) {
+    b.disabled = false;
+    avisar({ tono: 'rojo', ico: 'error', titulo: 'No se pudo completar', texto: e.message });
+  }
+  return true;
+}
+
 
   return { comprobantes, conectarListaComprobantes, comprobante, conectarComprobante };
 })();
@@ -10176,7 +11280,33 @@ const borrador = {
   formaPago: '20',
   punto: '001-001',
   lineas: [],
+  // Plan Vende: «factura» o «proforma», el plazo si es a crédito, y la proforma
+  // de la que sale la factura (si sale de una).
+  modo: 'factura',
+  creditoDias: 0,
+  validezDias: 15,
+  nota: '',
+  desdeProforma: null,
 };
+
+/** Cambiar de factura a proforma (o al revés) empieza en blanco: no se mezclan. */
+function prepararModo(modo, proforma = null) {
+  if (borrador.modo !== modo || proforma || borrador.desdeProforma) {
+    borrador.lineas = [];
+    borrador.creditoDias = 0;
+    borrador.nota = '';
+    borrador.desdeProforma = null;
+  }
+  borrador.modo = modo;
+  if (proforma) {
+    borrador.clienteId = proforma.cliente.id;
+    borrador.lineas = proforma.lineas.map((l) => ({ ...l }));
+    borrador.desdeProforma = proforma.numero;
+  }
+}
+
+const PLAZOS = [0, 8, 15, 30, 45, 60];
+const VALIDEZ = [8, 15, 30];
 
 /** El catálogo tal como estaba al dibujar. Se refresca en cada visita. */
 let catalogo = { clientes: [], productos: [], puntos: [] };
@@ -10262,11 +11392,28 @@ function panelTotales() {
 //  La pantalla
 // ===========================================================================
 
-async function emision() {
-  const [clientes, productos, puntos] = await Promise.all([
-    cargar.clientes(), cargar.productos(), cargar.puntos(),
+/** Plan Vende: la misma pantalla, para hacer una proforma. */
+const emisionProforma = () => emision('proforma');
+
+/** Plan Vende: la factura que nace de una proforma, con sus líneas ya puestas. */
+async function facturarProforma(numeroProforma) {
+  const p = await cargar.proforma(numeroProforma);
+  if (!p || p.estado !== 'VIGENTE') {
+    return html`${crudo(aviso({ tono: 'ambar', ico: 'info', titulo: 'Esa proforma ya no se puede facturar',
+      texto: p ? `Está ${p.estado === 'FACTURADA' ? 'facturada' : 'anulada'}.` : 'No existe.' }))}
+      ${boton('Volver a las proformas', { ruta: '#/proformas', tipo: 'secundario' })}`;
+  }
+  return emision('factura', p);
+}
+
+async function emision(modo = 'factura', proforma = null) {
+  const [clientes, productos, puntos, empresa] = await Promise.all([
+    cargar.clientes(), cargar.productos(), cargar.puntos(), cargar.empresa(),
   ]);
   catalogo = { clientes, productos, puntos };
+  prepararModo(modo, proforma);
+  const esProforma = modo === 'proforma';
+  const vende = empresa?.plan === 'Vende';
 
   if (!clientes.length) {
     return html`
@@ -10295,17 +11442,20 @@ async function emision() {
 
   return html`
     ${crudo(cabecera({
-      titulo: 'Nueva factura',
-      descripcion: punto
-        ? `Se guardará como ${punto.codigo}-${siguiente}, el siguiente número de ${punto.nombre}.`
-        : 'No hay ningún punto de emisión activo.',
-      acciones: boton('Cancelar', { ruta: '#/comprobantes', tipo: 'secundario' }),
+      titulo: esProforma ? 'Nueva proforma' : 'Nueva factura',
+      descripcion: esProforma
+        ? 'Una proforma es una cotización: no es comprobante de venta ni va al SRI. Si el cliente acepta, se convierte en factura con un toque.'
+        : punto
+          ? `Se guardará como ${punto.codigo}-${siguiente}, el siguiente número de ${punto.nombre}.` +
+            (borrador.desdeProforma ? ` Sale de la proforma ${borrador.desdeProforma}.` : '')
+          : 'No hay ningún punto de emisión activo.',
+      acciones: boton('Cancelar', { ruta: esProforma ? '#/proformas' : '#/comprobantes', tipo: 'secundario' }),
     }))}
 
     <div id="recado"></div>
 
     <div class="grid gap-5 lg:grid-cols-3">
-      <div class="lg:col-span-2 space-y-5">
+      <div class="lg:col-span-2 space-y-5 min-w-0">
 
         <section class="bg-white border border-papel-linea rounded-2xl relieve p-5">
           <div class="flex items-center justify-between mb-4">
@@ -10381,12 +11531,27 @@ async function emision() {
         </section>
       </div>
 
-      <div class="space-y-5">
+      <div class="space-y-5 min-w-0">
         <section class="bg-white border border-papel-linea rounded-2xl relieve p-5">
           <h2 class="text-sm font-bold mb-4">Totales</h2>
           <div id="totales">${crudo(panelTotales())}</div>
         </section>
 
+        ${esProforma ? html`
+        <section class="bg-white border border-papel-linea rounded-2xl relieve p-5">
+          <h2 class="text-sm font-bold mb-4">Condiciones</h2>
+          <label class="block mb-4">
+            <span class="text-[11px] font-bold uppercase tracking-wide text-tinta-suave">Precios válidos por</span>
+            <select id="validez" class="mt-1.5 w-full px-3 py-2.5 rounded-xl border border-papel-linea bg-white text-sm">
+              ${VALIDEZ.map((d) => crudo(`<option value="${d}"${d === borrador.validezDias ? ' selected' : ''}>${d} días</option>`))}
+            </select>
+          </label>
+          <label class="block">
+            <span class="text-[11px] font-bold uppercase tracking-wide text-tinta-suave">Observaciones</span>
+            <textarea id="nota" rows="3" placeholder="Entrega, garantía, forma de pago…"
+                      class="mt-1.5 w-full px-3 py-2.5 rounded-xl border border-papel-linea bg-white text-sm">${borrador.nota}</textarea>
+          </label>
+        </section>` : html`
         <section class="bg-white border border-papel-linea rounded-2xl relieve p-5">
           <h2 class="text-sm font-bold mb-4">Emisión</h2>
           <label class="block mb-4">
@@ -10409,16 +11574,28 @@ async function emision() {
             La forma de pago es obligatoria y sale de la tabla 24 de la ficha técnica del
             SRI. No es un dato interno: viaja dentro del XML.
           </p>
-        </section>
+          ${vende ? html`
+          <label class="block mt-4">
+            <span class="text-[11px] font-bold uppercase tracking-wide text-tinta-suave">Condición de pago</span>
+            <select id="credito" class="mt-1.5 w-full px-3 py-2.5 rounded-xl border border-papel-linea bg-white text-sm">
+              ${PLAZOS.map((d) => crudo(`<option value="${d}"${d === borrador.creditoDias ? ' selected' : ''}>${
+                d ? `A crédito, ${d} días` : 'De contado'}</option>`))}
+            </select>
+          </label>
+          <p class="mt-2 text-[11px] text-tinta-suave leading-relaxed">
+            Una venta a crédito queda en las cuentas por cobrar del cliente hasta que registre el cobro.
+          </p>` : ''}
+        </section>`}
 
         <button id="guardar-borrador"
                 class="w-full py-3.5 rounded-xl bg-verde text-white text-sm font-bold
                        hover:bg-verde-oscuro transition inline-flex items-center justify-center gap-2">
-          <span class="ms text-[18px]">save</span>Guardar la factura
+          <span class="ms text-[18px]">save</span>${esProforma ? 'Guardar la proforma' : 'Guardar la factura'}
         </button>
         <p class="text-center text-[11px] text-tinta-suave leading-relaxed">
-          Queda guardada como borrador, con su número reservado. Firmarla y enviarla al
-          SRI es el paso siguiente, y todavía no está conectado.
+          ${esProforma
+            ? 'Podrá descargarla en PDF o enviarla por WhatsApp desde la siguiente pantalla.'
+            : 'Queda guardada como borrador, con su número reservado. Firmarla y enviarla al SRI es el paso siguiente, y todavía no está conectado.'}
         </p>
       </div>
     </div>`;
@@ -10481,6 +11658,9 @@ function conectarEmision() {
     }
     if (id === 'punto') borrador.punto = ev.target.value;
     if (id === 'forma-pago') borrador.formaPago = ev.target.value;
+    if (id === 'credito') borrador.creditoDias = Number(ev.target.value);
+    if (id === 'validez') borrador.validezDias = Number(ev.target.value);
+    if (id === 'nota') borrador.nota = ev.target.value;
   });
 
   zona.addEventListener('click', async (ev) => {
@@ -10504,6 +11684,20 @@ function conectarEmision() {
       return;
     }
 
+    if (ev.target.closest('#guardar-borrador') && borrador.modo === 'proforma') {
+      try {
+        const p = await guardar.proforma({
+          clienteId: borrador.clienteId, lineas: borrador.lineas,
+          validezDias: borrador.validezDias, nota: document.getElementById('nota')?.value ?? borrador.nota,
+        });
+        borrador.lineas = []; borrador.nota = '';
+        location.hash = `#/proformas/${p.numero}`;
+      } catch (e) {
+        recado('rojo', 'No se pudo guardar la proforma', e.message);
+      }
+      return;
+    }
+
     if (ev.target.closest('#guardar-borrador')) {
       const forma = FORMAS_PAGO.find((f) => f.codigo === borrador.formaPago);
       try {
@@ -10512,8 +11706,12 @@ function conectarEmision() {
           punto: borrador.punto,
           formaPago: `${forma.codigo} · ${forma.texto}`,
           lineas: borrador.lineas,
+          creditoDias: borrador.creditoDias,
+          proforma: borrador.desdeProforma,
         });
         borrador.lineas = [];   // la siguiente factura empieza en blanco
+        borrador.creditoDias = 0;
+        borrador.desdeProforma = null;
         location.hash = `#/comprobantes/${c.numero}`;
       } catch (e) {
         recado('rojo', 'No se pudo guardar la factura', e.message);
@@ -10523,7 +11721,778 @@ function conectarEmision() {
 }
 
 
-  return { emision, conectarEmision };
+  return { emisionProforma, facturarProforma, emision, conectarEmision };
+})();
+
+// ---- src/vistas/vende.js -----------------------------------------
+const __src_vistas_vende_js = (function () {
+  const { html, crudo, esc, usd, dinero, icono, fecha, fechaLarga, tabla, vacio, boton, cabecera, aviso, dato, dejarRecado } = __src_ui_js;
+  const { cargar, guardar, empresaActiva } = __src_almacen_js;
+  const { avisosDe } = __src_avisos_js;
+  const { estadoDeCuenta, cartera, reporteVentas, periodo, filaCsv, saldoDeFactura, iso } = __src_ventas_js;
+  const { pdfProforma, pdfRecibo, pdfEstadoCuenta, entregar, enviarWhatsApp } = __src_pdf_js;
+
+/**
+ * Las pantallas propias del plan Vende: proformas, cuentas por cobrar, estado
+ * de cuenta de cada cliente, recibos de cobro y reporte de ventas.
+ *
+ * Están pensadas para el celular de quien atiende el negocio: cifras grandes,
+ * pocas columnas, y cada documento sale en PDF o por WhatsApp desde su ficha.
+ * Toda la aritmética vive en `ventas.js`; aquí solo se dibuja.
+ */
+
+
+
+
+
+
+
+// ===========================================================================
+//  Piezas
+// ===========================================================================
+
+const ETIQUETAS = {
+  VIGENTE: ['Vigente', 'bg-verde-claro text-verde'],
+  VENCIDA: ['Vencida', 'bg-ambar-fondo text-ambar-texto border border-ambar-borde'],
+  FACTURADA: ['Facturada', 'bg-[#EEF2F6] text-[#3E5A73] border border-[#C7D2DD]'],
+  ANULADA: ['Anulada', 'bg-papel-linea text-tinta-suave line-through'],
+  ANULADO: ['Anulado', 'bg-papel-linea text-tinta-suave line-through'],
+  AL_DIA: ['Al día', 'bg-verde-claro text-verde'],
+  POR_VENCER: ['Por vencer', 'bg-verde-claro text-verde'],
+  ATRASADO: ['Atrasado', 'bg-rojo-fondo text-rojo-texto border border-rojo-borde'],
+};
+
+const etiqueta = (clave) => {
+  const [texto, clases] = ETIQUETAS[clave] ?? [clave, 'bg-papel-linea text-tinta-suave'];
+  return crudo(`<span class="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-semibold ${clases}">${esc(texto)}</span>`);
+};
+
+const panel = (contenido, clases = '') => html`
+  <section class="bg-white border border-papel-linea rounded-2xl relieve ${crudo(clases)}">${contenido}</section>`;
+
+const cifra = ({ etiqueta: e, valor, pie = '', tono = '' }) => html`
+  <div class="bg-white border border-papel-linea rounded-2xl relieve p-4 min-w-0">
+    <p class="text-[11px] font-bold uppercase tracking-wide text-tinta-suave">${e}</p>
+    <p class="mt-2 text-2xl font-extrabold tracking-tight tabular ${crudo(tono)}">${valor}</p>
+    ${pie ? html`<p class="mt-1 text-xs text-tinta-suave leading-snug">${pie}</p>` : ''}
+  </div>`;
+
+const accion = (id, texto, ico, tono = 'claro') => crudo(
+  `<button type="button" id="${esc(id)}" class="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl ` +
+  `text-sm font-semibold transition ${tono === 'peligro'
+    ? 'boton-3d-claro text-rojo-texto border border-rojo-borde'
+    : tono === 'principal' ? 'boton-3d bg-verde text-white'
+      : 'boton-3d-claro text-tinta border border-papel-linea hover:text-verde'}">` +
+  `<span class="ms text-[18px]">${esc(ico)}</span>${esc(texto)}</button>`);
+
+const volver = (ruta, texto) => html`
+  <a href="${ruta}" class="inline-flex items-center gap-1.5 text-xs font-bold text-tinta-suave hover:text-verde mb-4">
+    ${icono('arrow_back', 'text-[16px]')} ${texto}
+  </a>`;
+
+const fila = (ruta, celdas) => crudo(
+  `<tr class="hover:bg-papel transition cursor-pointer" onclick="location.hash='${esc(ruta)}'">${celdas}</tr>`);
+
+const td = (contenido, clases = '') => `<td class="px-5 py-3.5 text-sm ${clases}">${contenido}</td>`;
+
+/** Detalle de líneas y totales de una proforma (la factura tiene su propia ficha). */
+function detalleDocumento(d) {
+  const t = d.totales;
+  return panel(html`
+    ${crudo(tabla([
+      { texto: 'Descripción' }, { texto: 'Cant.', der: true }, { texto: 'P. unit.', der: true }, { texto: 'Total', der: true },
+    ], d.lineas.map((l) => html`
+      <tr>
+        <td class="px-5 py-3 text-sm">${l.descripcion}${Number(l.iva) === 0 ? html` <span class="text-[11px] text-tinta-suave">(IVA 0%)</span>` : ''}</td>
+        <td class="px-5 py-3 text-right text-sm tabular">${Number(l.cantidad)}</td>
+        <td class="px-5 py-3 text-right text-sm tabular">${dinero(l.precio)}</td>
+        <td class="px-5 py-3 text-right text-sm font-bold tabular">${dinero(l.cantidad * l.precio - (l.descuento || 0))}</td>
+      </tr>`)))}
+    <div class="flex justify-end border-t border-papel-linea bg-papel/60 p-5">
+      <dl class="w-full max-w-xs space-y-2 text-sm">
+        ${[['Subtotal 15%', t.base15], ['Subtotal 0%', t.base0], ['Descuento', t.descuento], ['IVA 15%', t.iva]]
+          .map(([k, v]) => html`<div class="flex justify-between gap-4"><dt class="text-tinta-suave">${k}</dt>
+            <dd class="font-semibold tabular">${dinero(v)}</dd></div>`)}
+        <div class="flex justify-between gap-4 pt-2 mt-2 border-t border-papel-linea">
+          <dt class="font-extrabold">TOTAL</dt><dd class="font-extrabold text-lg tabular">${usd(t.total)}</dd>
+        </div>
+      </dl>
+    </div>`, 'overflow-hidden');
+}
+
+const estadoProforma = (p) => (p.estado === 'VIGENTE' && iso(p.validaHasta) < iso(new Date()) ? 'VENCIDA' : p.estado);
+
+// ===========================================================================
+//  Proformas
+// ===========================================================================
+
+async function proformas() {
+  const lista = await cargar.proformas();
+  const cuerpo = lista.map((p) => fila(`#/proformas/${p.numero}`,
+    td(`<b class="tabular">${esc(p.numero)}</b>`) +
+    td(`<span class="block truncate max-w-[220px]">${esc(p.cliente.razonSocial)}</span>`) +
+    td(esc(fecha(p.fecha)), 'text-tinta-suave whitespace-nowrap') +
+    td(esc(fecha(p.validaHasta)), 'text-tinta-suave whitespace-nowrap') +
+    td(esc(usd(p.totales.total)), 'text-right font-bold tabular whitespace-nowrap') +
+    td(String(etiqueta(estadoProforma(p))), 'text-right')));
+
+  return html`
+    ${crudo(cabecera({
+      titulo: 'Proformas',
+      descripcion: 'Cotizaciones para sus clientes. No son comprobantes de venta; cuando el cliente acepta, se convierten en factura.',
+      acciones: boton('Nueva proforma', { ruta: '#/proformas/nueva', ico: 'add' }),
+    }))}
+    ${panel(lista.length ? tabla([
+      { texto: 'Número' }, { texto: 'Cliente' }, { texto: 'Fecha' }, { texto: 'Válida hasta' },
+      { texto: 'Total', der: true }, { texto: 'Estado', der: true },
+    ], cuerpo) : vacio({
+      ico: 'request_page', titulo: 'Todavía no hay proformas',
+      texto: 'Haga la primera cotización: el cliente la recibe en PDF o por WhatsApp.',
+      accion: boton('Nueva proforma', { ruta: '#/proformas/nueva', ico: 'add' }),
+    }), 'overflow-hidden')}`;
+}
+
+async function proformaFicha(numero) {
+  const p = await cargar.proforma(numero);
+  if (!p) return panel(vacio({ ico: 'search_off', titulo: 'No encontramos esa proforma', texto: numero }));
+  const estado = estadoProforma(p);
+  const abierta = p.estado === 'VIGENTE';
+  return html`
+    ${volver('#/proformas', 'Proformas')}
+    <header class="flex flex-wrap items-start justify-between gap-4 mb-6">
+      <div class="min-w-0">
+        <div class="flex items-center gap-3"><h1 class="text-2xl font-bold tracking-tight tabular">${p.numero}</h1>${etiqueta(estado)}</div>
+        <p class="mt-1 text-sm text-tinta-suave">${p.cliente.razonSocial} · ${fechaLarga(p.fecha)} · válida hasta ${fechaLarga(p.validaHasta)}</p>
+      </div>
+      <div class="flex flex-wrap gap-2">
+        ${abierta ? boton('Convertir en factura', { ruta: `#/proformas/${p.numero}/facturar`, ico: 'receipt_long' }) : ''}
+        ${accion('pdf-proforma', 'PDF', 'picture_as_pdf')}
+        ${accion('whatsapp-proforma', 'WhatsApp', 'send')}
+        ${abierta ? accion('anular-proforma', 'Anular', 'block', 'peligro') : ''}
+      </div>
+    </header>
+    ${p.estado === 'FACTURADA' ? crudo(aviso({ ico: 'check_circle', titulo: 'Ya se facturó',
+      texto: `Se convirtió en la factura ${p.factura}.`,
+      accion: html`<a href="#/comprobantes/${p.factura}" class="mt-2 inline-block text-sm font-bold underline">Ver la factura</a>` })) : ''}
+    ${estado === 'VENCIDA' ? crudo(aviso({ tono: 'ambar', ico: 'schedule', titulo: 'Esta proforma ya venció',
+      texto: 'Puede facturarla igual si mantiene los precios, o hacer una nueva.' })) : ''}
+    <div class="grid gap-5 lg:grid-cols-3">
+      <div class="lg:col-span-2 min-w-0">${detalleDocumento(p)}</div>
+      <div class="min-w-0">${panel(html`
+        <dl class="space-y-4 p-5">
+          ${dato('Cliente', p.cliente.razonSocial)}
+          ${dato('Identificación', p.cliente.identificacion)}
+          ${dato('Validez', `${p.validezDias} días`)}
+          ${p.nota ? dato('Observaciones', p.nota) : ''}
+        </dl>`)}</div>
+    </div>`;
+}
+
+// ===========================================================================
+//  Cuentas por cobrar
+// ===========================================================================
+
+async function lasVentas() {
+  const [comprobantes, recibos] = await Promise.all([cargar.comprobantes(), cargar.recibos()]);
+  return { comprobantes, recibos };
+}
+
+async function carteraVende() {
+  const { comprobantes, recibos } = await lasVentas();
+  const hoy = new Date();
+  const deudores = cartera(comprobantes, recibos, hoy);
+  const total = deudores.reduce((s, x) => s + x.deuda, 0);
+  const vencido = deudores.reduce((s, x) => s + x.vencido, 0);
+  const edades = { porVencer: 0, d1a30: 0, d31a60: 0, d61a90: 0, mas90: 0 };
+  for (const x of deudores) {
+    const e = estadoDeCuenta(x.cliente.id, comprobantes, recibos, hoy).edades;
+    for (const k of Object.keys(edades)) edades[k] += e[k];
+  }
+  const cuerpo = deudores.map((x) => fila(`#/estado-cuenta/${x.cliente.id}`,
+    td(`<span class="block font-semibold truncate max-w-[220px]">${esc(x.cliente.razonSocial)}</span>
+        <span class="block text-[11px] text-tinta-suave">${x.facturas} factura${x.facturas === 1 ? '' : 's'}</span>`) +
+    td(esc(usd(x.deuda)), 'text-right font-bold tabular whitespace-nowrap') +
+    td(x.vencido > 0 ? `<span class="text-rojo-texto font-semibold">${esc(usd(x.vencido))}</span>` : '—', 'text-right tabular whitespace-nowrap') +
+    td(String(etiqueta(x.maxAtraso > 0 ? 'ATRASADO' : 'POR_VENCER')) +
+       (x.maxAtraso > 0 ? `<span class="block mt-1 text-[11px] text-tinta-suave">${x.maxAtraso} días</span>` : ''), 'text-right') +
+    td(`<a href="#/recibos/nuevo/${esc(x.cliente.id)}" onclick="event.stopPropagation()"
+          class="text-xs font-bold text-verde hover:underline">Cobrar</a>`, 'text-right')));
+
+  return html`
+    ${crudo(cabecera({
+      titulo: 'Cuentas por cobrar',
+      descripcion: 'Lo que sus clientes le deben por ventas a crédito, empezando por lo más atrasado.',
+      acciones: boton('Registrar cobro', { ruta: '#/recibos/nuevo', ico: 'payments' }),
+    }))}
+    <div class="grid gap-3 grid-cols-2 lg:grid-cols-3 mb-5">
+      ${cifra({ etiqueta: 'Por cobrar', valor: usd(total), pie: `${deudores.length} cliente${deudores.length === 1 ? '' : 's'} con saldo` })}
+      ${cifra({ etiqueta: 'Vencido', valor: usd(vencido), tono: vencido > 0 ? 'text-rojo-texto' : '', pie: 'Ya pasó la fecha de pago' })}
+      <div class="col-span-2 lg:col-span-1">${cifra({ etiqueta: 'Por vencer', valor: usd(edades.porVencer), pie: 'Todavía dentro del plazo' })}</div>
+    </div>
+    ${panel(html`
+      <div class="p-5">
+        <h2 class="text-sm font-bold mb-3">Antigüedad de la deuda</h2>
+        <div class="grid grid-cols-2 sm:grid-cols-5 gap-2">
+          ${[['Por vencer', edades.porVencer], ['1 a 30 días', edades.d1a30], ['31 a 60', edades.d31a60],
+             ['61 a 90', edades.d61a90], ['Más de 90', edades.mas90]].map(([k, v], i) => html`
+            <div class="rounded-xl p-3 ${crudo(i === 0 ? 'bg-verde-claro' : v > 0 ? 'bg-rojo-fondo' : 'bg-papel')}">
+              <p class="text-[11px] font-semibold text-tinta-suave">${k}</p>
+              <p class="mt-1 text-base font-extrabold tabular">${usd(v)}</p>
+            </div>`)}
+        </div>
+      </div>`, 'mb-5')}
+    ${panel(deudores.length ? tabla([
+      { texto: 'Cliente' }, { texto: 'Debe', der: true }, { texto: 'Vencido', der: true },
+      { texto: 'Estado', der: true }, { texto: '', der: true },
+    ], cuerpo) : vacio({ ico: 'task_alt', titulo: 'Nadie le debe', texto: 'Todas sus ventas a crédito están cobradas.' }), 'overflow-hidden')}`;
+}
+
+// ===========================================================================
+//  Estado de cuenta
+// ===========================================================================
+
+async function estadoCuentaClientes() {
+  const [clientes, { comprobantes, recibos }] = await Promise.all([cargar.clientes(), lasVentas()]);
+  const conDatos = clientes.filter((c) => c.tipo !== 'CONSUMIDOR_FINAL');
+  const cuerpo = conDatos.map((c) => {
+    const ec = estadoDeCuenta(c.id, comprobantes, recibos);
+    const facturas = comprobantes.filter((x) => x.cliente?.id === c.id && x.estado !== 'BORRADOR').length;
+    return fila(`#/estado-cuenta/${c.id}`,
+      td(`<span class="block font-semibold truncate max-w-[240px]">${esc(c.razonSocial)}</span>
+          <span class="block text-[11px] text-tinta-suave tabular">${esc(c.identificacion)}</span>`) +
+      td(String(facturas), 'text-right tabular') +
+      td(ec.deuda > 0 ? `<b>${esc(usd(ec.deuda))}</b>` : '<span class="text-verde font-semibold">Al día</span>', 'text-right tabular whitespace-nowrap'));
+  });
+  return html`
+    ${crudo(cabecera({ titulo: 'Estado de cuenta', descripcion: 'Elija un cliente para ver sus facturas, pagos y saldo, y enviárselo en PDF.' }))}
+    ${panel(tabla([{ texto: 'Cliente' }, { texto: 'Facturas', der: true }, { texto: 'Saldo', der: true }], cuerpo), 'overflow-hidden')}`;
+}
+
+async function estadoCuentaCliente(id) {
+  const [cliente, { comprobantes, recibos }] = await Promise.all([cargar.cliente(id), lasVentas()]);
+  if (!cliente) return panel(vacio({ ico: 'search_off', titulo: 'No encontramos ese cliente', texto: '' }));
+  const ec = estadoDeCuenta(id, comprobantes, recibos);
+  const vencido = ec.edades.d1a30 + ec.edades.d31a60 + ec.edades.d61a90 + ec.edades.mas90;
+
+  const movimientos = ec.movimientos.map((m) => html`
+    <li class="px-5 py-3 flex items-start justify-between gap-3 ${crudo(m.anulada ? 'text-tinta-suave line-through' : '')}">
+      <div class="min-w-0">
+        <a class="text-sm font-semibold tabular hover:text-verde" href="${m.tipo === 'COBRO' ? `#/recibos/${m.ref}` : `#/comprobantes/${m.ref}`}">${m.ref}</a>
+        <span class="block text-[11px] text-tinta-suave">${fecha(m.fecha)} · ${m.detalle}</span>
+      </div>
+      <div class="text-right shrink-0">
+        <span class="block text-sm font-bold tabular ${crudo(m.abono ? 'text-verde' : '')}">${m.cargo ? `+ ${dinero(m.cargo)}` : m.abono ? `− ${dinero(m.abono)}` : '0,00'}</span>
+        <span class="block text-[11px] text-tinta-suave tabular">Saldo ${dinero(m.saldo)}</span>
+      </div>
+    </li>`);
+
+  return html`
+    ${volver('#/estado-cuenta', 'Estado de cuenta')}
+    <header class="flex flex-wrap items-start justify-between gap-4 mb-6">
+      <div class="min-w-0">
+        <h1 class="text-2xl font-bold tracking-tight">${cliente.razonSocial}</h1>
+        <p class="mt-1 text-sm text-tinta-suave tabular">${cliente.identificacion}${cliente.telefono ? ` · ${cliente.telefono}` : ''}</p>
+      </div>
+      <div class="flex flex-wrap gap-2">
+        ${ec.deuda > 0 ? boton('Registrar cobro', { ruta: `#/recibos/nuevo/${id}`, ico: 'payments' }) : ''}
+        ${accion('pdf-estado', 'PDF', 'picture_as_pdf')}
+        ${ec.deuda > 0 ? accion('recordar-cobro', 'Recordar por WhatsApp', 'send') : ''}
+      </div>
+    </header>
+    <div class="grid gap-3 grid-cols-2 lg:grid-cols-3 mb-5">
+      ${cifra({ etiqueta: 'Saldo', valor: usd(ec.deuda), tono: ec.deuda > 0 ? '' : 'text-verde', pie: ec.deuda > 0 ? 'Le debe a la fecha' : 'No tiene deudas' })}
+      ${cifra({ etiqueta: 'Vencido', valor: usd(vencido), tono: vencido > 0 ? 'text-rojo-texto' : '', pie: 'Pasó la fecha de pago' })}
+      <div class="col-span-2 lg:col-span-1">${cifra({ etiqueta: 'Por vencer', valor: usd(ec.edades.porVencer), pie: 'Dentro del plazo' })}</div>
+    </div>
+    ${ec.pendientes.length ? panel(html`
+      <div class="p-5">
+        <h2 class="text-sm font-bold mb-3">Facturas pendientes</h2>
+        <ul class="divide-y divide-papel-linea">
+          ${ec.pendientes.map((x) => html`
+            <li class="py-2.5 flex items-center justify-between gap-3">
+              <a href="#/comprobantes/${x.c.numero}" class="min-w-0">
+                <span class="block text-sm font-semibold tabular">${x.c.numero}</span>
+                <span class="block text-[11px] text-tinta-suave">Vence ${fechaLarga(x.c.credito.vence)}${x.atraso > 0 ? ` · ${x.atraso} días de atraso` : ''}</span>
+              </a>
+              <span class="flex items-center gap-2 shrink-0">${etiqueta(x.atraso > 0 ? 'ATRASADO' : 'POR_VENCER')}
+                <b class="text-sm tabular">${usd(x.saldo)}</b></span>
+            </li>`)}
+        </ul>
+      </div>`, 'mb-5') : ''}
+    ${panel(html`
+      <h2 class="text-sm font-bold p-5 pb-3">Movimientos</h2>
+      <p class="px-5 -mt-1 pb-2 text-[11px] text-tinta-suave">«+» lo que se le vendió · «−» lo que pagó</p>
+      ${ec.movimientos.length ? html`<ul class="divide-y divide-papel-linea border-t border-papel-linea">${movimientos}</ul>`
+        : html`<p class="px-5 pb-6 text-sm text-tinta-suave">Este cliente todavía no tiene facturas.</p>`}`,
+    'overflow-hidden')}`;
+}
+
+// ===========================================================================
+//  Recibos de cobro
+// ===========================================================================
+
+const FORMAS_COBRO = ['Efectivo', 'Transferencia', 'Depósito', 'Tarjeta', 'Cheque'];
+
+async function recibos() {
+  const lista = await cargar.recibos();
+  const cuerpo = lista.map((r) => fila(`#/recibos/${r.numero}`,
+    td(`<b class="tabular">${esc(r.numero)}</b>`) +
+    td(`<span class="block truncate max-w-[220px]">${esc(r.cliente.razonSocial)}</span>`) +
+    td(esc(fecha(r.fecha)), 'text-tinta-suave whitespace-nowrap') +
+    td(esc(r.forma), 'text-tinta-suave') +
+    td(esc(usd(r.monto)), `text-right font-bold tabular whitespace-nowrap ${r.estado === 'ANULADO' ? 'line-through text-tinta-suave' : ''}`) +
+    td(r.estado === 'ANULADO' ? String(etiqueta('ANULADO')) : '', 'text-right')));
+  return html`
+    ${crudo(cabecera({
+      titulo: 'Recibos de cobro',
+      descripcion: 'Cada pago que recibe por una venta a crédito. Baja la deuda del cliente y queda en su estado de cuenta.',
+      acciones: boton('Registrar cobro', { ruta: '#/recibos/nuevo', ico: 'add' }),
+    }))}
+    ${panel(lista.length ? tabla([
+      { texto: 'Número' }, { texto: 'Cliente' }, { texto: 'Fecha' }, { texto: 'Forma' },
+      { texto: 'Valor', der: true }, { texto: '', der: true },
+    ], cuerpo) : vacio({ ico: 'payments', titulo: 'Todavía no hay cobros', texto: 'Cuando un cliente le pague una factura a crédito, regístrelo aquí.' }),
+    'overflow-hidden')}`;
+}
+
+async function reciboFicha(numero) {
+  const r = await cargar.recibo(numero);
+  if (!r) return panel(vacio({ ico: 'search_off', titulo: 'No encontramos ese recibo', texto: numero }));
+  const vivo = r.estado !== 'ANULADO';
+  return html`
+    ${volver('#/recibos', 'Recibos de cobro')}
+    <header class="flex flex-wrap items-start justify-between gap-4 mb-6">
+      <div class="min-w-0">
+        <div class="flex items-center gap-3"><h1 class="text-2xl font-bold tracking-tight tabular">${r.numero}</h1>
+          ${vivo ? '' : etiqueta('ANULADO')}</div>
+        <p class="mt-1 text-sm text-tinta-suave">${r.cliente.razonSocial} · ${fechaLarga(r.fecha)}</p>
+      </div>
+      <div class="flex flex-wrap gap-2">
+        ${accion('pdf-recibo', 'PDF', 'picture_as_pdf')}
+        ${accion('whatsapp-recibo', 'WhatsApp', 'send')}
+        ${vivo ? accion('anular-recibo', 'Anular', 'block', 'peligro') : ''}
+      </div>
+    </header>
+    ${!vivo ? crudo(aviso({ tono: 'ambar', ico: 'block', titulo: 'Recibo anulado',
+      texto: `El ${fechaLarga(r.anulacion?.fecha)}: ${r.anulacion?.motivo ?? ''}. La deuda volvió al estado de cuenta del cliente.` })) : ''}
+    <div class="grid gap-5 lg:grid-cols-3">
+      <div class="lg:col-span-2 min-w-0">${panel(html`
+        <div class="p-5">
+          <p class="text-[11px] font-bold uppercase tracking-wide text-tinta-suave">Recibimos</p>
+          <p class="mt-1 text-[34px] font-extrabold tracking-tight tabular text-verde">${usd(r.monto)}</p>
+          <p class="text-sm text-tinta-suave">en ${r.forma.toLowerCase()}</p>
+          <h2 class="text-sm font-bold mt-6 mb-2">Aplicado a</h2>
+          <ul class="divide-y divide-papel-linea">
+            ${r.aplicaciones.map((a) => html`
+              <li class="py-2.5 flex justify-between gap-3 text-sm">
+                <a class="font-semibold tabular hover:text-verde" href="#/comprobantes/${a.numero}">Factura ${a.numero}</a>
+                <b class="tabular">${usd(a.monto)}</b>
+              </li>`)}
+          </ul>
+        </div>`)}</div>
+      <div class="min-w-0">${panel(html`
+        <dl class="space-y-4 p-5">
+          ${dato('Cliente', r.cliente.razonSocial)}
+          ${dato('Identificación', r.cliente.identificacion)}
+          ${r.nota ? dato('Nota', r.nota) : ''}
+        </dl>
+        <p class="px-5 pb-5 text-[11px] text-tinta-suave leading-relaxed">Un recibo deja constancia del pago;
+          no es un comprobante de venta y no va al SRI.</p>`)}</div>
+    </div>`;
+}
+
+async function reciboNuevo(clienteId = null) {
+  const [clientes, { comprobantes, recibos: todos }] = await Promise.all([cargar.clientes(), lasVentas()]);
+  const deudores = cartera(comprobantes, todos);
+  if (!deudores.length) {
+    return html`${volver('#/recibos', 'Recibos de cobro')}
+      ${panel(vacio({ ico: 'task_alt', titulo: 'Nadie le debe', texto: 'No hay facturas a crédito pendientes de cobro.' }))}`;
+  }
+  const elegido = deudores.find((x) => x.cliente.id === clienteId) ?? deudores[0];
+  const cliente = clientes.find((c) => c.id === elegido.cliente.id) ?? elegido.cliente;
+  const pendientes = comprobantes
+    .filter((c) => c.cliente?.id === cliente.id && saldoDeFactura(c, todos) > 0)
+    .sort((a, b) => new Date(a.fecha) - new Date(b.fecha));
+  const campo = 'mt-1.5 w-full px-3 py-2.5 rounded-xl border border-papel-linea bg-white text-sm focus:outline-none focus:border-verde';
+  const rotulo = (t) => html`<span class="text-[11px] font-bold uppercase tracking-wide text-tinta-suave">${t}</span>`;
+
+  return html`
+    ${volver('#/recibos', 'Recibos de cobro')}
+    ${crudo(cabecera({ titulo: 'Registrar cobro', descripcion: 'El pago se aplica a la factura que elija o, si no elige, de la más antigua a la más nueva.' }))}
+    <div id="recado"></div>
+    <div class="grid gap-5 lg:grid-cols-3">
+      <form id="forma-cobro" class="lg:col-span-2 min-w-0 space-y-5" data-cliente="${cliente.id}">
+        ${panel(html`<div class="p-5 grid gap-4 sm:grid-cols-2">
+          <label class="block sm:col-span-2">${rotulo('Cliente')}
+            <select id="cobro-cliente" class="${campo}">
+              ${deudores.map((x) => crudo(`<option value="${esc(x.cliente.id)}"${x.cliente.id === cliente.id ? ' selected' : ''}>` +
+                `${esc(x.cliente.razonSocial)} · debe ${esc(usd(x.deuda))}</option>`))}
+            </select>
+          </label>
+          <label class="block sm:col-span-2">${rotulo('Factura')}
+            <select name="factura" class="${campo}">
+              <option value="">Repartir desde la más antigua</option>
+              ${pendientes.map((c) => crudo(`<option value="${esc(c.numero)}">${esc(c.numero)} · saldo ${esc(usd(saldoDeFactura(c, todos)))}</option>`))}
+            </select>
+          </label>
+          <label class="block">${rotulo('Valor recibido')}
+            <input name="monto" type="number" min="0.01" step="0.01" value="${elegido.deuda.toFixed(2)}" class="${campo} text-right tabular">
+          </label>
+          <label class="block">${rotulo('Forma de pago')}
+            <select name="forma" class="${campo}">
+              ${FORMAS_COBRO.map((f) => crudo(`<option>${esc(f)}</option>`))}
+            </select>
+          </label>
+          <label class="block sm:col-span-2">${rotulo('Nota (opcional)')}
+            <input name="nota" placeholder="Número de transferencia, banco…" class="${campo}">
+          </label>
+        </div>`)}
+        <button class="w-full py-3.5 rounded-xl bg-verde text-white text-sm font-bold hover:bg-verde-oscuro transition
+                       inline-flex items-center justify-center gap-2"><span class="ms text-[18px]">payments</span>Guardar el cobro</button>
+      </form>
+      <div class="min-w-0">${panel(html`
+        <div class="p-5">
+          <h2 class="text-sm font-bold mb-3">Lo que debe</h2>
+          <ul class="divide-y divide-papel-linea">
+            ${pendientes.map((c) => html`
+              <li class="py-2.5 flex justify-between gap-3 text-sm">
+                <span class="min-w-0"><b class="block tabular">${c.numero}</b>
+                  <span class="text-[11px] text-tinta-suave">Vence ${fechaLarga(c.credito.vence)}</span></span>
+                <b class="tabular shrink-0">${usd(saldoDeFactura(c, todos))}</b>
+              </li>`)}
+          </ul>
+          <div class="mt-3 pt-3 border-t border-papel-linea flex justify-between text-sm font-extrabold">
+            <span>Total</span><span class="tabular">${usd(elegido.deuda)}</span>
+          </div>
+        </div>`)}</div>
+    </div>`;
+}
+
+// ===========================================================================
+//  Reporte de ventas
+// ===========================================================================
+
+const PERIODOS = [
+  ['hoy', 'Hoy'], ['semana', 'Esta semana'], ['mes', 'Este mes'], ['mesAnterior', 'Mes anterior'], ['anio', 'Este año'],
+];
+const MESES_CORTOS = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+
+/** Lo último que se dibujó, para exportarlo a CSV sin volver a calcular. */
+let ultimoReporte = null;
+
+async function reporteVentasVende(nombre = 'mes') {
+  const { comprobantes, recibos: todos } = await lasVentas();
+  const [desde, hasta] = periodo(nombre);
+  const r = reporteVentas(comprobantes, todos, desde, hasta);
+  const facturas = comprobantes.filter((c) => c.tipo === 'Factura' && c.estado !== 'BORRADOR'
+    && iso(c.fecha) >= iso(desde) && iso(c.fecha) <= iso(hasta));
+  ultimoReporte = { r, facturas, desde, hasta, nombre };
+
+  // Por día en un mes o una semana; por mes en el año.
+  let serie;
+  if (nombre === 'anio') {
+    const meses = {};
+    for (const [dia, v] of Object.entries(r.porDia)) { const m = Number(dia.slice(5, 7)) - 1; meses[m] = (meses[m] ?? 0) + v; }
+    serie = Object.keys(meses).sort((a, b) => a - b).map((m) => ({ etiqueta: MESES_CORTOS[m], valor: meses[m] }));
+  } else {
+    serie = Object.keys(r.porDia).sort().map((d) => ({ etiqueta: `${Number(d.slice(8))} ${MESES_CORTOS[Number(d.slice(5, 7)) - 1]}`, valor: r.porDia[d] }));
+  }
+
+  const lista = (pares, formato = usd) => (pares.length ? html`
+    <ul class="divide-y divide-papel-linea">
+      ${pares.map(([k, v]) => html`<li class="py-2 flex justify-between gap-3 text-sm">
+        <span class="min-w-0 truncate">${k}</span><b class="tabular shrink-0">${formato(v)}</b></li>`)}
+    </ul>` : html`<p class="text-sm text-tinta-suave">Sin ventas en el período.</p>`);
+
+  return html`
+    ${crudo(cabecera({
+      titulo: 'Reporte de ventas',
+      descripcion: `Del ${fechaLarga(desde)} al ${fechaLarga(hasta)}. Las facturas anuladas no cuentan; las notas de crédito restan.`,
+      acciones: accion('csv-ventas', 'Descargar Excel (CSV)', 'download'),
+    }))}
+    <div class="flex flex-wrap gap-2 mb-5">
+      ${PERIODOS.map(([k, t]) => crudo(`<a href="#/reporte-ventas/${k}" class="pestana px-3.5 py-2 rounded-xl text-xs font-bold ${
+        k === nombre ? 'pestana-activa text-white' : 'text-tinta-suave hover:text-verde'}">${esc(t)}</a>`))}
+    </div>
+    <div class="grid gap-3 grid-cols-2 lg:grid-cols-4 mb-5">
+      ${cifra({ etiqueta: 'Ventas netas', valor: usd(r.neto), pie: `${r.cantidad} factura${r.cantidad === 1 ? '' : 's'}` })}
+      ${cifra({ etiqueta: 'Venta promedio', valor: usd(r.ticketPromedio), pie: 'Por factura' })}
+      ${cifra({ etiqueta: 'Cobrado', valor: usd(r.cobrado), tono: 'text-verde', pie: 'Contado y cobros a crédito' })}
+      ${cifra({ etiqueta: 'Vendido a crédito', valor: usd(r.aCredito), pie: 'En el período' })}
+    </div>
+    ${panel(html`<div class="p-5">
+      <h2 class="text-sm font-bold mb-2">${nombre === 'anio' ? 'Ventas por mes' : 'Ventas por día'}</h2>
+      ${serie.length ? barrasDeVenta(serie) : html`<p class="py-10 text-center text-sm text-tinta-suave">Sin ventas en el período.</p>`}
+    </div>`, 'mb-5')}
+    <div class="grid gap-5 lg:grid-cols-3">
+      ${panel(html`<div class="p-5">
+        <h2 class="text-sm font-bold mb-3">Desglose para el SRI</h2>
+        ${lista([['Ventas con IVA 15% (base)', r.base15], ['Ventas con IVA 0%', r.base0], ['IVA cobrado', r.iva],
+          ['Descuentos', r.descuento], [`Notas de crédito (${r.notas})`, r.notasMonto], [`Anuladas (${r.anuladas})`, r.anuladasMonto]])}
+      </div>`, 'min-w-0')}
+      ${panel(html`<div class="p-5">
+        <h2 class="text-sm font-bold mb-3">Mejores clientes</h2>${lista(r.topClientes)}
+        <h2 class="text-sm font-bold mt-5 mb-3">Formas de pago</h2>${lista(r.porForma)}
+      </div>`, 'min-w-0')}
+      ${panel(html`<div class="p-5">
+        <h2 class="text-sm font-bold mb-3">Lo más vendido</h2>
+        ${lista(r.topProductos.map(([k, v]) => [`${k} × ${Number(v.cantidad)}`, v.monto]))}
+      </div>`, 'min-w-0')}
+    </div>`;
+}
+
+function descargarCsv() {
+  if (!ultimoReporte) return;
+  const { facturas, desde, hasta } = ultimoReporte;
+  const filas = [filaCsv(['Fecha', 'Número', 'Cliente', 'Identificación', 'Estado', 'Condición',
+    'Base 15%', 'Base 0%', 'Descuento', 'IVA', 'Total'])];
+  for (const c of facturas.slice().sort((a, b) => new Date(a.fecha) - new Date(b.fecha))) {
+    const t = c.totales;
+    filas.push(filaCsv([fecha(c.fecha), c.numero, c.cliente.razonSocial, c.cliente.identificacion,
+      c.estado === 'ANULADO' ? 'Anulada' : c.notaCredito ? 'Con nota de crédito' : 'Vigente',
+      c.credito ? `Crédito ${c.credito.dias} días` : 'Contado',
+      ...[t.base15, t.base0, t.descuento, t.iva, t.total].map(dinero)]));
+  }
+  // El BOM hace que Excel lea bien las tildes.
+  const blob = new Blob(['﻿' + filas.join('\r\n')], { type: 'text/csv;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `ventas-${iso(desde)}-a-${iso(hasta)}.csv`;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+}
+
+// ===========================================================================
+//  Lo que hacen los botones
+// ===========================================================================
+
+let conectado = false;
+
+const redibujar = (recado) => {
+  if (recado) dejarRecado(recado);
+  window.dispatchEvent(new CustomEvent('kontia:redibujar'));
+};
+
+const deLaDireccion = (patron) => (location.hash.match(patron) ?? [])[1];
+
+function conectarVende() {
+  const zona = document.getElementById('raiz');
+  if (!zona || conectado) return;
+  conectado = true;
+
+  zona.addEventListener('change', (ev) => {
+    if (ev.target.id === 'cobro-cliente') location.hash = `#/recibos/nuevo/${ev.target.value}`;
+  });
+
+  zona.addEventListener('submit', async (ev) => {
+    if (ev.target.id !== 'forma-cobro') return;
+    ev.preventDefault();
+    const f = new FormData(ev.target);
+    try {
+      const r = await guardar.reciboCobro({
+        clienteId: ev.target.dataset.cliente, monto: f.get('monto'), forma: f.get('forma'),
+        nota: f.get('nota'), factura: f.get('factura') || null,
+      });
+      dejarRecado({ ico: 'check_circle', titulo: 'Cobro registrado', texto: `Recibo ${r.numero} por ${usd(r.monto)}.` });
+      location.hash = `#/recibos/${r.numero}`;
+    } catch (e) {
+      const sitio = document.getElementById('recado');
+      if (sitio) sitio.innerHTML = String(aviso({ tono: 'rojo', ico: 'error', titulo: 'No se pudo guardar', texto: e.message }));
+    }
+  });
+
+  zona.addEventListener('click', async (ev) => {
+    const b = ev.target.closest('button[id]');
+    if (!b) return;
+    const empresa = await cargar.empresa();
+    const quien = empresa?.nombreComercial || empresa?.razonSocial || '';
+    try {
+      switch (b.id) {
+        case 'csv-ventas': descargarCsv(); break;
+
+        case 'pdf-proforma': case 'whatsapp-proforma': {
+          const p = await cargar.proforma(deLaDireccion(/^#\/proformas\/(PRO-\d+)/));
+          const texto = `Hola, le envío la proforma ${p.numero} de ${quien} por ${usd(p.totales.total)}, válida hasta el ${fechaLarga(p.validaHasta)}.`;
+          await mandar(b, await pdfProforma(p, empresa), `Proforma-${p.numero}.pdf`, texto, p.cliente.telefono);
+          break;
+        }
+        case 'anular-proforma': {
+          const numero = deLaDireccion(/^#\/proformas\/(PRO-\d+)/);
+          if (!window.confirm(`¿Anular la proforma ${numero}? Ya no se podrá facturar.`)) return;
+          await guardar.anularProforma(numero);
+          redibujar({ tono: 'ambar', ico: 'block', titulo: 'Proforma anulada', texto: numero });
+          break;
+        }
+
+        case 'pdf-recibo': case 'whatsapp-recibo': {
+          const r = await cargar.recibo(deLaDireccion(/^#\/recibos\/(RC-\d+)/));
+          const texto = `Hola, le confirmamos que recibimos ${usd(r.monto)} de su parte. Recibo ${r.numero} de ${quien}. ¡Gracias!`;
+          await mandar(b, await pdfRecibo(r, empresa), `Recibo-${r.numero}.pdf`, texto, r.cliente.telefono);
+          break;
+        }
+        case 'anular-recibo': {
+          const numero = deLaDireccion(/^#\/recibos\/(RC-\d+)/);
+          const motivo = window.prompt(`¿Por qué se anula el recibo ${numero}? La deuda vuelve al cliente.`);
+          if (motivo === null) return;
+          await guardar.anularRecibo(numero, motivo);
+          redibujar({ tono: 'ambar', ico: 'block', titulo: 'Recibo anulado', texto: 'La deuda volvió al estado de cuenta del cliente.' });
+          break;
+        }
+
+        case 'pdf-estado': case 'recordar-cobro': {
+          const id = deLaDireccion(/^#\/estado-cuenta\/([^/]+)/);
+          const [cliente, { comprobantes, recibos: todos }] = await Promise.all([cargar.cliente(id), lasVentas()]);
+          const ec = estadoDeCuenta(id, comprobantes, todos);
+          if (b.id === 'pdf-estado') {
+            await entregar(await pdfEstadoCuenta(cliente, ec, empresa), `Estado-de-cuenta-${cliente.identificacion}.pdf`);
+          } else {
+            const detalle = ec.pendientes.map((x) => `• Factura ${x.c.numero}: ${usd(x.saldo)}${x.atraso > 0 ? ` (vencida hace ${x.atraso} días)` : ` (vence el ${fechaLarga(x.c.credito.vence)})`}`).join('\n');
+            enviarWhatsApp(`Hola, ${cliente.razonSocial}. Le saluda ${quien}. Le recordamos su saldo pendiente de ${usd(ec.deuda)}:\n${detalle}\nGracias por su pago.`, cliente.telefono);
+          }
+          break;
+        }
+        default: return;
+      }
+    } catch (e) {
+      redibujar({ tono: 'rojo', ico: 'error', titulo: 'No se pudo completar', texto: e.message });
+    }
+  });
+}
+
+/** PDF descargado, o compartido por WhatsApp si el teléfono lo permite. */
+async function mandar(b, doc, nombre, texto, telefono) {
+  b.disabled = true;
+  try {
+    const porWhatsApp = b.id.startsWith('whatsapp');
+    const como = await entregar(doc, nombre, { compartir: porWhatsApp, texto });
+    if (porWhatsApp && como === 'descargado') enviarWhatsApp(`${texto} Le adjunto el PDF.`, telefono);
+  } finally {
+    b.disabled = false;
+  }
+}
+
+/** Barras horizontales: etiqueta, barra y valor. Se leen igual en el celular que en la computadora. */
+function barrasDeVenta(serie) {
+  const tope = Math.max(...serie.map((d) => d.valor), 0.01);
+  return html`
+    <ul class="space-y-2">
+      ${serie.map((d) => html`
+        <li class="grid grid-cols-[4.5rem_1fr_auto] items-center gap-3 text-sm">
+          <span class="text-tinta-suave tabular">${d.etiqueta}</span>
+          <span class="h-3 rounded-full bg-papel overflow-hidden">
+            <span class="block h-full rounded-full bg-verde" style="width:${Math.max(2, Math.round((d.valor / tope) * 100))}%"></span>
+          </span>
+          <b class="tabular text-right">${usd(d.valor)}</b>
+        </li>`)}
+    </ul>`;
+}
+
+// ===========================================================================
+//  Resumen del plan Vende
+// ===========================================================================
+
+/** Avisos que tienen sentido en este plan: los que llevan a una pantalla que el plan trae. */
+const RUTA_DEL_PLAN = /^#\/(resumen|comprobantes|configuracion|certificado|clientes|productos|puntos-emision)(\/|$)/;
+
+/**
+ * Lo primero que ve quien vende: cuánto vendió, cuánto le deben y qué hacer
+ * ahora. Sin libros ni declaraciones, que este plan no trae.
+ */
+async function resumenVende() {
+  const [{ comprobantes, recibos: todos }, cert, lista] = await Promise.all([
+    lasVentas(), cargar.certificado(), cargar.proformas(),
+  ]);
+  const hoy = new Date();
+  const [desde] = periodo('mes', hoy);
+  const r = reporteVentas(comprobantes, todos, desde, hoy);
+  const deudores = cartera(comprobantes, todos, hoy);
+  const porCobrar = deudores.reduce((s, x) => s + x.deuda, 0);
+  const vencido = deudores.reduce((s, x) => s + x.vencido, 0);
+  const abiertas = lista.filter((p) => estadoProforma(p) === 'VIGENTE');
+  const empresa = empresaActiva();
+  const mes = hoy.toLocaleDateString('es-EC', { month: 'long', year: 'numeric' });
+
+  const avisos = avisosDe({ empresa, certificado: cert, comprobantes })
+    .filter((a) => RUTA_DEL_PLAN.test(a.ruta ?? ''))
+    .map((a) => String(aviso({
+      tono: a.tono, ico: a.ico, titulo: a.titulo, texto: a.texto,
+      accion: crudo(`<a href="${esc(a.ruta)}" class="inline-block mt-2 text-sm font-bold underline">${esc(a.accion)}</a>`),
+    }))).join('');
+
+  const rapido = (ruta, ico, texto) => crudo(
+    `<a href="${esc(ruta)}" class="flex flex-col items-center justify-center gap-1.5 p-3 rounded-2xl bg-white border border-papel-linea relieve ` +
+    `text-center text-xs font-bold hover:text-verde hover:border-verde transition">` +
+    `<span class="w-10 h-10 rounded-xl bg-verde-claro text-verde flex items-center justify-center"><span class="ms text-[22px]">${esc(ico)}</span></span>${esc(texto)}</a>`);
+
+  const ultimas = comprobantes.filter((c) => c.tipo === 'Factura').slice(0, 5);
+
+  return html`
+    <header class="relative mb-5 rounded-2xl overflow-hidden relieve bg-[#0C3A27]">
+      <img src="imagenes/panel-empresa.webp" alt="" width="1600" height="500" class="absolute inset-0 w-full h-full object-cover">
+      <span class="absolute inset-0" style="background:linear-gradient(90deg,rgba(7,42,28,.93) 0%,rgba(12,58,39,.72) 50%,rgba(12,58,39,.12) 100%)"></span>
+      <div class="relative px-6 py-7 text-white">
+        <p class="text-[11px] font-bold uppercase tracking-[.14em] text-white/70">Plan Vende</p>
+        <h1 class="mt-1 text-2xl font-bold tracking-tight">${empresa?.nombreComercial || 'Resumen'}</h1>
+        <p class="mt-1 text-sm text-white/75">${mes.charAt(0).toUpperCase() + mes.slice(1)} · ${empresa?.razonSocial ?? ''}</p>
+      </div>
+    </header>
+
+    <div class="grid grid-cols-4 gap-2 mb-5">
+      ${rapido('#/comprobantes/nuevo', 'receipt_long', 'Facturar')}
+      ${rapido('#/proformas/nueva', 'request_page', 'Proforma')}
+      ${rapido('#/recibos/nuevo', 'payments', 'Cobrar')}
+      ${rapido('#/reporte-ventas', 'bar_chart', 'Reporte')}
+    </div>
+
+    ${crudo(avisos)}
+
+    <div class="grid gap-3 grid-cols-2 lg:grid-cols-4 mb-5">
+      ${cifra({ etiqueta: 'Vendido este mes', valor: usd(r.neto), pie: `${r.cantidad} factura${r.cantidad === 1 ? '' : 's'}` })}
+      ${cifra({ etiqueta: 'Cobrado este mes', valor: usd(r.cobrado), tono: 'text-verde', pie: 'Contado y cobros' })}
+      ${cifra({ etiqueta: 'Le deben', valor: usd(porCobrar), pie: `${deudores.length} cliente${deudores.length === 1 ? '' : 's'}` })}
+      ${cifra({ etiqueta: 'Vencido', valor: usd(vencido), tono: vencido > 0 ? 'text-rojo-texto' : '', pie: vencido > 0 ? 'Toca cobrar' : 'Nada atrasado' })}
+    </div>
+
+    <div class="grid gap-5 lg:grid-cols-2">
+      ${panel(html`<div class="p-5">
+        <div class="flex items-center justify-between mb-3">
+          <h2 class="text-sm font-bold">Quién le debe</h2>
+          <a href="#/cartera" class="text-xs font-bold text-verde hover:underline">Ver todo</a>
+        </div>
+        ${deudores.length ? html`<ul class="divide-y divide-papel-linea">
+          ${deudores.slice(0, 4).map((x) => html`
+            <li><a href="#/estado-cuenta/${x.cliente.id}" class="py-2.5 flex items-center justify-between gap-3">
+              <span class="min-w-0"><span class="block text-sm font-semibold truncate">${x.cliente.razonSocial}</span>
+                <span class="block text-[11px] ${crudo(x.maxAtraso > 0 ? 'text-rojo-texto' : 'text-tinta-suave')}">${
+                  x.maxAtraso > 0 ? `${x.maxAtraso} días de atraso` : 'Dentro del plazo'}</span></span>
+              <b class="text-sm tabular shrink-0">${usd(x.deuda)}</b>
+            </a></li>`)}
+        </ul>` : html`<p class="text-sm text-tinta-suave">Nadie le debe. Todo cobrado.</p>`}
+        ${abiertas.length ? html`<p class="mt-3 pt-3 border-t border-papel-linea text-xs text-tinta-suave">
+          ${abiertas.length} proforma${abiertas.length === 1 ? '' : 's'} esperando respuesta del cliente ·
+          <a href="#/proformas" class="font-bold text-verde hover:underline">verlas</a></p>` : ''}
+      </div>`, 'min-w-0')}
+      ${panel(html`<div class="p-5">
+        <div class="flex items-center justify-between mb-3">
+          <h2 class="text-sm font-bold">Últimas facturas</h2>
+          <a href="#/comprobantes" class="text-xs font-bold text-verde hover:underline">Ver todas</a>
+        </div>
+        <ul class="divide-y divide-papel-linea">
+          ${ultimas.map((c) => html`
+            <li><a href="#/comprobantes/${c.numero}" class="py-2.5 flex items-center justify-between gap-3">
+              <span class="min-w-0"><span class="block text-sm font-semibold tabular">${c.numero.slice(8)}</span>
+                <span class="block text-[11px] text-tinta-suave truncate">${c.cliente.razonSocial} · ${fecha(c.fecha)}</span></span>
+              <span class="text-right shrink-0"><b class="block text-sm tabular ${crudo(c.estado === 'ANULADO' ? 'line-through text-tinta-suave' : '')}">${usd(c.totales.total)}</b>
+                <span class="text-[11px] ${crudo(c.credito ? 'text-ambar-texto' : 'text-tinta-suave')}">${
+                  c.estado === 'ANULADO' ? 'Anulada' : c.credito ? `Crédito ${c.credito.dias} días` : 'Contado'}</span></span>
+            </a></li>`)}
+        </ul>
+      </div>`, 'min-w-0')}
+    </div>`;
+}
+
+
+  return { proformas, proformaFicha, carteraVende, estadoCuentaClientes, estadoCuentaCliente, recibos, reciboFicha, reciboNuevo, reporteVentasVende, conectarVende, resumenVende };
 })();
 
 // ---- src/vistas/catalogo.js --------------------------------------
@@ -11425,7 +13394,9 @@ async function configuracion() {
           </div>
           <p class="mt-4 text-[11px] text-tinta-suave leading-relaxed">
             Pasar a producción es una decisión que no se deshace: a partir de ese momento
-            cada factura emitida existe para el SRI y anularla exige una nota de crédito.
+            cada factura emitida existe para el SRI. Solo se puede anular en SRI en línea
+            hasta el día 7 del mes siguiente; después, con nota de crédito. Las de
+            consumidor final no se anulan.
           </p>
           <button disabled title="Falta un certificado de firma real y el servicio de firma conectado"
                   class="mt-3 w-full py-2.5 rounded-xl border border-papel-linea text-sm font-semibold
@@ -18132,7 +20103,8 @@ const __src_app_js = (function () {
   const { seleccionEmpresa } = __src_vistas_acceso_js;
   const { resumen } = __src_vistas_resumen_js;
   const { comprobantes, comprobante, conectarComprobante, conectarListaComprobantes } = __src_vistas_comprobantes_js;
-  const { emision, conectarEmision } = __src_vistas_emision_js;
+  const { emision, emisionProforma, facturarProforma, conectarEmision } = __src_vistas_emision_js;
+  const { proformas, proformaFicha, carteraVende, estadoCuentaClientes, estadoCuentaCliente, recibos, reciboFicha, reciboNuevo, reporteVentasVende, conectarVende, resumenVende } = __src_vistas_vende_js;
   const { clientes, productos } = __src_vistas_catalogo_js;
   const { importarClientes, importarProductos, conectarImportar } = __src_vistas_importar_js;
   const { formularioCliente, formularioProducto, formularioProveedor, conectarFormularios } = __src_vistas_formularios_js;
@@ -18200,6 +20172,7 @@ const __src_app_js = (function () {
 
 
 
+
 /**
  * La tabla de rutas.
  *
@@ -18211,10 +20184,27 @@ const __src_app_js = (function () {
 const RUTAS = [
   { patron: /^#\/empresas\/?$/, vista: seleccionEmpresa, sinMarco: true },
 
-  { patron: /^#\/resumen\/?$/, vista: resumen },
+  // El plan Vende tiene su propio resumen: ventas y cobros, sin libros ni declaraciones.
+  { patron: /^#\/resumen\/?$/, vista: () => (empresaActiva()?.plan === 'Vende' ? resumenVende() : resumen()) },
   { patron: /^#\/comprobantes\/?$/, vista: comprobantes, alDibujar: conectarListaComprobantes },
   { patron: /^#\/comprobantes\/nuevo\/?$/, vista: emision, alDibujar: conectarEmision },
   { patron: /^#\/comprobantes\/([\d-]+)\/?$/, vista: comprobante, alDibujar: conectarComprobante },
+
+  // Plan Vende. «nueva» y «nuevo» van antes que las que capturan un número.
+  { patron: /^#\/proformas\/?$/, vista: proformas },
+  { patron: /^#\/proformas\/nueva\/?$/, vista: emisionProforma, alDibujar: conectarEmision },
+  { patron: /^#\/proformas\/(PRO-\d+)\/facturar\/?$/, vista: facturarProforma, alDibujar: conectarEmision },
+  { patron: /^#\/proformas\/(PRO-\d+)\/?$/, vista: proformaFicha, alDibujar: conectarVende },
+  { patron: /^#\/cartera\/?$/, vista: carteraVende },
+  { patron: /^#\/estado-cuenta\/?$/, vista: estadoCuentaClientes },
+  { patron: /^#\/estado-cuenta\/([^/]+)\/?$/, vista: estadoCuentaCliente, alDibujar: conectarVende },
+  { patron: /^#\/recibos\/?$/, vista: recibos },
+  { patron: /^#\/recibos\/nuevo\/?$/, vista: reciboNuevo, alDibujar: conectarVende },
+  { patron: /^#\/recibos\/nuevo\/([^/]+)\/?$/, vista: reciboNuevo, alDibujar: conectarVende },
+  { patron: /^#\/recibos\/(RC-\d+)\/?$/, vista: reciboFicha, alDibujar: conectarVende },
+  { patron: /^#\/reporte-ventas\/?$/, vista: reporteVentasVende, alDibujar: conectarVende },
+  { patron: /^#\/reporte-ventas\/(hoy|semana|mes|mesAnterior|anio)\/?$/, vista: reporteVentasVende, alDibujar: conectarVende },
+
   { patron: /^#\/clientes\/?$/, vista: clientes },
   // Las rutas con nombre fijo van ANTES que la que captura cualquier cosa: si
   // `#/clientes/nuevo` cayera en la de abajo, se buscaria un cliente llamado
@@ -18305,6 +20295,16 @@ const RUTAS_DE_LIBROS = /^#\/(plan-cuentas|diario|mayor|comprobacion|resultados|
 const RUTAS_PLAN_BASICO = /^#\/(inventario|nomina|activos|anexo)(\/|$)/;
 
 /**
+ * Lo único que trae el plan Vende: vender, cobrar y mirar cómo va. Al revés que
+ * el plan Básico, aquí se dice lo que SÍ entra, porque es mucho menos que lo
+ * que queda fuera (compras, libros, declaraciones, bancos…).
+ */
+const RUTAS_PLAN_VENDE = /^#\/(resumen|comprobantes|proformas|cartera|estado-cuenta|recibos|reporte-ventas|clientes|productos|configuracion|certificado|usuarios|puntos-emision|conexion)(\/|$)/;
+
+/** Y al revés: las pantallas del plan Vende no son de los otros planes, que tienen las suyas. */
+const RUTAS_SOLO_VENDE = /^#\/(proformas|cartera|estado-cuenta|recibos|reporte-ventas)(\/|$)/;
+
+/**
  * Las pantallas de configuración de la empresa. Un facturador emite desde sus
  * puntos asignados, pero no configura: no ve puntos de emisión, certificado,
  * usuarios ni la conexión con Supabase.
@@ -18319,7 +20319,7 @@ const RUTAS_SOLO_ADMIN = /^#\/(puntos-emision|configuracion|certificado|usuarios
  * compras de una empresa real que el contador no vería desde su oficina. Se
  * dice qué falta, en lugar de simularlo.
  */
-const RUTAS_SIN_BASE = /^#\/(retenciones|notas-credito|guias|diario|mayor|comprobacion|resultados|situacion|por-cobrar|por-pagar|bancos|proveedores|buzon|compras|ingresos-gastos|inventario|nomina|activos|iva|retenciones-fuente|anexo|usuarios)(\/|$)/;
+const RUTAS_SIN_BASE = /^#\/(proformas|cartera|estado-cuenta|recibos|reporte-ventas|retenciones|notas-credito|guias|diario|mayor|comprobacion|resultados|situacion|por-cobrar|por-pagar|bancos|proveedores|buzon|compras|ingresos-gastos|inventario|nomina|activos|iva|retenciones-fuente|anexo|usuarios)(\/|$)/;
 
 const raiz = () => document.getElementById('raiz');
 const sitio = () => document.getElementById('portada');
@@ -18498,6 +20498,18 @@ async function dibujar() {
       texto: 'Factura, cuentas por cobrar y por pagar, y su registro contable ya están incluidos. ' +
              'Inventario, nómina, activos fijos y el anexo transaccional se habilitan al pasar a un ' +
              'plan mayor.',
+    });
+  } else if (!admin && opciones.empresa?.plan === 'Vende' && !RUTAS_PLAN_VENDE.test(r.ruta)) {
+    contenido = pendiente({
+      titulo: 'Esta pantalla no está en el plan Vende', ico: 'workspace_premium', etiqueta: 'Cambie de plan',
+      texto: 'El plan Vende trae facturas, proformas, cobros, estado de cuenta de cada cliente y el ' +
+             'reporte de ventas. Compras, contabilidad y declaraciones están en los planes Emprende y Empresa.',
+    });
+  } else if (!admin && opciones.empresa?.plan !== 'Vende' && RUTAS_SOLO_VENDE.test(r.ruta)) {
+    contenido = pendiente({
+      titulo: 'Esta pantalla es del plan Vende', ico: 'workspace_premium', etiqueta: 'Otro plan',
+      texto: 'Su plan lleva las cuentas por cobrar y los reportes dentro de la contabilidad: los ' +
+             'encuentra en el menú, en «Cuentas por cobrar» y en los estados financieros.',
     });
   } else if (!admin && sesion.usuario().rol !== 'Administrador' && RUTAS_SOLO_ADMIN.test(r.ruta)) {
     contenido = pendiente({
